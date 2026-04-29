@@ -12,7 +12,7 @@
 
 Die folgenden Tools MÜSSEN während der gesamten Entwicklung aktiv eingesetzt werden — sowohl in der Hauptsession als auch in Subagenten. Kein Fallback auf generische Alternativen ohne dokumentierte Begründung.
 
-**Konfigurative Durchsetzung:** Zusätzlich zu diesen Direktiven sind Filesystem-Bash-Befehle und `pwsh` **hart gesperrt** via `.claude/settings.json`. Selbst bei Nichtbeachtung dieser Regeln werden `cat`, `ls`, `grep`, `find`, `cp`, `mv`, `rm`, `pwsh` etc. vom Harness mit `Permission denied` blockiert. Siehe Sektion [Konfigurative Durchsetzung via settings.json](#konfigurative-durchsetzung-via-settingsjson) für die vollständige Liste.
+**Konvention statt Enforcement:** `.claude/settings.json` läuft im `bypassPermissions`-Modus — es gibt keine `deny`- oder `allow`-Liste auf Harness-Ebene und keinen FS MCP Server. Alle Tool-Calls sind technisch erlaubt. Die folgenden Direktiven sind reine Projekt-Konvention und MÜSSEN aus Disziplin eingehalten werden — siehe Sektion [Konvention statt Enforcement](#konvention-statt-enforcement) für Details.
 
 ### Subagenten-Policy
 
@@ -35,7 +35,7 @@ Jeder Subagent-Prompt MUSS folgende Regeln enthalten, damit der Subagent die Pro
 
 ```
 PROJEKT-STANDARDS (NICHT VERHANDELBAR):
-- Built-In Tools (Read/Edit/Write/Glob/Grep) für Filesystem-Operationen — Bash für cat/cp/mv/rm/find/grep ist via .claude/settings.json hart gesperrt
+- Built-In Tools (Read/Edit/Write/Glob/Grep) für Filesystem-Operationen — Bash für cat/cp/mv/rm/find/grep ist technisch verfügbar, aber per Konvention NICHT verwenden
 - GitHub CLI (`gh`) für mehrstufige Git-Workflows (Branch + Push + PR, Tag + Release)
 - Serena für Code-Navigation (KEIN Grep für Klassen/Methoden/Properties)
 - Context7 VOR Nutzung neuer APIs konsultieren
@@ -486,7 +486,7 @@ dotnet run --project benchmarks/<Projektname>.Benchmarks -c Release
 
 ### Filesystem-Operationen — Built-In Tools
 
-Die Claude Code Built-In Tools (`Read`, `Edit`, `Write`, `Glob`, `Grep`) sind die primären Werkzeuge für Filesystem-Operationen in diesem Projekt. Bash-Filesystem-Befehle sind via `.claude/settings.json` hart gesperrt — siehe Sektion [Konfigurative Durchsetzung via settings.json](#konfigurative-durchsetzung-via-settingsjson).
+Die Claude Code Built-In Tools (`Read`, `Edit`, `Write`, `Glob`, `Grep`) sind die primären Werkzeuge für Filesystem-Operationen in diesem Projekt. Bash-Filesystem-Befehle sind technisch verfügbar (`.claude/settings.json` läuft im `bypassPermissions`-Modus, keine `deny`-Liste), dürfen aber per Konvention nicht verwendet werden — siehe Liste unten und Sektion [Konvention statt Enforcement](#konvention-statt-enforcement).
 
 **Tool-Verwendung:**
 
@@ -500,15 +500,12 @@ Die Claude Code Built-In Tools (`Read`, `Edit`, `Write`, `Glob`, `Grep`) sind di
 
 **Bash bleibt ERLAUBT für:** `dotnet build`, `dotnet test`, `dotnet run`, `dotnet publish`, `semgrep`, `gh`, atomare Git-Befehle (`git status`, `git log`, `git diff`, `git branch`, `git remote`, `git add`, `git commit`, `git push`, `git checkout`, `git merge`, `git rebase`, `git tag`).
 
-**VERBOTEN UND HART GESPERRT (settings.json `deny`):**
-- `cat`, `head`, `tail`, `cp`, `mv`, `rm`, `find`, `grep`, `rg`, `diff`, `tar`, `du`, `stat`, `ls`, `tree`, `sort`, `uniq`, `sed`, `awk`, `wc`, `base64`, `sha256sum`, `mkdir`, `touch` — **werden vom Harness blockiert**
-- `pwsh` — **wird vom Harness blockiert**
-
-**VERBOTEN (CLAUDE.md-Direktive):**
-- **NICHT** `Grep` für Klassen/Methoden/Properties — Serena `find_symbol` nutzen
-- **NICHT** `Read` auf eine ganze Datei anwenden um ein Symbol zu finden — Serena `find_symbol` nutzen
-- **NICHT** manuell Suchen/Ersetzen für Symbol-Umbenennungen — Serena `rename_symbol` nutzen
-- **NICHT** Bash-Filesystem-Befehle nutzen — sind hart gesperrt
+**VERBOTEN per Konvention (CLAUDE.md-Direktive — kein Harness-Enforcement, reine Disziplin):**
+- Bash-Filesystem-Befehle: `cat`, `head`, `tail`, `cp`, `mv`, `rm`, `find`, `grep`, `rg`, `diff`, `tar`, `du`, `stat`, `ls`, `tree`, `sort`, `uniq`, `sed`, `awk`, `wc`, `base64`, `sha256sum`, `mkdir`, `touch`
+- `pwsh` (PowerShell wird in diesem Projekt nicht verwendet)
+- `Grep` für Klassen/Methoden/Properties — Serena `find_symbol` nutzen
+- `Read` auf eine ganze Datei nur um ein Symbol zu finden — Serena `find_symbol` nutzen
+- Manuelles Suchen/Ersetzen für Symbol-Umbenennungen — Serena `rename_symbol` nutzen
 
 ### GitHub CLI (`gh`) — Mehrstufige Git-Workflows
 
@@ -766,38 +763,29 @@ Diese Skills sind an keine Phase gebunden — sie werden **situativ** aktiviert:
 | `skill-creator`                  | Nur beim Erstellen, Bearbeiten oder Testen von Skills selbst                           |
 
 ---
-## Konfigurative Durchsetzung via settings.json
+## Konvention statt Enforcement
 
-Zusätzlich zu den CLAUDE.md-Direktiven erzwingt `.claude/settings.json` harte Sperren auf Harness-Ebene. Diese Sperren können **nicht** umgangen werden — das Harness blockiert den Aufruf mit `Permission denied` bevor er ausgeführt wird.
+`.claude/settings.json` läuft im `bypassPermissions`-Modus — es gibt **keine** `deny`-Liste, **keine** `allow`-Liste, **keinen** FS MCP Server. Alle Tool-Calls sind technisch erlaubt.
 
-**Hart gesperrt (`deny`):**
+**Konsequenz:** Die in CLAUDE.md definierten Tool-Direktiven (Built-In Tools für Filesystem, Serena für Code-Symbole, GitHub CLI für mehrstufige Git-Workflows, Semgrep vor Sprint-Abschluss, Context7 vor neuen APIs, Sequential Thinking bei Architekturentscheidungen, etc.) sind **reine Projekt-Konvention**. Sie werden NICHT vom Harness erzwungen, sondern aus Disziplin eingehalten — sowohl in der Hauptsession als auch in Subagenten.
 
-| Kategorie                      | Gesperrte Befehle                  | Stattdessen verwenden                                                                   |
-|--------------------------------|------------------------------------|-----------------------------------------------------------------------------------------|
-| **Datei lesen**                | `cat`, `head`, `tail`              | Built-In `Read`                                                                         |
-| **Datei kopieren/verschieben** | `cp`, `mv`                         | Built-In `Read` + `Write` (lesen + neu schreiben)                                       |
-| **Datei löschen**              | `rm`                               | Manuell durch User oder explizite Confirmation einholen                                 |
-| **Verzeichnis**                | `ls`, `tree`, `mkdir`, `touch`     | Built-In `Glob`; Verzeichnisse werden implizit durch `Write` erstellt                   |
-| **Suche**                      | `find`, `grep`, `rg`               | Serena `find_symbol` (Code-Symbole), Built-In `Grep`/`Glob` (Text/Dateinamen)           |
-| **Text-Verarbeitung**          | `sort`, `uniq`, `sed`, `awk`, `wc` | Built-In `Edit` für gezielte Änderungen, `Read`+`Write` für komplexere Transformationen |
-| **Archiv/Hash**                | `tar`, `base64`, `sha256sum`       | Out-of-Scope — falls nötig: User-Anfrage stellen                                        |
-| **Datei-Info**                 | `diff`, `du`, `stat`               | Built-In `Read` zum Vergleichen; Git für Diffs (`git diff`)                             |
-| **PowerShell**                 | `pwsh`                             | — (PowerShell wird in diesem Projekt nicht verwendet)                                   |
+**Was settings.json aktiv tut:**
+- `permissions.defaultMode = "bypassPermissions"` — alle Tool-Calls automatisch erlaubt
+- Worktree-Konfiguration: Symlinks für `bin`, `obj`, `.nuget`, `packages`, `TestResults`, `StrykerOutput`; Sparse-Paths für `src`, `tests`, `benchmarks`, `docs`, `.claude`, `.sprint`
+- Statusline-Hook (`statusline.sh`)
+- Hooks: `SessionStart` → sprint-health, `PostToolUse(git commit)` → sprint-gate, `PreCompact` → sprint-state-save, `PostCompact` → post-compact-reminder, `SubagentStop` → verify-after-agent, `Stop` → sprint-housekeeping-reminder
 
-**Erlaubt (`allow`):**
+**Befehle, die regelmäßig genutzt werden (kein Enforcement, nur Konvention):**
 
-| Befehl                                 | Begründung                          |
-|----------------------------------------|-------------------------------------|
-| `dotnet *`                             | Build, Test, Run, Publish           |
-| `git status*`, `git log*`, `git diff*` | Atomare Git-Informationsabfragen    |
-| `git branch*`, `git remote*`           | Branch/Remote-Informationsabfragen  |
-| `git add*`, `git commit*`, `git push*`, `git checkout*`, `git merge*`, `git rebase*`, `git tag*` | Atomare Git-Schreib-Operationen |
-| `gh *`                                 | GitHub CLI für mehrstufige Workflows |
-| `semgrep *`                            | Security-Scanning                   |
+| Befehl                                                                                         | Verwendung                                  |
+|------------------------------------------------------------------------------------------------|---------------------------------------------|
+| `dotnet build`, `dotnet test`, `dotnet run`, `dotnet publish`                                  | Build, Test, Run, Publish                   |
+| `git status`, `git log`, `git diff`, `git branch`, `git remote`                                | Atomare Git-Informationsabfragen            |
+| `git add`, `git commit`, `git push`, `git checkout`, `git merge`, `git rebase`, `git tag`      | Atomare Git-Schreib-Operationen             |
+| `gh pr create`, `gh issue create`, `gh release create`, `gh repo *`, `gh api *`                | Mehrstufige GitHub-Workflows (PFLICHT)      |
+| `semgrep scan --config auto`                                                                   | Security-Scanning                           |
 
-**Nicht konfigurierbar (Built-In Tools):** `Read`, `Write`, `Edit`, `Glob`, `Grep` sind Kern-Tools des Claude Code Harness und können NICHT via settings.json gesperrt werden. Ihre Nutzung wird ausschließlich durch die CLAUDE.md-Direktiven geregelt — siehe Sektion [Filesystem-Operationen — Built-In Tools](#filesystem-operationen--built-in-tools) für die exakten Bedingungen.
-
-**Hinweis zu Subagenten:** Subagenten erben die `deny`-Regeln der settings.json. Ein Subagent kann also ebenfalls kein `cat`, `cp`, `pwsh` etc. ausführen — die gleichen Sperren gelten.
+**Hinweis zu Subagenten:** Subagenten haben dieselben Permissions wie die Hauptsession (`bypassPermissions`). Da es keine Harness-Sperren gibt, MÜSSEN die Direktiven aus CLAUDE.md explizit im Subagent-Prompt mitgegeben werden — siehe [Subagent-Prompt-Standard](#subagent-prompt-standard).
 
 ---
 
