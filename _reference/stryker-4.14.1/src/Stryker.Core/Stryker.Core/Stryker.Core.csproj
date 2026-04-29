@@ -1,0 +1,106 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <DebugType>Full</DebugType>
+    <AssemblyName>Stryker.Core</AssemblyName>
+    <RootNamespace>Stryker.Core</RootNamespace>
+    <OutputType>Library</OutputType>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <VersionPrefix>4.14.0</VersionPrefix>
+    <VersionSuffix></VersionSuffix>
+    <PackageId>stryker</PackageId>
+    <Product>Mutation Testing</Product>
+    <Authors>Richard Werkman, Rouke Broersma</Authors>
+    <Description>All stryker mutation test logic is contained in this library. This package does not include a runner. Use this package if you want to extend stryker with your own runner.</Description>
+    <PackageProjectUrl>https://stryker-mutator.io/</PackageProjectUrl>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>stryker-80x80.png</PackageIcon>
+    <RepositoryUrl>https://github.com/stryker-mutator/stryker-net</RepositoryUrl>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Work around https://github.com/microsoft/msbuild/issues/4740 -->
+    <EmbeddedResourceUseDependentUponConvention>false</EmbeddedResourceUseDependentUponConvention>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="InjectedHelpers\MutantControl.cs" />
+    <EmbeddedResource Include="InjectedHelpers\Coverage\MutantContext.cs" />
+    <EmbeddedResource Include="Reporters\Html\Files\dist\mutation-test-elements.js" />
+    <EmbeddedResource Include="Reporters\Html\Files\mutation-report.html" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="Azure.Storage.Files.Shares" />
+    <PackageReference Include="Grynwald.MarkdownGenerator" />
+    <PackageReference Include="LibGit2Sharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" />
+    <PackageReference Include="DotNet.Glob" />
+    <PackageReference Include="Buildalyzer" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.TestPlatform" />
+    <PackageReference Include="Microsoft.TestPlatform.ObjectModel" />
+    <PackageReference Include="Microsoft.TestPlatform.Portable" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.TestPlatform.TranslationLayer" />
+    <PackageReference Include="Microsoft.Web.LibraryManager.Build" />
+    <PackageReference Include="Mono.Cecil" />
+    <PackageReference Include="NuGet.Frameworks" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Logging" />
+    <PackageReference Include="Serilog.Extensions.Logging.File" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="ShellProgressBar" />
+    <PackageReference Include="Spectre.Console" />
+    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
+  </ItemGroup>
+
+  <!--This avoids conflict with System.Text.RegularExpression-->
+  <ItemGroup>
+    <PackageReference Include="Stryker.Regex.Parser" Aliases="StrykerRegexParser" />
+  </ItemGroup>
+
+   <!--Analyzers-->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Spectre.Console.Analyzer">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\..\LICENSE" Pack="true" PackagePath="" Visible="false" />
+    <None Include="..\..\..\README.md" Pack="true" PackagePath="" Visible="false" />
+    <None Include="..\..\..\docs\images\stryker-80x80.png" Pack="true" PackagePath="" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="InjectedHelpers\Coverage\MutantContext.cs" />
+    <Compile Remove="InjectedHelpers\MutantControl.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Stryker.Core.csproj.DotSettings" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Stryker.Abstractions\Stryker.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Stryker.Configuration\Stryker.Configuration.csproj" />
+    <ProjectReference Include="..\..\Stryker.RegexMutators\Stryker.RegexMutators\Stryker.RegexMutators.csproj" />
+    <ProjectReference Include="..\..\Stryker.Solutions\Stryker.Solutions.csproj" />
+    <ProjectReference Include="..\..\Stryker.TestRunner.VsTest\Stryker.TestRunner.VsTest.csproj" />
+    <ProjectReference Include="..\..\Stryker.TestRunner.MicrosoftTestPlatform\Stryker.TestRunner.MicrosoftTestPlatform.csproj" />
+    <ProjectReference Include="..\..\Stryker.Utilities\Stryker.Utilities.csproj" />
+  </ItemGroup>
+</Project>

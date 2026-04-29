@@ -1,0 +1,65 @@
+name: integration test
+run-name: e2e ${{ github.head_ref }}
+
+on: [pull_request]
+
+jobs:
+  integration-test:
+    if: github.event.pull_request.draft == false
+    strategy:
+      fail-fast: false
+      matrix:
+        agent: [ubuntu-latest, windows-latest, macos-latest]
+        category: [InitCommand, SingleTestProject, MultipleTestProjects, Solution, MSTestMTP, XUnitMTP, NUnitMTP, TUnit, MTPSolution, WebApiWithOpenApi]
+        runtime: [netcore, netframework]
+        exclude:
+          - runtime: netframework
+            agent: ubuntu-latest
+          - runtime: netframework
+            agent: macos-latest
+          - runtime: netframework
+            category: InitCommand
+          - runtime: netframework
+            category: MultipleTestProjects
+          - runtime: netframework
+            category: MSTestMTP
+          - runtime: netframework
+            category: XUnitMTP
+          - runtime: netframework
+            category: NUnitMTP
+          - runtime: netframework
+            category: TUnit
+          - runtime: netframework
+            category: MTPSolution
+          - runtime: netframework
+            category: WebApiWithOpenApi
+    runs-on: ${{ matrix.agent }}
+    env:
+      CATEGORY: ${{ matrix.category }}
+      RUNTIME: ${{ matrix.runtime }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.x
+            10.x
+      - name: Run integration tests
+        shell: pwsh
+        run: ./integration-tests.ps1
+
+  # Fan-in job that depends on all matrix combinations
+  # This job can be used as a single required check in PR rules
+  integration-test-complete:
+    name: Integration Tests Complete
+    runs-on: ubuntu-latest
+    needs: integration-test
+    if: always()
+    steps:
+      - name: Check integration test results
+        run: |
+          if [ "${{ needs.integration-test.result }}" != "success" ]; then
+            echo "Integration tests failed or were cancelled"
+            exit 1
+          fi
+          echo "All integration tests passed successfully"

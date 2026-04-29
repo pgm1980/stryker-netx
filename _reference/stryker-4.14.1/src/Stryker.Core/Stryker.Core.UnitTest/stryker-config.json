@@ -1,0 +1,12 @@
+{
+  "stryker-config": {
+    "project": "Stryker.Core",
+    "mutate": [
+      "!Testing/**",
+      "!Logging/**"
+    ],
+    "project-info": {
+      "module": "core"
+    }
+  }
+}
