@@ -1,0 +1,85 @@
+# =====================================================================
+# stryker-netx — .gitignore
+# =====================================================================
+
+# .NET Build-Artefakte
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Pp]ublish/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# .NET Tooling
+.vs/
+*.binlog
+*.tlog
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# Coverage
+coverage.*.xml
+coverage.*.json
+coverage.*.info
+*.coverage
+*.coveragexml
+.coverage*
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+
+# JetBrains Rider / ReSharper
+.idea/
+*.DotSettings.user
+
+# VS Code (lokale workspace settings; .vscode/ in subprojects bleibt erhalten)
+/.vscode/
+
+# Editor-Temp
+*.swp
+*.bak
+*.orig
+*~
+*.tmp
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Claude Code — lokale Permissions (NICHT committen)
+.claude/settings.local.json
+
+# Serena — Cache
+.serena/cache/
+.serena/memory/
+
+# Logs
+*.log
+logs/
+
+# Secrets (Defense-in-Depth — sollten ohnehin nie im Repo landen)
+*.pfx
+*.snk
+.env
+.env.local
+secrets.json
+appsettings.Development.json
+appsettings.Local.json
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+!**/packages/build/
+*.nuget.props
+*.nuget.targets

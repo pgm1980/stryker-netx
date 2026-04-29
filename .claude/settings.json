@@ -1,0 +1,101 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions"
+  },
+  "worktree": {
+    "symlinkDirectories": [
+      "bin",
+      "obj",
+      ".nuget",
+      "packages",
+      "TestResults",
+      "StrykerOutput"
+    ],
+    "sparsePaths": [
+      "src",
+      "tests",
+      "benchmarks",
+      "docs",
+      ".claude",
+      ".sprint"
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash .claude/hooks/statusline.sh"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/sprint-health.sh",
+            "timeout": 15,
+            "statusMessage": "Checking sprint status..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/sprint-gate.sh",
+            "timeout": 20,
+            "statusMessage": "Checking sprint housekeeping..."
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/sprint-state-save.sh",
+            "timeout": 15,
+            "statusMessage": "Saving sprint state..."
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-compact-reminder.sh",
+            "timeout": 10,
+            "statusMessage": "Refreshing CLAUDE.md directives..."
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/verify-after-agent.sh",
+            "timeout": 120,
+            "statusMessage": "Verifying agent results (dotnet build + test + semgrep)..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/sprint-housekeeping-reminder.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+<Project>
+  <!-- Analyzers -->
+  <ItemGroup>
+    <!-- Roslynator -->
+    <PackageReference Include="Roslynator.Analyzers" Version="4.15.0" PrivateAssets="all" />
+    <!-- Sonar -->
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.20.0.135146" PrivateAssets="all" />
+    <!-- Meziantou -->
+    <PackageReference Include="Meziantou.Analyzer" Version="3.0.22" PrivateAssets="all" />
+  </ItemGroup>
+  <!-- Alle Analyzer-Warnungen als Fehler behandeln (strenger Modus) -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>
