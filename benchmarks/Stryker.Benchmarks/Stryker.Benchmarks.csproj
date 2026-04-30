@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.Benchmarks - Phase 7 (Sprint 1 DoD).
+    BenchmarkDotNet baselines for >=3 hot paths.
+    Run with: dotnet run (project benchmarks/Stryker.Benchmarks) (-c Release)
+    Debug-mode runs are blocked by BenchmarkDotNet itself.
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.Benchmarks</AssemblyName>
+    <RootNamespace>Stryker.Benchmarks</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+
+  <ItemGroup Label="Project references — measured production modules">
+    <ProjectReference Include="..\..\src\Stryker.Abstractions\Stryker.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.RegexMutators\Stryker.RegexMutators.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Utilities\Stryker.Utilities.csproj" />
+  </ItemGroup>
+
+</Project>

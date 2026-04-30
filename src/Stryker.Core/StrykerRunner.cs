@@ -82,12 +82,17 @@ public class StrykerRunner : IStrykerRunner
             return await ExecuteMutationTestAsync(options, rootComponent, combinedTestProjectsInfo, reporters, mutantsNotRun).ConfigureAwait(false);
         }
 #if !DEBUG
+        // S2139: log-and-rethrow is intentional here — in non-DEBUG builds the user sees a
+        // contextual log entry on the console while still letting the exception propagate to
+        // produce a non-zero exit code. In DEBUG builds the catch is omitted so the debugger
+        // breaks at the throw site. Matches upstream Stryker.NET 4.14.1 behaviour exactly.
+#pragma warning disable S2139
         catch (Exception ex) when (!(ex is InputException))
-        // let the exception be caught by the debugger when in debug
         {
             _logger.LogError(ex, "An error occurred during the mutation test run ");
             throw;
         }
+#pragma warning restore S2139
 
 #endif
         finally

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Sample.Library - Phase 7 (Sprint 1 DoD).
+    Minimal target library used for the dotnet-stryker-netx CLI smoke-test.
+    Contains arithmetic and string operations that produce typical Stryker mutations.
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Sample.Library</AssemblyName>
+    <RootNamespace>Sample.Library</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.Architecture.Tests — Phase 7 (Sprint 1 DoD).
+    Architecture-rule tests (ArchUnitNET) + property-based tests (FsCheck).
+    Enforces the layering documented in ADR-011 (PILOT + DAG-LAYER-PARALLEL):
+      Layer 0 — Stryker.Abstractions, Stryker.Utilities, Stryker.DataCollector
+      Layer 1 — Stryker.Configuration, Stryker.RegexMutators, Stryker.Solutions, Stryker.TestRunner
+      Layer 2 — Stryker.TestRunner.MicrosoftTestPlatform, Stryker.TestRunner.VsTest
+      Layer 3 — Stryker.Core
+      Layer 4 — Stryker.CLI
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.Architecture.Tests</AssemblyName>
+    <RootNamespace>Stryker.Architecture.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup Label="Test stack (ADR-005)">
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="TngTech.ArchUnitNET.xUnit" />
+    <PackageReference Include="FsCheck.Xunit" />
+  </ItemGroup>
+
+  <ItemGroup Label="Project references — all production modules to load into ArchUnit">
+    <ProjectReference Include="..\..\src\Stryker.Abstractions\Stryker.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.CLI\Stryker.CLI.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Configuration\Stryker.Configuration.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Core\Stryker.Core.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.RegexMutators\Stryker.RegexMutators.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Solutions\Stryker.Solutions.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.TestRunner\Stryker.TestRunner.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.TestRunner.MicrosoftTestPlatform\Stryker.TestRunner.MicrosoftTestPlatform.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.TestRunner.VsTest\Stryker.TestRunner.VsTest.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Utilities\Stryker.Utilities.csproj" />
+  </ItemGroup>
+
+</Project>

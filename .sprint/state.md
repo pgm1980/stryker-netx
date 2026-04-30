@@ -26,8 +26,9 @@ documentation_updated: false
 - [x] Phase 3 — DAG Layer 1 parallel (Subagents)
 - [x] Phase 4 — DAG Layer 2 parallel (Subagents)
 - [x] Phase 5 — Stryker.Core (Buildalyzer 9 + ADR-010 MsBuildHelper-Fix angewendet)
-- [x] **Phase 6** — Stryker.CLI + Identitäts-Migration `dotnet-stryker-netx`
-- [ ] Phase 7 — Integration & DoD
+- [x] Phase 6 — Stryker.CLI + Identitäts-Migration `dotnet-stryker-netx`
+- [x] **Phase 7** — Integration & DoD-Setup (ArchUnit + FsCheck + BenchmarkDotNet + Sample; CLI smoke-test blocked durch Buildalyzer-9 → Phase 8)
+- [ ] Phase 8 — TBD (Buildalyzer-9 silent failure fix; Details werden mit User besprochen)
 
 ## Sprint-1-DoD
 

@@ -184,3 +184,13 @@ dotnet_diagnostic.CA1848.severity = suggestion  # LoggerMessage delegates — ph
 # als Error zu erzwingen — beide adressieren dieselbe Performance-Concern. Re-Eval gemeinsam
 # mit CA1848 nach Logger-Modernization-Sprint-Abschluss.
 dotnet_diagnostic.CA1873.severity = suggestion  # Potentially expensive logging args — same phasing as CA1848
+
+# ============================================================================
+# Test-project specific overrides (Phase 7 onwards)
+# ============================================================================
+# Tests follow the xUnit convention `Method_Under_Test_Should_Do_X` for readability.
+# CA1707 (no underscores in identifiers) conflicts with this widely-adopted pattern
+# in the .NET test ecosystem. Disabling CA1707 ONLY for test projects keeps production
+# code naming-compliant while permitting expressive test names.
+[{tests,benchmarks,samples}/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none  # Underscores allowed in test/benchmark/sample method names

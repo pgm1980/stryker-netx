@@ -1,0 +1,20 @@
+{
+  "stryker-config": {
+    "project": "Sample.Library.csproj",
+    "test-projects": [
+      "../Sample.Tests/Sample.Tests.csproj"
+    ],
+    "reporters": [
+      "Progress",
+      "Html",
+      "ClearText"
+    ],
+    "thresholds": {
+      "high": 80,
+      "low": 60,
+      "break": 0
+    },
+    "mutation-level": "Standard",
+    "language-version": "Latest"
+  }
+}

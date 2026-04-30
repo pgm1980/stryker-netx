@@ -1,0 +1,26 @@
+<Project>
+
+  <!--
+    samples/Directory.Build.props - intentionally minimal.
+    Sample projects exist only as mutation-test fixtures for the dotnet-stryker-netx
+    smoke-test (Phase 7 DoD). They should NOT inherit the production Directory.Build.props
+    (TWAE + Roslynator + SonarAnalyzer + Meziantou + central package management),
+    because:
+      - The sample target-library deliberately exposes simple binary operators that
+        Stryker mutates (Calculator.Add etc.); applying production analyzers would
+        create build noise unrelated to the smoke-test.
+      - Buildalyzer's design-time analysis used by Stryker does not always cope with
+        TWAE + heavy analyzer pipelines; isolating the samples removes that noise.
+      - The samples are NOT part of the published stryker-netx package metadata
+        (no PackageId/Authors/License inheritance needed).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+</Project>
