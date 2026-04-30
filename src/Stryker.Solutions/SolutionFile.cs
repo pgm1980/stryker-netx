@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.IO;
 using Microsoft.VisualStudio.SolutionPersistence.Model;
 using Microsoft.VisualStudio.SolutionPersistence.Serializer;
 
@@ -194,6 +195,11 @@ public class SolutionFile
     {
         // extract needed information
         var result = new SolutionFile { FileName = solutionPath };
+        // Project paths in the .sln/.slnx model are stored relative to the solution
+        // file. Buildalyzer needs absolute paths (it treats relative paths against
+        // its current working directory, which yields the wrong project file when
+        // the CLI is invoked from a non-solution directory). Resolve once here.
+        var solutionDirectory = Path.GetDirectoryName(Path.GetFullPath(solutionPath)) ?? string.Empty;
         foreach (var buildType in solution.BuildTypes)
         {
             foreach (var solutionPlatform in solution.Platforms)
@@ -208,7 +214,10 @@ public class SolutionFile
                         continue;
                     }
 
-                    projects[solutionProject.FilePath] = (projectBuildType, projectPlatform);
+                    var absoluteProjectPath = Path.IsPathRooted(solutionProject.FilePath)
+                        ? solutionProject.FilePath
+                        : Path.GetFullPath(Path.Combine(solutionDirectory, solutionProject.FilePath));
+                    projects[absoluteProjectPath] = (projectBuildType, projectPlatform);
                 }
                 if (projects.Count == 0)
                 {

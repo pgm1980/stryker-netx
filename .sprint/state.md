@@ -4,12 +4,12 @@ sprint_goal: "Mega-Sprint: Bootstrap + Cleanup + Test-Stack-Migration für alle 
 branch: "feature/1-bootstrap-and-cleanup"
 started_at: "2026-04-30"
 housekeeping_done: false
-memory_updated: false
+memory_updated: true
 github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: false
-tests_passed: false
-documentation_updated: false
+semgrep_passed: true
+tests_passed: true
+documentation_updated: true
 ---
 
 # Sprint 1 — Mega-Sprint Bootstrap + Cleanup + Test-Stack-Migration
@@ -27,8 +27,9 @@ documentation_updated: false
 - [x] Phase 4 — DAG Layer 2 parallel (Subagents)
 - [x] Phase 5 — Stryker.Core (Buildalyzer 9 + ADR-010 MsBuildHelper-Fix angewendet)
 - [x] Phase 6 — Stryker.CLI + Identitäts-Migration `dotnet-stryker-netx`
-- [x] **Phase 7** — Integration & DoD-Setup (ArchUnit + FsCheck + BenchmarkDotNet + Sample; CLI smoke-test blocked durch Buildalyzer-9 → Phase 8)
-- [ ] Phase 8 — TBD (Buildalyzer-9 silent failure fix; Details werden mit User besprochen)
+- [x] Phase 7 — Integration & DoD-Setup (ArchUnit + FsCheck + BenchmarkDotNet + Sample; CLI smoke-test blocked durch Buildalyzer-9 → Phase 8)
+- [x] Phase 8 — Buildalyzer-9 silent-failure Fix + End-to-End Mutation-Run (17 tests, 5/5 mutants killed, 100% score)
+- [ ] **Phase 9** — TBD (originally-planned Phase-8-Inhalt; User detailliert nach Phase 8)
 
 ## Sprint-1-DoD
 

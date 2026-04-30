@@ -30,29 +30,33 @@ public static class FileConfigReader
 
     private static void ApplyTopLevelInputs(FileBasedInput config, IStrykerInputs inputs)
     {
-        // As json values are first in line we can just overwrite all supplied inputs
+        // As json values are first in line we can just overwrite all supplied inputs.
+        // For nullable string / collection properties: ONLY forward when the JSON
+        // actually contained the key. Forwarding string.Empty / Array.Empty would
+        // defeat the per-input null-fallback to Default and cause the validation
+        // guards to fire ("incorrect option (<empty>)").
         inputs.ConcurrencyInput.SuppliedInput = config.Concurrency;
-        inputs.CoverageAnalysisInput.SuppliedInput = config.CoverageAnalysis ?? string.Empty;
         inputs.DisableBailInput.SuppliedInput = config.DisableBail;
         inputs.DisableMixMutantsInput.SuppliedInput = config.DisableMixMutants;
         inputs.AdditionalTimeoutInput.SuppliedInput = config.AdditionalTimeout;
-        inputs.MutateInput.SuppliedInput = config.Mutate ?? Array.Empty<string>();
-        inputs.MutationLevelInput.SuppliedInput = config.MutationLevel ?? string.Empty;
-        inputs.ReportersInput.SuppliedInput = config.Reporters ?? Array.Empty<string>();
-        inputs.SolutionInput.SuppliedInput = config.Solution ?? string.Empty;
-        inputs.ConfigurationInput.SuppliedInput = config.Configuration ?? string.Empty;
-        inputs.TargetFrameworkInput.SuppliedInput = config.TargetFramework ?? string.Empty;
-        inputs.SourceProjectNameInput.SuppliedInput = config.Project ?? string.Empty;
-        inputs.VerbosityInput.SuppliedInput = config.Verbosity ?? string.Empty;
-        inputs.LanguageVersionInput.SuppliedInput = config.LanguageVersion ?? string.Empty;
-        inputs.TestProjectsInput.SuppliedInput = config.TestProjects ?? Array.Empty<string>();
-        inputs.TestCaseFilterInput.SuppliedInput = config.TestCaseFilter ?? string.Empty;
-        inputs.TestRunnerInput.SuppliedInput = config.TestRunner ?? string.Empty;
-        inputs.DashboardUrlInput.SuppliedInput = config.DashboardUrl ?? string.Empty;
-        inputs.IgnoreMutationsInput.SuppliedInput = config.IgnoreMutations ?? Array.Empty<string>();
-        inputs.IgnoredMethodsInput.SuppliedInput = config.IgnoreMethods ?? Array.Empty<string>();
-        inputs.ReportFileNameInput.SuppliedInput = config.ReportFileName ?? string.Empty;
         inputs.BreakOnInitialTestFailureInput.SuppliedInput = config.BreakOnInitialTestFailure;
+        if (config.CoverageAnalysis is { } coverageAnalysis) { inputs.CoverageAnalysisInput.SuppliedInput = coverageAnalysis; }
+        if (config.Mutate is { } mutate) { inputs.MutateInput.SuppliedInput = mutate; }
+        if (config.MutationLevel is { } mutationLevel) { inputs.MutationLevelInput.SuppliedInput = mutationLevel; }
+        if (config.Reporters is { } reporters) { inputs.ReportersInput.SuppliedInput = reporters; }
+        if (config.Solution is { } solution) { inputs.SolutionInput.SuppliedInput = solution; }
+        if (config.Configuration is { } configuration) { inputs.ConfigurationInput.SuppliedInput = configuration; }
+        if (config.TargetFramework is { } targetFramework) { inputs.TargetFrameworkInput.SuppliedInput = targetFramework; }
+        if (config.Project is { } project) { inputs.SourceProjectNameInput.SuppliedInput = project; }
+        if (config.Verbosity is { } verbosity) { inputs.VerbosityInput.SuppliedInput = verbosity; }
+        if (config.LanguageVersion is { } languageVersion) { inputs.LanguageVersionInput.SuppliedInput = languageVersion; }
+        if (config.TestProjects is { } testProjects) { inputs.TestProjectsInput.SuppliedInput = testProjects; }
+        if (config.TestCaseFilter is { } testCaseFilter) { inputs.TestCaseFilterInput.SuppliedInput = testCaseFilter; }
+        if (config.TestRunner is { } testRunner) { inputs.TestRunnerInput.SuppliedInput = testRunner; }
+        if (config.DashboardUrl is { } dashboardUrl) { inputs.DashboardUrlInput.SuppliedInput = dashboardUrl; }
+        if (config.IgnoreMutations is { } ignoreMutations) { inputs.IgnoreMutationsInput.SuppliedInput = ignoreMutations; }
+        if (config.IgnoreMethods is { } ignoreMethods) { inputs.IgnoredMethodsInput.SuppliedInput = ignoreMethods; }
+        if (config.ReportFileName is { } reportFileName) { inputs.ReportFileNameInput.SuppliedInput = reportFileName; }
     }
 
     private static void ApplySinceInputs(FileBasedInput config, IStrykerInputs inputs)
@@ -64,8 +68,8 @@ public static class FileConfigReader
 
         // Since is implicitly enabled when the object exists in the file config
         inputs.SinceInput.SuppliedInput = config.Since.Enabled ?? true;
-        inputs.SinceTargetInput.SuppliedInput = config.Since.Target ?? string.Empty;
-        inputs.DiffIgnoreChangesInput.SuppliedInput = config.Since.IgnoreChangesIn ?? Array.Empty<string>();
+        if (config.Since.Target is { } sinceTarget) { inputs.SinceTargetInput.SuppliedInput = sinceTarget; }
+        if (config.Since.IgnoreChangesIn is { } ignoreChangesIn) { inputs.DiffIgnoreChangesInput.SuppliedInput = ignoreChangesIn; }
     }
 
     private static void ApplyBaselineInputs(FileBasedInput config, IStrykerInputs inputs)
@@ -77,19 +81,19 @@ public static class FileConfigReader
 
         // Baseline is implicitly enabled when the object exists in the file config
         inputs.WithBaselineInput.SuppliedInput = config.Baseline.Enabled ?? true;
-        inputs.BaselineProviderInput.SuppliedInput = config.Baseline.Provider ?? string.Empty;
-        inputs.FallbackVersionInput.SuppliedInput = config.Baseline.FallbackVersion ?? string.Empty;
-        inputs.AzureFileStorageUrlInput.SuppliedInput = config.Baseline.AzureFileShareUrl ?? string.Empty;
-        inputs.S3BucketNameInput.SuppliedInput = config.Baseline.S3BucketName ?? string.Empty;
-        inputs.S3EndpointInput.SuppliedInput = config.Baseline.S3Endpoint ?? string.Empty;
-        inputs.S3RegionInput.SuppliedInput = config.Baseline.S3Region ?? string.Empty;
+        if (config.Baseline.Provider is { } provider) { inputs.BaselineProviderInput.SuppliedInput = provider; }
+        if (config.Baseline.FallbackVersion is { } fallbackVersion) { inputs.FallbackVersionInput.SuppliedInput = fallbackVersion; }
+        if (config.Baseline.AzureFileShareUrl is { } azureUrl) { inputs.AzureFileStorageUrlInput.SuppliedInput = azureUrl; }
+        if (config.Baseline.S3BucketName is { } s3BucketName) { inputs.S3BucketNameInput.SuppliedInput = s3BucketName; }
+        if (config.Baseline.S3Endpoint is { } s3Endpoint) { inputs.S3EndpointInput.SuppliedInput = s3Endpoint; }
+        if (config.Baseline.S3Region is { } s3Region) { inputs.S3RegionInput.SuppliedInput = s3Region; }
     }
 
     private static void ApplyProjectInfoInputs(FileBasedInput config, IStrykerInputs inputs)
     {
-        inputs.ProjectNameInput.SuppliedInput = config.ProjectInfo?.Name ?? string.Empty;
-        inputs.ModuleNameInput.SuppliedInput = config.ProjectInfo?.Module ?? string.Empty;
-        inputs.ProjectVersionInput.SuppliedInput = config.ProjectInfo?.Version ?? string.Empty;
+        if (config.ProjectInfo?.Name is { } projectName) { inputs.ProjectNameInput.SuppliedInput = projectName; }
+        if (config.ProjectInfo?.Module is { } moduleName) { inputs.ModuleNameInput.SuppliedInput = moduleName; }
+        if (config.ProjectInfo?.Version is { } projectVersion) { inputs.ProjectVersionInput.SuppliedInput = projectVersion; }
     }
 
     private static void ApplyThresholdInputs(FileBasedInput config, IStrykerInputs inputs)

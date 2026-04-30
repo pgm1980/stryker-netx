@@ -137,7 +137,18 @@ public class CommandLineConfigReader
 
     private static void HandleNoValue(IInput<bool?> strykerInput) => strykerInput.SuppliedInput = true;
 
-    private static void HandleSingleStringValue(CommandOption cliInput, IInput<string> strykerInput) => strykerInput.SuppliedInput = cliInput.Value() ?? string.Empty;
+    private static void HandleSingleStringValue(CommandOption cliInput, IInput<string> strykerInput)
+    {
+        // Only forward an actual user-supplied value. An unset option must leave
+        // SuppliedInput at its default (null) so Input<T>.Validate falls back to
+        // the configured Default. Forwarding string.Empty here would defeat that
+        // fallback and trip the per-input "incorrect option (<empty>)" guards.
+        var value = cliInput.Value();
+        if (value is not null)
+        {
+            strykerInput.SuppliedInput = value;
+        }
+    }
 
     private static void HandleSingleIntValue(CommandOption cliInput, IInput<int?> strykerInput)
     {
@@ -158,22 +169,42 @@ public class CommandLineConfigReader
             // handle single or no value inputs
             case SinceInput sinceInput:
                 sinceInput.SuppliedInput = true;
-                inputs.SinceTargetInput.SuppliedInput = cliInput.Value() ?? string.Empty;
+                if (cliInput.Value() is { } sinceTarget)
+                {
+                    inputs.SinceTargetInput.SuppliedInput = sinceTarget;
+                }
                 break;
 
             case WithBaselineInput withBaselineInput:
                 withBaselineInput.SuppliedInput = true;
-                inputs.SinceTargetInput.SuppliedInput = cliInput.Value() ?? string.Empty;
+                if (cliInput.Value() is { } baselineTarget)
+                {
+                    inputs.SinceTargetInput.SuppliedInput = baselineTarget;
+                }
                 break;
 
             case OpenReportInput openReportInput:
-                openReportInput.SuppliedInput = cliInput.Value() ?? string.Empty;
+                if (cliInput.Value() is { } openReport)
+                {
+                    openReportInput.SuppliedInput = openReport;
+                }
                 inputs.OpenReportEnabledInput.SuppliedInput = true;
                 break;
         }
     }
 
-    private static void HandleMultiValue(CommandOption cliInput, IInput<IEnumerable<string>> strykerInput) => strykerInput.SuppliedInput = cliInput.Values.Select(v => v ?? string.Empty).ToList();
+    private static void HandleMultiValue(CommandOption cliInput, IInput<IEnumerable<string>> strykerInput)
+    {
+        // Only forward when the option was actually supplied; otherwise leave the
+        // SuppliedInput collection at its default null so Input.Validate falls back
+        // to the configured Default. Filtering null entries inside .Values guards
+        // against spurious null tokens from McMaster's parser.
+        if (cliInput.Values.Count == 0)
+        {
+            return;
+        }
+        strykerInput.SuppliedInput = cliInput.Values.Where(v => v is not null).Select(v => v!).ToList();
+    }
 
     private IInput? GetStrykerInput(CommandOption cliInput) => cliInput.LongName is null ? null : _cliInputs[cliInput.LongName].Input;
 
