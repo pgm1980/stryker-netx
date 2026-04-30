@@ -7,7 +7,11 @@ namespace Stryker.CLI;
 
 public static class FileConfigGenerator
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        WriteIndented = true,
+        TypeInfoResolver = FileConfigSerializerContext.Default
+    };
 
     public static string GenerateConfigAsync(IStrykerInputs inputs)
     {

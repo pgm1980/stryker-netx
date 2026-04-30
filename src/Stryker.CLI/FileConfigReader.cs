@@ -15,7 +15,11 @@ namespace Stryker.CLI;
 
 public static class FileConfigReader
 {
-    private static readonly JsonSerializerOptions DeserializeJsonOptions = new() { ReadCommentHandling = JsonCommentHandling.Skip };
+    private static readonly JsonSerializerOptions DeserializeJsonOptions = new()
+    {
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        TypeInfoResolver = FileConfigSerializerContext.Default
+    };
 
     public static void DeserializeConfig(string configFilePath, IStrykerInputs inputs)
     {

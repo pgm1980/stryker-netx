@@ -6,6 +6,11 @@ namespace Stryker.CLI;
 
 public class Baseline : IExtraData
 {
+    // See ProjectInfo: explicit parameterless ctor required for source-gen +
+    // [JsonExtensionData] interaction.
+    [JsonConstructor]
+    public Baseline() { }
+
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; init; }
 
@@ -28,5 +33,5 @@ public class Baseline : IExtraData
     public string? FallbackVersion { get; init; }
 
     [JsonExtensionData]
-    public IDictionary<string, JsonElement>? ExtraData { get; init; }
+    public IDictionary<string, JsonElement>? ExtraData { get; set; }
 }

@@ -6,6 +6,11 @@ namespace Stryker.CLI;
 
 public class FileBasedInput : IExtraData
 {
+    // See ProjectInfo: explicit parameterless ctor required for source-gen +
+    // [JsonExtensionData] interaction.
+    [JsonConstructor]
+    public FileBasedInput() { }
+
     [JsonPropertyName("project-info")]
     public ProjectInfo? ProjectInfo { get; init; }
 
@@ -85,5 +90,5 @@ public class FileBasedInput : IExtraData
     public bool? BreakOnInitialTestFailure { get; init; }
 
     [JsonExtensionData]
-    public IDictionary<string, JsonElement>? ExtraData { get; init; }
+    public IDictionary<string, JsonElement>? ExtraData { get; set; }
 }

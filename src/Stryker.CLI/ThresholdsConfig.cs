@@ -6,6 +6,11 @@ namespace Stryker.CLI;
 
 public class ThresholdsConfig : IExtraData
 {
+    // See ProjectInfo: explicit parameterless ctor required for source-gen +
+    // [JsonExtensionData] interaction.
+    [JsonConstructor]
+    public ThresholdsConfig() { }
+
     [JsonPropertyName("high")]
     public int? High { get; init; }
 
@@ -16,5 +21,5 @@ public class ThresholdsConfig : IExtraData
     public int? Break { get; init; }
 
     [JsonExtensionData]
-    public IDictionary<string, JsonElement>? ExtraData { get; init; }
+    public IDictionary<string, JsonElement>? ExtraData { get; set; }
 }
