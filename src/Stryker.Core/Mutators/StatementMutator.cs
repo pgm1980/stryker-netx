@@ -8,6 +8,8 @@ using Stryker.Abstractions;
 
 namespace Stryker.Core.Mutators;
 
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public class StatementMutator : MutatorBase<StatementSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Standard;

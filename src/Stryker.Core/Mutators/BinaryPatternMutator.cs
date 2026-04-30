@@ -7,6 +7,8 @@ using Stryker.Core.Helpers;
 
 namespace Stryker.Core.Mutators;
 
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public class BinaryPatternMutator : MutatorBase<BinaryPatternSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Basic;

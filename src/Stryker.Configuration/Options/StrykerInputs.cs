@@ -26,6 +26,8 @@ public class StrykerInputs : IStrykerInputs
     public VerbosityInput VerbosityInput { get; init; } = new();
     public LogToFileInput LogToFileInput { get; init; } = new();
     public MutationLevelInput MutationLevelInput { get; init; } = new();
+    /// <summary>v2.0.0 (ADR-018): mutation profile selector (Defaults / Stronger / All).</summary>
+    public MutationProfileInput MutationProfileInput { get; init; } = new();
     public ThresholdBreakInput ThresholdBreakInput { get; init; } = new();
     public ThresholdHighInput ThresholdHighInput { get; init; } = new();
     public ThresholdLowInput ThresholdLowInput { get; init; } = new();
@@ -109,6 +111,7 @@ public class StrykerInputs : IStrykerInputs
             ReportFileName = ReportFileNameInput.Validate(),
             Concurrency = ConcurrencyInput.Validate(),
             MutationLevel = MutationLevelInput.Validate(),
+            MutationProfile = MutationProfileInput.Validate(),
             DiagMode = DiagModeInput.Validate(),
             MsBuildPath = MsBuildPathInput.Validate(_fileSystem),
             SolutionPath = SolutionInput.Validate(basePath, _fileSystem),

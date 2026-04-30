@@ -35,7 +35,11 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
     public CsharpMutantOrchestrator(MutantPlacer placer, IEnumerable<IMutator>? mutators = null, IStrykerOptions? options = null) : base(options)
     {
         Placer = placer;
-        Mutators = mutators ?? DefaultMutatorList();
+        // Sprint 6 (ADR-018): filter mutators by the active MutationProfile.
+        // Mutators carry [MutationProfileMembership(...)]; absent attribute means "all profiles".
+        var activeProfile = options?.MutationProfile ?? MutationProfile.Defaults;
+        Mutators = [.. (mutators ?? DefaultMutatorList())
+            .Where(m => MutatorProfileFilter.IsInProfile(m, activeProfile))];
         Mutants = [];
         Logger = ApplicationLogging.LoggerFactory.CreateLogger<CsharpMutantOrchestrator>();
     }

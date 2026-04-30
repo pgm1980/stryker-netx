@@ -8,6 +8,8 @@ using Stryker.Core.Helpers;
 namespace Stryker.Core.Mutators;
 
 /// <summary> Mutator implementation for is expression</summary>
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public class IsPatternExpressionMutator : MutatorBase<IsPatternExpressionSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Basic;

@@ -13,6 +13,8 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.Mutators;
 
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public partial class RegexMutator : MutatorBase<ObjectCreationExpressionSyntax>
 {
     private const string PatternArgumentName = "pattern";

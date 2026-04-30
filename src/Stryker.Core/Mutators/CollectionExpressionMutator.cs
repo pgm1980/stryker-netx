@@ -8,6 +8,8 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Stryker.Core.Mutators;
 
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public sealed class CollectionExpressionMutator : MutatorBase<CollectionExpressionSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Advanced;

@@ -7,6 +7,8 @@ using Stryker.Core.Helpers;
 
 namespace Stryker.Core.Mutators;
 
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public class NegateConditionMutator : MutatorBase<ExpressionSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Standard;

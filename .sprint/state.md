@@ -1,7 +1,7 @@
 ---
-current_sprint: "5"
-sprint_goal: "v2.0.0 Architecture Foundation: 6 ADRs (013-018) + IMutator-hierarchy interface stub + MutationProfile enum (no behavior change)"
-branch: "feature/5-v2-architecture-foundation"
+current_sprint: "6"
+sprint_goal: "Operator-Hierarchy + Profile Refactor: decorate 26 mutators with [MutationProfileMembership], wire MutationProfile through IStrykerOptions, orchestrator filter active by profile -> v2.0.0-preview.1"
+branch: "feature/6-v2-hierarchy-refactor"
 started_at: "2026-04-30"
 housekeeping_done: true
 memory_updated: true

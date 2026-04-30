@@ -8,6 +8,8 @@ using Stryker.Core.Helpers;
 namespace Stryker.Core.Mutators;
 
 /// <summary> Mutator Implementation for String method Mutations </summary>
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public class StringMethodMutator : MutatorBase<MemberAccessExpressionSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Advanced;

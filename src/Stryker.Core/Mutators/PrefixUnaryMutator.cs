@@ -9,6 +9,8 @@ using Stryker.Core.Helpers;
 
 namespace Stryker.Core.Mutators;
 
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public class PrefixUnaryMutator : MutatorBase<PrefixUnaryExpressionSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Standard;

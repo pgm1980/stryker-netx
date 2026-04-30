@@ -7,6 +7,8 @@ using System.Collections.Generic;
 
 namespace Stryker.Core.Mutators;
 
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public class InitializerMutator : MutatorBase<InitializerExpressionSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Standard;

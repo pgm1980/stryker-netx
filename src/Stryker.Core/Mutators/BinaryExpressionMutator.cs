@@ -8,6 +8,8 @@ using Stryker.Core.Helpers;
 
 namespace Stryker.Core.Mutators;
 
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public class BinaryExpressionMutator : MutatorBase<BinaryExpressionSyntax>
 {
     private readonly struct MutationData

@@ -9,6 +9,8 @@ using Stryker.Core.Helpers;
 namespace Stryker.Core.Mutators;
 
 /// <summary> Mutator Implementation for Math Mutations </summary>
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public class MathMutator : MutatorBase<InvocationExpressionSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Advanced;

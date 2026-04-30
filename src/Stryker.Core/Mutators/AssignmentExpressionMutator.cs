@@ -8,6 +8,8 @@ using Stryker.Core.Helpers;
 
 namespace Stryker.Core.Mutators;
 
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+
 public class AssignmentExpressionMutator : MutatorBase<AssignmentExpressionSyntax>
 {
     // Phase 10.4: FrozenDictionary for O(1) SyntaxKind lookup; mutator runs per syntax-node so this is hot.

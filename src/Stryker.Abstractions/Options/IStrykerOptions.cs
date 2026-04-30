@@ -33,6 +33,12 @@ public interface IStrykerOptions
     string? MsBuildPath { get; init; }
     IEnumerable<IFilePattern> Mutate { get; init; }
     MutationLevel MutationLevel { get; init; }
+
+    /// <summary>
+    /// v2.0.0 (ADR-018): orthogonal mutation-profile axis. Defaults to
+    /// <see cref="Stryker.Abstractions.MutationProfile.Defaults"/> if not set.
+    /// </summary>
+    MutationProfile MutationProfile { get; init; }
     OptimizationModes OptimizationMode { get; init; }
     string? OutputPath { get; init; }
     string? Platform { get; }
