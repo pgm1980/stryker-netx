@@ -54,10 +54,7 @@ public sealed class RoslynProjectAnalysis : IProjectAnalysis
     {
         _roslynProject = roslynProject;
         _evaluationProject = evaluationProject;
-        _references = [.. roslynProject.MetadataReferences
-            .OfType<PortableExecutableReference>()
-            .Where(r => r.FilePath is not null)
-            .Select(r => r.FilePath!)];
+        _references = BuildAllReferences(roslynProject);
         _sourceFiles = [.. roslynProject.Documents
             .Where(d => d.FilePath is not null)
             .Select(d => d.FilePath!)];
@@ -70,6 +67,46 @@ public sealed class RoslynProjectAnalysis : IProjectAnalysis
             .Select(a => a.FullPath!)];
         _embeddedResourcePaths = ResolveEmbeddedResources(evaluationProject, roslynProject.FilePath);
         _referenceAliases = BuildReferenceAliases(roslynProject, evaluationProject);
+    }
+
+    /// <summary>
+    /// Sprint 4.2 (Bug-5 fix, Path A): the full reference set the mutated
+    /// compilation needs is the UNION of:
+    ///   * <c>roslynProject.MetadataReferences</c> — external metadata-references
+    ///     (NuGet packages, framework refs, raw <c>&lt;Reference&gt;</c>-included DLLs).
+    ///   * <c>roslynProject.ProjectReferences</c> output paths — project-to-project
+    ///     references resolved to the referenced project's <c>OutputFilePath</c>.
+    /// Roslyn's <c>Project.MetadataReferences</c> alone EXCLUDES project-reference
+    /// outputs (they're modelled as <c>ProjectReferences</c> with <c>ProjectId</c>),
+    /// so building <c>CSharpCompilation.Create(..., LoadReferences())</c> from just
+    /// the metadata-references set is missing the project-reference outputs and
+    /// triggers <c>CS0430 "extern alias 'X' was not specified in /reference option"</c>
+    /// (and other "type/namespace not found" errors) when the mutated source uses
+    /// types from a referenced project.
+    ///
+    /// Deduplicated by <c>Path.GetFullPath</c> + <c>StringComparer.OrdinalIgnoreCase</c>
+    /// so a project-reference whose output happens to also be in the metadata-references
+    /// list (rare but possible — e.g. when MSBuild emitted both forms) is included once.
+    /// </summary>
+    private static List<string> BuildAllReferences(RoslynProject roslynProject)
+    {
+        var metadataPaths = roslynProject.MetadataReferences
+            .OfType<PortableExecutableReference>()
+            .Select(r => r.FilePath)
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Select(p => p!);
+
+        var projectRefOutputs = roslynProject.ProjectReferences
+            .Select(pr => roslynProject.Solution.GetProject(pr.ProjectId)?.OutputFilePath)
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Select(p => p!);
+
+        // DistinctBy with normalized full-path keys handles Windows drive-letter
+        // case + separator variation without losing the original path string
+        // (Roslyn / MSBuild expect the original form when emitting references).
+        return [.. metadataPaths
+            .Concat(projectRefOutputs)
+            .DistinctBy(Path.GetFullPath, System.StringComparer.OrdinalIgnoreCase)];
     }
 
     /// <summary>
