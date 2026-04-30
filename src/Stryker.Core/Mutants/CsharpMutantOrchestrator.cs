@@ -125,6 +125,10 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new MathMutator(),
         new IsPatternExpressionMutator(),
         new CollectionExpressionMutator(),
+        // v2.0.0 Sprint 9 (ADR-015): type-driven return-value mutator.
+        // Belongs to Stronger | All profile only — not active under default Defaults
+        // profile, so v1.x behaviour is preserved at the orchestrator level too.
+        new TypeDrivenReturnMutator(),
     ];
 
     private IEnumerable<IMutator> Mutators { get; }

@@ -32,6 +32,8 @@ public sealed class EquivalentMutantFilterPipeline
     [
         new IdentityArithmeticFilter(),
         new IdempotentBooleanFilter(),
+        // v2.0.0 Sprint 9: cargo-mutants-style conservative defaults for unsigned types.
+        new ConservativeDefaultsEqualityFilter(),
     ]);
 
     /// <summary>
