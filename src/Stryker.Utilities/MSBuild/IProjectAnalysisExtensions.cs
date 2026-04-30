@@ -22,140 +22,369 @@ namespace Stryker.Utilities.MSBuild;
 /// stryker-netx replacement for <c>Buildalyzer.IAnalyzerResult</c>. Each method
 /// preserves the semantics of the corresponding extension on <c>IAnalyzerResult</c>
 /// so that callers can be migrated 1:1 in Phase 9b.
+///
+/// Sprint 2.3: extension members (C# 14) — instance members are grouped inside
+/// <c>extension(IProjectAnalysis projectAnalysis)</c> blocks. The compiler still
+/// emits classic <c>public static T M(this IProjectAnalysis pa, ...)</c> entry
+/// points, so existing callers continue to work without changes.
 /// </summary>
+// CA1708: Two extension(...) blocks in the same class are flagged as "members
+// differing only by case" by analyzers that pre-date C# 14 extension members.
+// They are valid C# 14 declarator syntax, not duplicate members — the compiler
+// emits distinct generated static methods for each receiver type.
+#pragma warning disable CA1708
 public static partial class IProjectAnalysisExtensions
+#pragma warning restore CA1708
 {
-    /// <summary>
-    /// Returns the project's compiled assembly file name (e.g. <c>Sample.Library.dll</c>),
-    /// normalized for the current platform's directory separators.
-    /// </summary>
-    public static string GetAssemblyFileName(this IProjectAnalysis projectAnalysis) =>
-        FilePathUtils.NormalizePathSeparators(projectAnalysis.TargetFileName)!;
-
-    /// <summary>
-    /// True when the project produces an assembly (i.e. has a non-empty <c>TargetFileName</c>).
-    /// </summary>
-    public static bool BuildsAnAssembly(this IProjectAnalysis projectAnalysis) =>
-        projectAnalysis.BuildsAnAssembly;
-
-    /// <summary>
-    /// Returns the path of the project's reference-assembly variant
-    /// (<c>obj/.../ref/...dll</c>) when present; otherwise the regular assembly path.
-    /// </summary>
-    public static string GetReferenceAssemblyPath(this IProjectAnalysis projectAnalysis)
+    extension(IProjectAnalysis projectAnalysis)
     {
-        var refPath = projectAnalysis.OutputRefFilePath;
-        return string.IsNullOrEmpty(refPath)
-            ? projectAnalysis.GetAssemblyPath()
-            : FilePathUtils.NormalizePathSeparators(refPath)!;
-    }
+        /// <summary>
+        /// Returns the project's compiled assembly file name (e.g. <c>Sample.Library.dll</c>),
+        /// normalized for the current platform's directory separators.
+        /// </summary>
+        public string GetAssemblyFileName() =>
+            FilePathUtils.NormalizePathSeparators(projectAnalysis.TargetFileName)!;
 
-    /// <summary>
-    /// Returns the directory that contains the compiled assembly
-    /// (e.g. <c>bin/Debug/net10.0/</c>), normalized for the current platform.
-    /// </summary>
-    public static string GetAssemblyDirectoryPath(this IProjectAnalysis projectAnalysis) =>
-        FilePathUtils.NormalizePathSeparators(projectAnalysis.TargetDir)!;
+        /// <summary>
+        /// True when the project produces an assembly (i.e. has a non-empty <c>TargetFileName</c>).
+        /// </summary>
+        public bool BuildsAnAssembly() =>
+            projectAnalysis.BuildsAnAssembly;
 
-    /// <summary>
-    /// Returns the absolute path of the compiled assembly, normalized for the current platform.
-    /// </summary>
-    public static string GetAssemblyPath(this IProjectAnalysis projectAnalysis) =>
-        FilePathUtils.NormalizePathSeparators(Path.Combine(projectAnalysis.GetAssemblyDirectoryPath(),
-            projectAnalysis.GetAssemblyFileName()))!;
-
-    /// <summary>
-    /// Returns the project's <c>AssemblyName</c> property value, normalized for the current platform.
-    /// </summary>
-    public static string GetAssemblyName(this IProjectAnalysis projectAnalysis) =>
-        FilePathUtils.NormalizePathSeparators(projectAnalysis.AssemblyName)!;
-
-    /// <summary>
-    /// Loads the embedded resources declared by the project as Roslyn
-    /// <see cref="ResourceDescription"/> instances, ready to be passed to a
-    /// <c>CSharpCompilation</c>. Resource paths are produced relative to the
-    /// project directory because <c>EmbeddedResourcesGenerator.GenerateManifestResources</c>
-    /// expects relative includes in order to compose the resource manifest name correctly.
-    /// </summary>
-    public static IEnumerable<ResourceDescription> GetResources(this IProjectAnalysis projectAnalysis, ILogger logger)
-    {
-        ArgumentNullException.ThrowIfNull(projectAnalysis);
-        var rootNamespace = projectAnalysis.GetRootNamespace();
-        var projectDir = string.IsNullOrEmpty(projectAnalysis.ProjectFilePath)
-            ? string.Empty
-            : Path.GetDirectoryName(projectAnalysis.ProjectFilePath) ?? string.Empty;
-
-        var embeddedResources = projectAnalysis.GetItemPaths("EmbeddedResource")
-            .Select(path => string.IsNullOrEmpty(projectDir) || !Path.IsPathRooted(path)
-                ? path
-                : Path.GetRelativePath(projectDir, path));
-
-        return EmbeddedResourcesGenerator.GetManifestResources(
-            projectAnalysis.GetAssemblyPath(),
-            projectAnalysis.ProjectFilePath,
-            rootNamespace,
-            embeddedResources);
-    }
-
-    /// <summary>
-    /// Returns the file name of the assembly-info source generated by the SDK
-    /// (<c>obj/.../&lt;projectName&gt;.AssemblyInfo.cs</c> by default).
-    /// </summary>
-    public static string AssemblyAttributeFileName(this IProjectAnalysis projectAnalysis) =>
-        projectAnalysis.GetPropertyOrDefault("GeneratedAssemblyInfoFile",
-            (Path.GetFileNameWithoutExtension(projectAnalysis.ProjectFilePath) + ".AssemblyInfo.cs")
-            .ToLowerInvariant())!;
-
-    /// <summary>
-    /// Returns the expected PDB symbol file name for the project's assembly
-    /// (<c>&lt;AssemblyName&gt;.pdb</c>).
-    /// </summary>
-    public static string GetSymbolFileName(this IProjectAnalysis projectAnalysis) =>
-        projectAnalysis.AssemblyName + ".pdb";
-
-    /// <summary>
-    /// Returns the project's <c>TargetPlatform</c> MSBuild property; defaults to <c>AnyCPU</c>.
-    /// </summary>
-    public static string TargetPlatform(this IProjectAnalysis projectAnalysis) =>
-        projectAnalysis.GetPropertyOrDefault("TargetPlatform", "AnyCPU")!;
-
-    /// <summary>
-    /// Always returns <c>null</c>; the MSBuild executable path is now managed by
-    /// <c>Microsoft.Build.Locator</c> which resolves the SDK MSBuild at startup, so
-    /// individual project analyses no longer carry a per-project MsBuild path.
-    /// </summary>
-    public static string? MsBuildPath(this IProjectAnalysis projectAnalysis)
-    {
-        // MSBuildLocator-managed: the workspace is bootstrapped against the SDK MSBuild
-        // before any project is loaded, so there is no per-project MsBuildExePath to surface.
-        _ = projectAnalysis;
-        return null;
-    }
-
-    /// <summary>
-    /// Loads C# source generators from the project's analyzer references.
-    /// </summary>
-    public static IEnumerable<ISourceGenerator> GetSourceGenerators(this IProjectAnalysis projectAnalysis, ILogger logger)
-    {
-        ArgumentNullException.ThrowIfNull(projectAnalysis);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        var generators = new List<ISourceGenerator>();
-        foreach (var analyzer in projectAnalysis.AnalyzerAssemblyPaths)
+        /// <summary>
+        /// Returns the path of the project's reference-assembly variant
+        /// (<c>obj/.../ref/...dll</c>) when present; otherwise the regular assembly path.
+        /// </summary>
+        public string GetReferenceAssemblyPath()
         {
-            try
-            {
-                var analyzerFileReference = new AnalyzerFileReference(analyzer, AnalyzerAssemblyLoader.Instance);
-                analyzerFileReference.AnalyzerLoadFailed += (sender, e) => LogAnalyzerLoadError(logger, sender, e);
-                generators.AddRange(analyzerFileReference.GetGenerators(LanguageNames.CSharp));
-            }
-            catch (Exception e) when (e is not OperationCanceledException)
-            {
-                LogAnalyzerLoadWarning(logger, e, analyzer);
-            }
+            var refPath = projectAnalysis.OutputRefFilePath;
+            return string.IsNullOrEmpty(refPath)
+                ? projectAnalysis.GetAssemblyPath()
+                : FilePathUtils.NormalizePathSeparators(refPath)!;
         }
 
-        return generators;
+        /// <summary>
+        /// Returns the directory that contains the compiled assembly
+        /// (e.g. <c>bin/Debug/net10.0/</c>), normalized for the current platform.
+        /// </summary>
+        public string GetAssemblyDirectoryPath() =>
+            FilePathUtils.NormalizePathSeparators(projectAnalysis.TargetDir)!;
+
+        /// <summary>
+        /// Returns the absolute path of the compiled assembly, normalized for the current platform.
+        /// </summary>
+        public string GetAssemblyPath() =>
+            FilePathUtils.NormalizePathSeparators(Path.Combine(projectAnalysis.GetAssemblyDirectoryPath(),
+                projectAnalysis.GetAssemblyFileName()))!;
+
+        /// <summary>
+        /// Returns the project's <c>AssemblyName</c> property value, normalized for the current platform.
+        /// </summary>
+        public string GetAssemblyName() =>
+            FilePathUtils.NormalizePathSeparators(projectAnalysis.AssemblyName)!;
+
+        /// <summary>
+        /// Loads the embedded resources declared by the project as Roslyn
+        /// <see cref="ResourceDescription"/> instances, ready to be passed to a
+        /// <c>CSharpCompilation</c>. Resource paths are produced relative to the
+        /// project directory because <c>EmbeddedResourcesGenerator.GenerateManifestResources</c>
+        /// expects relative includes in order to compose the resource manifest name correctly.
+        /// </summary>
+        public IEnumerable<ResourceDescription> GetResources(ILogger logger)
+        {
+            ArgumentNullException.ThrowIfNull(projectAnalysis);
+            var rootNamespace = projectAnalysis.GetRootNamespace();
+            var projectDir = string.IsNullOrEmpty(projectAnalysis.ProjectFilePath)
+                ? string.Empty
+                : Path.GetDirectoryName(projectAnalysis.ProjectFilePath) ?? string.Empty;
+
+            var embeddedResources = projectAnalysis.GetItemPaths("EmbeddedResource")
+                .Select(path => string.IsNullOrEmpty(projectDir) || !Path.IsPathRooted(path)
+                    ? path
+                    : Path.GetRelativePath(projectDir, path));
+
+            return EmbeddedResourcesGenerator.GetManifestResources(
+                projectAnalysis.GetAssemblyPath(),
+                projectAnalysis.ProjectFilePath,
+                rootNamespace,
+                embeddedResources);
+        }
+
+        /// <summary>
+        /// Returns the file name of the assembly-info source generated by the SDK
+        /// (<c>obj/.../&lt;projectName&gt;.AssemblyInfo.cs</c> by default).
+        /// </summary>
+        public string AssemblyAttributeFileName() =>
+            projectAnalysis.GetPropertyOrDefault("GeneratedAssemblyInfoFile",
+                (Path.GetFileNameWithoutExtension(projectAnalysis.ProjectFilePath) + ".AssemblyInfo.cs")
+                .ToLowerInvariant())!;
+
+        /// <summary>
+        /// Returns the expected PDB symbol file name for the project's assembly
+        /// (<c>&lt;AssemblyName&gt;.pdb</c>).
+        /// </summary>
+        public string GetSymbolFileName() =>
+            projectAnalysis.AssemblyName + ".pdb";
+
+        /// <summary>
+        /// Returns the project's <c>TargetPlatform</c> MSBuild property; defaults to <c>AnyCPU</c>.
+        /// </summary>
+        public string TargetPlatform() =>
+            projectAnalysis.GetPropertyOrDefault("TargetPlatform", "AnyCPU")!;
+
+        /// <summary>
+        /// Always returns <c>null</c>; the MSBuild executable path is now managed by
+        /// <c>Microsoft.Build.Locator</c> which resolves the SDK MSBuild at startup, so
+        /// individual project analyses no longer carry a per-project MsBuild path.
+        /// </summary>
+        public string? MsBuildPath()
+        {
+            // Discard receiver to satisfy CA1822/S2325: this extension preserves the
+            // 1:1 Buildalyzer signature even though the value is no longer per-project.
+            _ = projectAnalysis;
+            return null;
+        }
+
+        /// <summary>
+        /// Loads C# source generators from the project's analyzer references.
+        /// </summary>
+        public IEnumerable<ISourceGenerator> GetSourceGenerators(ILogger logger)
+        {
+            ArgumentNullException.ThrowIfNull(projectAnalysis);
+            ArgumentNullException.ThrowIfNull(logger);
+
+            var generators = new List<ISourceGenerator>();
+            foreach (var analyzer in projectAnalysis.AnalyzerAssemblyPaths)
+            {
+                try
+                {
+                    var analyzerFileReference = new AnalyzerFileReference(analyzer, AnalyzerAssemblyLoader.Instance);
+                    analyzerFileReference.AnalyzerLoadFailed += (sender, e) => LogAnalyzerLoadError(logger, sender, e);
+                    generators.AddRange(analyzerFileReference.GetGenerators(LanguageNames.CSharp));
+                }
+                catch (Exception e) when (e is not OperationCanceledException)
+                {
+                    LogAnalyzerLoadWarning(logger, e, analyzer);
+                }
+            }
+
+            return generators;
+        }
+
+        /// <summary>
+        /// Materialises the project's metadata references as Roslyn
+        /// <see cref="MetadataReference"/> instances, applying any reference aliases.
+        /// </summary>
+        public IEnumerable<MetadataReference> LoadReferences()
+        {
+            ArgumentNullException.ThrowIfNull(projectAnalysis);
+            return LoadReferencesIterator(projectAnalysis);
+        }
+
+        /// <summary>
+        /// Parses the project's <c>TargetFramework</c> moniker as a <see cref="NuGetFramework"/>.
+        /// Throws <see cref="InputException"/> when the moniker is not recognised.
+        /// </summary>
+        public NuGetFramework? GetNuGetFramework()
+        {
+            ArgumentNullException.ThrowIfNull(projectAnalysis);
+
+            if (string.IsNullOrEmpty(projectAnalysis.TargetFramework))
+            {
+                return null;
+            }
+            var framework = NuGetFramework.Parse(projectAnalysis.TargetFramework);
+            if (framework != NuGetFramework.UnsupportedFramework)
+            {
+                return framework;
+            }
+
+            var atPath = string.IsNullOrEmpty(projectAnalysis.ProjectFilePath)
+                ? ""
+                : $" at '{projectAnalysis.ProjectFilePath}'";
+            var message =
+                $"The target framework '{projectAnalysis.TargetFramework}' is not supported. Please fix the target framework in the csproj{atPath}.";
+            throw new InputException(message);
+        }
+
+        /// <summary>
+        /// True when the project targets the legacy desktop .NET Framework (e.g. <c>net48</c>).
+        /// </summary>
+        public bool TargetsFullFramework() =>
+            projectAnalysis.GetNuGetFramework()?.IsDesktop() == true;
+
+        /// <summary>
+        /// Returns the Roslyn <see cref="Language"/> the project is written in.
+        /// </summary>
+        public Language GetLanguage() =>
+            projectAnalysis.GetPropertyOrDefault("Language") switch
+            {
+                "F#" => Language.Fsharp,
+                "C#" => Language.Csharp,
+                _ => Language.Undefined,
+            };
+
+        /// <summary>
+        /// True when the analysis contains enough information to be usable for mutation testing.
+        /// Mirrors the heuristic from the Buildalyzer-era extension.
+        /// </summary>
+        public bool IsValid()
+        {
+            ArgumentNullException.ThrowIfNull(projectAnalysis);
+
+            return projectAnalysis.Succeeded
+                || (projectAnalysis.SourceFiles.Count > 0 && projectAnalysis.References.Count > 0)
+                || (projectAnalysis.IsTestProject
+                    && !string.IsNullOrEmpty(projectAnalysis.TargetDir)
+                    && projectAnalysis.ProjectReferences.Any());
+        }
+
+        /// <summary>
+        /// True when the analysis is valid and targets the requested <paramref name="framework"/>.
+        /// </summary>
+        public bool IsValidFor(string framework) =>
+            projectAnalysis.IsValid() && string.Equals(projectAnalysis.TargetFramework, framework, StringComparison.Ordinal);
+
+        /// <summary>
+        /// Maps the project's <c>OutputType</c> MSBuild property to the corresponding
+        /// Roslyn <see cref="OutputKind"/>.
+        /// </summary>
+        public OutputKind GetOutputKind() =>
+            projectAnalysis.GetPropertyOrDefault("OutputType") switch
+            {
+                "Exe" => OutputKind.ConsoleApplication,
+                "WinExe" => OutputKind.WindowsApplication,
+                "Module" => OutputKind.NetModule,
+                "AppContainerExe" => OutputKind.WindowsRuntimeApplication,
+                "WinMdObj" => OutputKind.WindowsRuntimeMetadata,
+                _ => OutputKind.DynamicallyLinkedLibrary
+            };
+
+        /// <summary>
+        /// Returns the project's <c>CompilerAPIVersion</c> MSBuild property; defaults to <c>Unknown</c>.
+        /// </summary>
+        public string GetCompilerApiVersion() =>
+            projectAnalysis.GetPropertyOrDefault("CompilerAPIVersion", "Unknown")!;
+
+        /// <summary>
+        /// True when the project produces a strong-named assembly (<c>SignAssembly</c> set).
+        /// </summary>
+        public bool IsSignedAssembly() =>
+            projectAnalysis.GetPropertyOrDefault("SignAssembly", false);
+
+        /// <summary>
+        /// True when the project requests a delay-signed assembly (<c>DelaySign</c> set).
+        /// </summary>
+        public bool IsDelayedSignedAssembly() =>
+            projectAnalysis.GetPropertyOrDefault("DelaySign", false);
+
+        /// <summary>
+        /// Returns the absolute path of the project's strong-name key file
+        /// (<c>AssemblyOriginatorKeyFile</c>), or <c>null</c> when none is configured.
+        /// </summary>
+        public string? GetAssemblyOriginatorKeyFile()
+        {
+            var assemblyKeyFileProp = projectAnalysis.GetPropertyOrDefault("AssemblyOriginatorKeyFile");
+            return string.IsNullOrEmpty(assemblyKeyFileProp)
+                ? null
+                : Path.Combine(Path.GetDirectoryName(projectAnalysis.ProjectFilePath) ?? ".", assemblyKeyFileProp);
+        }
+
+        /// <summary>
+        /// Aggregates the project's diagnostic options (<c>NoWarn</c>, <c>WarningsAsErrors</c>,
+        /// <c>WarningsNotAsErrors</c>) into a single map suitable for Roslyn's
+        /// <c>CompilationOptions.SpecificDiagnosticOptions</c>.
+        /// </summary>
+        public ImmutableDictionary<string, ReportDiagnostic> GetDiagnosticOptions()
+        {
+            var noWarnString = projectAnalysis.GetPropertyOrDefault("NoWarn");
+            var noWarn = ParseDiagnostics(noWarnString).ToDictionary(x => x, _ => ReportDiagnostic.Suppress, StringComparer.Ordinal);
+
+            var warningsAsErrorsString = projectAnalysis.GetPropertyOrDefault("WarningsAsErrors");
+            var warningsAsErrors = ParseDiagnostics(warningsAsErrorsString).ToDictionary(x => x, _ => ReportDiagnostic.Error, StringComparer.Ordinal);
+
+            var warningsNotAsErrorsString = projectAnalysis.GetPropertyOrDefault("WarningsNotAsErrors");
+            var warningsNotAsErrors = ParseDiagnostics(warningsNotAsErrorsString).ToDictionary(x => x, _ => ReportDiagnostic.Warn, StringComparer.Ordinal);
+
+            // merge settings,
+            var diagnosticOptions = new Dictionary<string, ReportDiagnostic>(warningsAsErrors, StringComparer.Ordinal);
+            foreach (var item in warningsNotAsErrors)
+            {
+                diagnosticOptions[item.Key] = item.Value;
+            }
+
+            foreach (var item in noWarn)
+            {
+                diagnosticOptions[item.Key] = item.Value;
+            }
+
+            return diagnosticOptions.ToImmutableDictionary(StringComparer.Ordinal);
+        }
+
+        /// <summary>
+        /// Returns the project's <c>WarningLevel</c> MSBuild property as an integer; defaults to <c>4</c>.
+        /// </summary>
+        public int GetWarningLevel() =>
+            int.Parse(projectAnalysis.GetPropertyOrDefault("WarningLevel", "4")!, CultureInfo.InvariantCulture);
+
+        /// <summary>
+        /// Boolean overload of <see cref="IProjectAnalysis.GetPropertyOrDefault(string, string)"/>:
+        /// returns <paramref name="defaultBoolean"/> when the property is missing/empty,
+        /// otherwise parses the value with <see cref="bool.Parse(string)"/>.
+        /// </summary>
+        public bool GetPropertyOrDefault(string name, bool defaultBoolean)
+        {
+            ArgumentNullException.ThrowIfNull(projectAnalysis);
+            var value = projectAnalysis.GetPropertyOrDefault(name);
+            return string.IsNullOrEmpty(value) ? defaultBoolean : bool.Parse(value);
+        }
+
+        private string GetRootNamespace()
+        {
+            var rootNamespace = projectAnalysis.GetPropertyOrDefault("RootNamespace");
+            return string.IsNullOrEmpty(rootNamespace)
+                ? projectAnalysis.GetAssemblyName()
+                : rootNamespace;
+        }
+    }
+
+    extension(IEnumerable<IProjectAnalysis> projectAnalyses)
+    {
+        /// <summary>
+        /// True when at least one of the supplied analyses is detected as a test project.
+        /// </summary>
+        public bool IsTestProject()
+        {
+            ArgumentNullException.ThrowIfNull(projectAnalyses);
+            return projectAnalyses.Any(x => x.IsTestProject);
+        }
+    }
+
+    private static IEnumerable<MetadataReference> LoadReferencesIterator(IProjectAnalysis projectAnalysis)
+    {
+        foreach (var reference in projectAnalysis.References)
+        {
+            if (!projectAnalysis.ReferenceAliases.TryGetValue(reference, out var aliases) || aliases is null)
+            {
+                aliases = [];
+            }
+
+            yield return MetadataReference.CreateFromFile(reference).WithAliases([.. aliases]);
+        }
+    }
+
+    private static IEnumerable<string> ParseDiagnostics(string? diagnostics)
+    {
+        if (string.IsNullOrWhiteSpace(diagnostics))
+        {
+            return [];
+        }
+
+        return diagnostics
+            .Split(";")
+            .Select(x => x.Trim('\r', '\n', ' '))
+            .Distinct(StringComparer.Ordinal)
+            .Where(x => !string.IsNullOrWhiteSpace(x));
     }
 
     [ExcludeFromCodeCoverage(Justification = "Impossible to unit test")]
@@ -195,219 +424,6 @@ public static partial class IProjectAnalysisExtensions
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to load analyzer '{Source}'.")]
     private static partial void LogAnalyzerLoadException(ILogger logger, Exception ex, string source);
-
-    /// <summary>
-    /// Materialises the project's metadata references as Roslyn
-    /// <see cref="MetadataReference"/> instances, applying any reference aliases.
-    /// </summary>
-    public static IEnumerable<MetadataReference> LoadReferences(this IProjectAnalysis projectAnalysis)
-    {
-        ArgumentNullException.ThrowIfNull(projectAnalysis);
-        return LoadReferencesIterator(projectAnalysis);
-    }
-
-    private static IEnumerable<MetadataReference> LoadReferencesIterator(IProjectAnalysis projectAnalysis)
-    {
-        foreach (var reference in projectAnalysis.References)
-        {
-            if (!projectAnalysis.ReferenceAliases.TryGetValue(reference, out var aliases) || aliases is null)
-            {
-                aliases = [];
-            }
-
-            yield return MetadataReference.CreateFromFile(reference).WithAliases([.. aliases]);
-        }
-    }
-
-    /// <summary>
-    /// Parses the project's <c>TargetFramework</c> moniker as a <see cref="NuGetFramework"/>.
-    /// Throws <see cref="InputException"/> when the moniker is not recognised.
-    /// </summary>
-    public static NuGetFramework? GetNuGetFramework(this IProjectAnalysis projectAnalysis)
-    {
-        ArgumentNullException.ThrowIfNull(projectAnalysis);
-
-        if (string.IsNullOrEmpty(projectAnalysis.TargetFramework))
-        {
-            return null;
-        }
-        var framework = NuGetFramework.Parse(projectAnalysis.TargetFramework);
-        if (framework != NuGetFramework.UnsupportedFramework)
-        {
-            return framework;
-        }
-
-        var atPath = string.IsNullOrEmpty(projectAnalysis.ProjectFilePath)
-            ? ""
-            : $" at '{projectAnalysis.ProjectFilePath}'";
-        var message =
-            $"The target framework '{projectAnalysis.TargetFramework}' is not supported. Please fix the target framework in the csproj{atPath}.";
-        throw new InputException(message);
-    }
-
-    /// <summary>
-    /// True when the project targets the legacy desktop .NET Framework (e.g. <c>net48</c>).
-    /// </summary>
-    public static bool TargetsFullFramework(this IProjectAnalysis projectAnalysis) =>
-        projectAnalysis.GetNuGetFramework()?.IsDesktop() == true;
-
-    /// <summary>
-    /// Returns the Roslyn <see cref="Language"/> the project is written in.
-    /// </summary>
-    public static Language GetLanguage(this IProjectAnalysis projectAnalysis) =>
-        projectAnalysis.GetPropertyOrDefault("Language") switch
-        {
-            "F#" => Language.Fsharp,
-            "C#" => Language.Csharp,
-            _ => Language.Undefined,
-        };
-
-    /// <summary>
-    /// True when the analysis contains enough information to be usable for mutation testing.
-    /// Mirrors the heuristic from the Buildalyzer-era extension.
-    /// </summary>
-    public static bool IsValid(this IProjectAnalysis projectAnalysis)
-    {
-        ArgumentNullException.ThrowIfNull(projectAnalysis);
-
-        return projectAnalysis.Succeeded
-            || (projectAnalysis.SourceFiles.Count > 0 && projectAnalysis.References.Count > 0)
-            || (projectAnalysis.IsTestProject
-                && !string.IsNullOrEmpty(projectAnalysis.TargetDir)
-                && projectAnalysis.ProjectReferences.Any());
-    }
-
-    /// <summary>
-    /// True when the analysis is valid and targets the requested <paramref name="framework"/>.
-    /// </summary>
-    public static bool IsValidFor(this IProjectAnalysis projectAnalysis, string framework) =>
-        projectAnalysis.IsValid() && string.Equals(projectAnalysis.TargetFramework, framework, StringComparison.Ordinal);
-
-    /// <summary>
-    /// True when at least one of the supplied analyses is detected as a test project.
-    /// </summary>
-    public static bool IsTestProject(this IEnumerable<IProjectAnalysis> projectAnalyses)
-    {
-        ArgumentNullException.ThrowIfNull(projectAnalyses);
-        return projectAnalyses.Any(x => x.IsTestProject);
-    }
-
-    /// <summary>
-    /// Maps the project's <c>OutputType</c> MSBuild property to the corresponding
-    /// Roslyn <see cref="OutputKind"/>.
-    /// </summary>
-    public static OutputKind GetOutputKind(this IProjectAnalysis projectAnalysis) =>
-        projectAnalysis.GetPropertyOrDefault("OutputType") switch
-        {
-            "Exe" => OutputKind.ConsoleApplication,
-            "WinExe" => OutputKind.WindowsApplication,
-            "Module" => OutputKind.NetModule,
-            "AppContainerExe" => OutputKind.WindowsRuntimeApplication,
-            "WinMdObj" => OutputKind.WindowsRuntimeMetadata,
-            _ => OutputKind.DynamicallyLinkedLibrary
-        };
-
-    /// <summary>
-    /// Returns the project's <c>CompilerAPIVersion</c> MSBuild property; defaults to <c>Unknown</c>.
-    /// </summary>
-    public static string GetCompilerApiVersion(this IProjectAnalysis projectAnalysis) =>
-        projectAnalysis.GetPropertyOrDefault("CompilerAPIVersion", "Unknown")!;
-
-    /// <summary>
-    /// True when the project produces a strong-named assembly (<c>SignAssembly</c> set).
-    /// </summary>
-    public static bool IsSignedAssembly(this IProjectAnalysis projectAnalysis) =>
-        projectAnalysis.GetPropertyOrDefault("SignAssembly", false);
-
-    /// <summary>
-    /// True when the project requests a delay-signed assembly (<c>DelaySign</c> set).
-    /// </summary>
-    public static bool IsDelayedSignedAssembly(this IProjectAnalysis projectAnalysis) =>
-        projectAnalysis.GetPropertyOrDefault("DelaySign", false);
-
-    /// <summary>
-    /// Returns the absolute path of the project's strong-name key file
-    /// (<c>AssemblyOriginatorKeyFile</c>), or <c>null</c> when none is configured.
-    /// </summary>
-    public static string? GetAssemblyOriginatorKeyFile(this IProjectAnalysis projectAnalysis)
-    {
-        var assemblyKeyFileProp = projectAnalysis.GetPropertyOrDefault("AssemblyOriginatorKeyFile");
-        return string.IsNullOrEmpty(assemblyKeyFileProp)
-            ? null
-            : Path.Combine(Path.GetDirectoryName(projectAnalysis.ProjectFilePath) ?? ".", assemblyKeyFileProp);
-    }
-
-    /// <summary>
-    /// Aggregates the project's diagnostic options (<c>NoWarn</c>, <c>WarningsAsErrors</c>,
-    /// <c>WarningsNotAsErrors</c>) into a single map suitable for Roslyn's
-    /// <c>CompilationOptions.SpecificDiagnosticOptions</c>.
-    /// </summary>
-    public static ImmutableDictionary<string, ReportDiagnostic> GetDiagnosticOptions(
-        this IProjectAnalysis projectAnalysis)
-    {
-        var noWarnString = projectAnalysis.GetPropertyOrDefault("NoWarn");
-        var noWarn = ParseDiagnostics(noWarnString).ToDictionary(x => x, _ => ReportDiagnostic.Suppress, StringComparer.Ordinal);
-
-        var warningsAsErrorsString = projectAnalysis.GetPropertyOrDefault("WarningsAsErrors");
-        var warningsAsErrors = ParseDiagnostics(warningsAsErrorsString).ToDictionary(x => x, _ => ReportDiagnostic.Error, StringComparer.Ordinal);
-
-        var warningsNotAsErrorsString = projectAnalysis.GetPropertyOrDefault("WarningsNotAsErrors");
-        var warningsNotAsErrors = ParseDiagnostics(warningsNotAsErrorsString).ToDictionary(x => x, _ => ReportDiagnostic.Warn, StringComparer.Ordinal);
-
-        // merge settings,
-        var diagnosticOptions = new Dictionary<string, ReportDiagnostic>(warningsAsErrors, StringComparer.Ordinal);
-        foreach (var item in warningsNotAsErrors)
-        {
-            diagnosticOptions[item.Key] = item.Value;
-        }
-
-        foreach (var item in noWarn)
-        {
-            diagnosticOptions[item.Key] = item.Value;
-        }
-
-        return diagnosticOptions.ToImmutableDictionary(StringComparer.Ordinal);
-    }
-
-    private static IEnumerable<string> ParseDiagnostics(string? diagnostics)
-    {
-        if (string.IsNullOrWhiteSpace(diagnostics))
-        {
-            return [];
-        }
-
-        return diagnostics
-            .Split(";")
-            .Select(x => x.Trim('\r', '\n', ' '))
-            .Distinct(StringComparer.Ordinal)
-            .Where(x => !string.IsNullOrWhiteSpace(x));
-    }
-
-    /// <summary>
-    /// Returns the project's <c>WarningLevel</c> MSBuild property as an integer; defaults to <c>4</c>.
-    /// </summary>
-    public static int GetWarningLevel(this IProjectAnalysis projectAnalysis) =>
-        int.Parse(projectAnalysis.GetPropertyOrDefault("WarningLevel", "4")!, CultureInfo.InvariantCulture);
-
-    private static string GetRootNamespace(this IProjectAnalysis projectAnalysis)
-    {
-        var rootNamespace = projectAnalysis.GetPropertyOrDefault("RootNamespace");
-        return string.IsNullOrEmpty(rootNamespace)
-            ? projectAnalysis.GetAssemblyName()
-            : rootNamespace;
-    }
-
-    /// <summary>
-    /// Boolean overload of <see cref="IProjectAnalysis.GetPropertyOrDefault(string, string)"/>:
-    /// returns <paramref name="defaultBoolean"/> when the property is missing/empty,
-    /// otherwise parses the value with <see cref="bool.Parse(string)"/>.
-    /// </summary>
-    public static bool GetPropertyOrDefault(this IProjectAnalysis projectAnalysis, string name, bool defaultBoolean)
-    {
-        ArgumentNullException.ThrowIfNull(projectAnalysis);
-        var value = projectAnalysis.GetPropertyOrDefault(name);
-        return string.IsNullOrEmpty(value) ? defaultBoolean : bool.Parse(value);
-    }
 
     private sealed class AnalyzerAssemblyLoader : IAnalyzerAssemblyLoader
     {
