@@ -9,10 +9,13 @@ using Stryker.Utilities;
 
 namespace Stryker.Configuration;
 
-public readonly struct ExclusionPattern : IExclusionPattern
+public readonly partial struct ExclusionPattern : IExclusionPattern
 {
-    private static readonly Regex _mutantSpanGroupRegex = new("(?:\\{(?<start>\\d+)\\.\\.(?<end>\\d+)\\})+$", RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
-    private static readonly Regex _mutantSpanRegex = new("\\{(?<start>\\d+)\\.\\.(?<end>\\d+)\\}", RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
+    [GeneratedRegex(@"(?:\{(?<start>\d+)\.\.(?<end>\d+)\})+$", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex MutantSpanGroupRegex();
+
+    [GeneratedRegex(@"\{(?<start>\d+)\.\.(?<end>\d+)\}", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex MutantSpanRegex();
 
     public ExclusionPattern(string s)
     {
@@ -21,14 +24,14 @@ public readonly struct ExclusionPattern : IExclusionPattern
         IsExcluded = s.StartsWith('!');
 
         var pattern = IsExcluded ? s[1..] : s;
-        var mutantSpansRegex = _mutantSpanGroupRegex.Match(pattern);
+        var mutantSpansRegex = MutantSpanGroupRegex().Match(pattern);
         if (mutantSpansRegex.Success)
         {
             var filePathPart = pattern[..^mutantSpansRegex.Length];
             var normalized = FilePathUtils.NormalizePathSeparators(filePathPart);
             Glob = Glob.Parse(normalized);
 
-            MutantSpans = _mutantSpanRegex
+            MutantSpans = MutantSpanRegex()
                 .Matches(mutantSpansRegex.Value)
                 .Select(x => (int.Parse(x.Groups["start"].Value, CultureInfo.InvariantCulture), int.Parse(x.Groups["end"].Value, CultureInfo.InvariantCulture)));
         }

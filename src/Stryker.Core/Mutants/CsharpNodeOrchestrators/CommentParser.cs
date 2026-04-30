@@ -14,8 +14,11 @@ namespace Stryker.Core.Mutants.CsharpNodeOrchestrators;
 
 internal static partial class CommentParser
 {
-    private static readonly Regex Pattern = new("^\\s*(?<single>\\/\\/\\s*Stryker(?<singleCmd>.*))|(?<multi>\\/\\*\\s*Stryker(?<multiCmd>.*[^\\*][^\\\\])\\*\\/\\s*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromMilliseconds(200));
-    private static readonly Regex Parser = new("^\\s*(?<mode>disable|restore)\\s*(?<once>once|)\\s*(?<mutators>[^:]*)\\s*:?(?<comment>.*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromMilliseconds(200));
+    [GeneratedRegex(@"^\s*(?<single>\/\/\s*Stryker(?<singleCmd>.*))|(?<multi>\/\*\s*Stryker(?<multiCmd>.*[^\*][^\\])\*\/\s*)$", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 200)]
+    private static partial Regex Pattern();
+
+    [GeneratedRegex(@"^\s*(?<mode>disable|restore)\s*(?<once>once|)\s*(?<mutators>[^:]*)\s*:?(?<comment>.*)$", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 200)]
+    private static partial Regex Parser();
     private static readonly ILogger Logger = ApplicationLogging.LoggerFactory.CreateLogger("CommentParser");
 
     private static MutationContext ParseStrykerComment(MutationContext context, Match match, SyntaxNode node)
@@ -85,7 +88,7 @@ internal static partial class CommentParser
     private static MutationContext InterpretStrykerComment(SyntaxNode node, MutationContext context, string commentTrivia)
     {
         // perform a quick pattern check to see if it is a 'Stryker comment'
-        var strykerCommentMatch = Pattern.Match(commentTrivia);
+        var strykerCommentMatch = Pattern().Match(commentTrivia);
         if (!strykerCommentMatch.Success)
         {
             return context;
@@ -95,7 +98,7 @@ internal static partial class CommentParser
         var isSingleLine = strykerCommentMatch.Groups["single"].Success;
         var command = isSingleLine ? strykerCommentMatch.Groups["singleCmd"].Value : strykerCommentMatch.Groups["multiCmd"].Value;
 
-        var match = Parser.Match(command);
+        var match = Parser().Match(command);
         if (match.Success)
         {
             // this is a Stryker comments, now we parse it

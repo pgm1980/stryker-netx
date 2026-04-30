@@ -10,12 +10,10 @@ using Stryker.Abstractions.ProjectComponents;
 
 namespace Stryker.Core.MutantFilters;
 
-public class ExcludeFromCodeCoverageFilter : IMutantFilter
+public partial class ExcludeFromCodeCoverageFilter : IMutantFilter
 {
-    private static readonly Regex ExcludeFromCodeCoveragePattern = new(
-        @"^(?:System\.Diagnostics\.CodeAnalysis\.)?ExcludeFromCodeCoverage(?:Attribute)?$",
-        RegexOptions.ExplicitCapture | RegexOptions.Compiled,
-        TimeSpan.FromMilliseconds(200));
+    [GeneratedRegex(@"^(?:System\.Diagnostics\.CodeAnalysis\.)?ExcludeFromCodeCoverage(?:Attribute)?$", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 200)]
+    private static partial Regex ExcludeFromCodeCoveragePattern();
 
     public MutantFilter Type => MutantFilter.ExcludeFromCodeCoverage;
     public string DisplayName => "exclude from code coverage filter";
@@ -45,6 +43,6 @@ public class ExcludeFromCodeCoverageFilter : IMutantFilter
     {
         return m.AttributeLists
             .SelectMany(attr => attr.Attributes)
-            .Any(attr => ExcludeFromCodeCoveragePattern.IsMatch(attr.Name.ToString()));
+            .Any(attr => ExcludeFromCodeCoveragePattern().IsMatch(attr.Name.ToString()));
     }
 }
