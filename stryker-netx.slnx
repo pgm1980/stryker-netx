@@ -1,0 +1,18 @@
+<Solution>
+  <!--
+    stryker-netx solution (.slnx XML format)
+    Sprint-1 Phase-0: empty scaffold. Projects are added in subsequent phases per ADR-011:
+      Phase 1 — src/Stryker.Abstractions/
+      Phase 2 — src/Stryker.Utilities/, src/Stryker.DataCollector/
+      Phase 3 — src/Stryker.Configuration/, src/Stryker.RegexMutators/, src/Stryker.Solutions/, src/Stryker.TestRunner/
+      Phase 4 — src/Stryker.TestRunner.MicrosoftTestPlatform/, src/Stryker.TestRunner.VsTest/
+      Phase 5 — src/Stryker.Core/
+      Phase 6 — src/Stryker.CLI/
+      Phase 7 — tests/Stryker.Architecture.Tests/, benchmarks/Stryker.Benchmarks/
+  -->
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+  </Configurations>
+</Solution>

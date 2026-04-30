@@ -1,0 +1,107 @@
+<Project>
+
+  <!--
+    Directory.Packages.props — stryker-netx
+    Central Package Management (ADR-009).
+    All NuGet versions are pinned here; .csproj files reference packages WITHOUT Version attribute.
+
+    Update policy:
+      - Major-Updates require Context7 consultation (CLAUDE.md PFLICHT).
+      - Buildalyzer 8 → 9 is the KEY .NET-10-compatibility fix (ADR-009).
+      - Microsoft.* packages aligned with .NET 10 (10.0.x).
+      - Roslyn (Microsoft.CodeAnalysis.*) at C#-14-capable version.
+  -->
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup Label="Stryker core dependencies (production)">
+    <!-- KEY .NET-10 FIX: Buildalyzer 8.0.0 → 9.0.0 (Buildalyzer issue #318) -->
+    <PackageVersion Include="Buildalyzer" Version="9.0.0" />
+
+    <!-- Roslyn — pinned at Stryker 4.14.1's version; revisit in Phase 5 via Context7 if C#-14-features fail -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="5.3.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.VisualBasic" Version="5.3.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.3.0" />
+
+    <!-- Microsoft.Extensions on .NET 10 -->
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
+    <PackageVersion Include="System.Net.Http.Json" Version="10.0.5" />
+
+    <!-- VsTest / Microsoft Testing Platform -->
+    <PackageVersion Include="Microsoft.TestPlatform" Version="18.4.0" />
+    <PackageVersion Include="Microsoft.TestPlatform.ObjectModel" Version="18.4.0" />
+    <PackageVersion Include="Microsoft.TestPlatform.Portable" Version="18.4.0" />
+    <PackageVersion Include="Microsoft.TestPlatform.TranslationLayer" Version="18.4.0" />
+    <PackageVersion Include="Microsoft.Testing.Platform" Version="1.5.2" />
+    <PackageVersion Include="Microsoft.VisualStudio.SolutionPersistence" Version="1.0.52" />
+
+    <!-- Stryker-specific dependencies -->
+    <PackageVersion Include="Stryker.Regex.Parser" Version="1.0.0" />
+
+    <!-- CLI / Logging / Output -->
+    <!-- McMaster: deprecated but functional (ADR-007 HYBRID). Migration triggers documented in risk register. -->
+    <PackageVersion Include="McMaster.Extensions.CommandLineUtils" Version="5.1.0" />
+    <PackageVersion Include="Spectre.Console" Version="0.54.0" />
+    <PackageVersion Include="Spectre.Console.Analyzer" Version="1.0.0" />
+    <PackageVersion Include="ShellProgressBar" Version="5.2.0" />
+    <PackageVersion Include="Serilog" Version="4.3.1" />
+    <PackageVersion Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Extensions.Logging.File" Version="3.0.0" />
+    <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
+
+    <!-- Config / IO -->
+    <PackageVersion Include="YamlDotNet" Version="17.0.1" />
+    <PackageVersion Include="DotNet.Glob" Version="3.1.3" />
+    <PackageVersion Include="TestableIO.System.IO.Abstractions.Wrappers" Version="22.1.1" />
+
+    <!-- Process / IL / Git -->
+    <PackageVersion Include="CliWrap" Version="3.10.1" />
+    <PackageVersion Include="Mono.Cecil" Version="0.11.6" />
+    <PackageVersion Include="LibGit2Sharp" Version="0.31.0" />
+
+    <!-- Reporters / Cloud / Build -->
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.21" />
+    <PackageVersion Include="Azure.Storage.Files.Shares" Version="12.25.0" />
+    <PackageVersion Include="LaunchDarkly.EventSource" Version="5.3.0" />
+    <PackageVersion Include="Grynwald.MarkdownGenerator" Version="3.0.106" />
+    <PackageVersion Include="Microsoft.Web.LibraryManager.Build" Version="3.0.71" />
+    <PackageVersion Include="ResXResourceReader.NetStandard" Version="1.3.0" />
+
+    <!-- NuGet API / RPC -->
+    <PackageVersion Include="NuGet.Frameworks" Version="7.3.0" />
+    <PackageVersion Include="NuGet.Protocol" Version="7.3.0" />
+    <PackageVersion Include="StreamJsonRpc" Version="2.24.84" />
+
+    <!-- Build determinism -->
+    <PackageVersion Include="DotNet.ReproducibleBuilds" Version="2.0.2" />
+  </ItemGroup>
+
+  <ItemGroup Label="Analyzers (Big-Bang Sprint 1, ADR-004)">
+    <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.20.0.135146" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.22" />
+  </ItemGroup>
+
+  <ItemGroup Label="Test stack (ADR-005 — migrated from MSTest+Shouldly)">
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="FluentAssertions" Version="8.8.0" />
+    <PackageVersion Include="Moq" Version="4.20.72" />
+    <PackageVersion Include="coverlet.collector" Version="8.0.0" />
+    <PackageVersion Include="TngTech.ArchUnitNET.xUnit" Version="0.11.0" />
+    <PackageVersion Include="FsCheck.Xunit" Version="3.1.0" />
+    <PackageVersion Include="Spectre.Console.Testing" Version="0.54.0" />
+    <PackageVersion Include="TestableIO.System.IO.Abstractions.TestingHelpers" Version="22.1.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="Benchmark (separate benchmarks/ project)">
+    <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
+  </ItemGroup>
+
+</Project>
