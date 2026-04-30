@@ -1,7 +1,7 @@
 ---
-current_sprint: "6"
-sprint_goal: "Operator-Hierarchy + Profile Refactor: decorate 26 mutators with [MutationProfileMembership], wire MutationProfile through IStrykerOptions, orchestrator filter active by profile -> v2.0.0-preview.1"
-branch: "feature/6-v2-hierarchy-refactor"
+current_sprint: "11"
+sprint_goal: "PIT-2 + cargo-mutants Operator Batch: ConstructorNullMutator + MatchGuardMutator + WithExpressionMutator + NakedReceiverMutator -> v2.0.0-rc.1"
+branch: "feature/11-v2-pit2-cargo-batch"
 started_at: "2026-04-30"
 housekeeping_done: true
 memory_updated: true
@@ -12,34 +12,39 @@ tests_passed: true
 documentation_updated: true
 ---
 
-# Sprint 5 — v2.0.0 Architecture Foundation
+# Sprint 11 — PIT-2 + cargo-mutants Operator Batch
 
-**GitHub-Issue:** [#5](https://github.com/pgm1980/stryker-netx/issues/5)
-**Base-Tag:** `v1.0.0` (Sprint 4 closed)
-**Final-Tag:** none (ADR-only sprint)
-**Reference inputs:** `_input/mutation_framework_comparison.md`, `_references/{pitest,cargo-mutants,mutmut}`
+**GitHub-Issue:** [#11](https://github.com/pgm1980/stryker-netx/issues/11)
+**Base-Tag:** `v2.0.0-preview.5` (Sprint 10 closed)
+**Final-Tag:** `v2.0.0-rc.1`
+**Reference inputs:** `_input/mutation_framework_comparison.md` §4.1 (PIT-2) + §4.2 (cargo-mutants)
 
 ## Aktueller Phase-Stand
 
-- [ ] **5.1** — ADR-013 AST/IL hybrid decision
-- [ ] **5.2** — ADR-014 Operator hierarchy (Operator → Sub-Operator → Group)
-- [ ] **5.3** — ADR-015 SemanticModel-driven mutator infrastructure
-- [ ] **5.4** — ADR-016 AssemblyLoadContext Hot-Swap (design only, impl in Sprint 8)
-- [ ] **5.5** — ADR-017 Equivalent-Mutant Filtering as first-class layer
-- [ ] **5.6** — ADR-018 Mutation Levels as Profiles
-- [ ] **5.7** — IMutator-hierarchy interfaces + MutationProfile enum (stubs)
-- [ ] **5.8** — Sprint-close + lessons (no tag)
+- [x] **11.1** — `ConstructorNullMutator` (`new Foo(...) → null`) — PIT CONSTRUCTOR_CALLS
+- [x] **11.2** — `MatchGuardMutator` (`when expr → when true/false`) — cargo-mutants C4
+- [x] **11.3** — `WithExpressionMutator` (record-with field deletion) — cargo-mutants C5
+- [x] **11.4** — `NakedReceiverMutator` (`a.M(b) → a`) — PIT EXP_NAKED_RECEIVER
+- [x] **11.5** — Wire 4 mutators into `DefaultMutatorList`
+- [x] **11.6** — Build/Test/E2E green
+- [x] **11.7** — Sprint-close + lessons + tag `v2.0.0-rc.1`
 
-## Sprint-5-DoD
+## Sprint-11-DoD
 
-- [ ] 6 ADRs appended to `_docs/architecture spec/architecture_specification.md`
-- [ ] IMutator hierarchy + MutationProfile in Stryker.Abstractions
-- [ ] dotnet build 0/0
-- [ ] dotnet test 27/27 (no behavior change)
-- [ ] Sample E2E 100 %
-- [ ] Public API: additive only, no breaking changes
-- [ ] Semgrep clean
-- [ ] Lessons doc
-- [ ] No tag
-- [ ] Issue #5 closed
-- [ ] housekeeping_done=true
+- [x] 4 new mutator files in `src/Stryker.Core/Mutators/`
+- [x] All 4 carry `[MutationProfileMembership]` (Stronger|All or All-only)
+- [x] All 4 wired into `DefaultMutatorList`
+- [x] dotnet build 0/0
+- [x] dotnet test 27/27
+- [x] Sample E2E 100 % under default profile (new operators silent by design)
+- [x] Semgrep clean
+- [x] Lessons doc
+- [x] Tag `v2.0.0-rc.1`
+- [x] Issue #11 closed
+- [x] housekeeping_done=true
+
+## Deferred to v2.0.x
+
+- **CRCR full matrix** (overlap with InlineConstants — minimal marginal value)
+- **Coverage-driven mutation skip (D3)** (cross-cutting, not operator-shaped)
+- **D1 Roslyn Diagnostics filter** (needs compilation-pass diagnostic extraction)

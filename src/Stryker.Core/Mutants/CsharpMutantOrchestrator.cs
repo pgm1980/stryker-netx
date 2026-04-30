@@ -136,6 +136,13 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new RorMatrixMutator(),
         // UoiMutator: All only (most aggressive — every identifier × 4 mutations).
         new UoiMutator(),
+        // v2.0.0 Sprint 11 (PIT-2 + cargo-mutants batch): 4 catalogue-closing operators.
+        // ConstructorNullMutator + NakedReceiverMutator: Stronger | All / All only — disruptive.
+        // MatchGuardMutator + WithExpressionMutator: Stronger | All — pattern/record-specific.
+        new ConstructorNullMutator(),
+        new MatchGuardMutator(),
+        new WithExpressionMutator(),
+        new NakedReceiverMutator(),
     ];
 
     private IEnumerable<IMutator> Mutators { get; }
