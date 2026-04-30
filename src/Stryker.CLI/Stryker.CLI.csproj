@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.CLI — Layer 4 (CLI Entry Point).
+    The `dotnet stryker-netx` global-tool: parses CLI arguments / config files, builds DI
+    container, hands off to Stryker.Core. Packaged as a .NET tool (`PackAsTool=true`).
+
+    Identity-Migration (ADR-003 + Sprint-1 Mega-Sprint):
+      - PackageId       : dotnet-stryker        → dotnet-stryker-netx
+      - ToolCommandName : dotnet-stryker        → dotnet-stryker-netx
+      - AssemblyName    : Stryker.CLI           (unchanged — 1:1 namespace per ADR-001)
+      - RootNamespace   : Stryker.CLI           (unchanged)
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.CLI</AssemblyName>
+    <RootNamespace>Stryker.CLI</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dotnet-stryker-netx</ToolCommandName>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>dotnet-stryker-netx</PackageId>
+    <Description>The stryker-netx CLI tool. Install this global tool to run mutation testing from the command line on .NET 10 projects. 1:1 port of Stryker.NET 4.14.1 to C# 14 / .NET 10.</Description>
+    <PackageTags>mutation-testing;stryker;dotnet;netx;cli;tool</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup Label="External dependencies (versions in Directory.Packages.props)">
+    <PackageReference Include="McMaster.Extensions.CommandLineUtils" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="NuGet.Protocol" />
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+
+  <ItemGroup Label="Project references — Layer 0..3 modules">
+    <ProjectReference Include="..\Stryker.Abstractions\Stryker.Abstractions.csproj" />
+    <ProjectReference Include="..\Stryker.Configuration\Stryker.Configuration.csproj" />
+    <ProjectReference Include="..\Stryker.Core\Stryker.Core.csproj" />
+  </ItemGroup>
+
+</Project>

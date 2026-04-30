@@ -25,8 +25,8 @@ documentation_updated: false
 - [x] Phase 2 — DAG Layer 0 parallel (Subagents)
 - [x] Phase 3 — DAG Layer 1 parallel (Subagents)
 - [x] Phase 4 — DAG Layer 2 parallel (Subagents)
-- [x] **Phase 5** — Stryker.Core (Buildalyzer 9 + ADR-010 MsBuildHelper-Fix angewendet)
-- [ ] Phase 6 — Stryker.CLI + Identitäts-Migration
+- [x] Phase 5 — Stryker.Core (Buildalyzer 9 + ADR-010 MsBuildHelper-Fix angewendet)
+- [x] **Phase 6** — Stryker.CLI + Identitäts-Migration `dotnet-stryker-netx`
 - [ ] Phase 7 — Integration & DoD
 
 ## Sprint-1-DoD

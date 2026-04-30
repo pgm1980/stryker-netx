@@ -1,0 +1,201 @@
+using System;
+using System.Globalization;
+using System.IO.Abstractions;
+using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
+using McMaster.Extensions.CommandLineUtils;
+using Microsoft.Extensions.Logging;
+using NuGet.Versioning;
+using Spectre.Console;
+using Stryker.CLI.Clients;
+using Stryker.CLI.CommandLineConfig;
+using Stryker.CLI.Logging;
+using Stryker.Configuration;
+using Stryker.Configuration.Options;
+using Stryker.Core;
+
+namespace Stryker.CLI;
+
+public class StrykerCli
+{
+    private readonly IStrykerRunner _stryker;
+    private readonly IConfigBuilder _configReader;
+    private readonly ILoggingInitializer _loggingInitializer;
+    private readonly IStrykerNugetFeedClient _nugetClient;
+    private readonly IAnsiConsole _console;
+    private readonly IFileSystem _fileSystem;
+
+    public int ExitCode { get; private set; } = ExitCodes.Success;
+
+    public StrykerCli(
+        IStrykerRunner stryker,
+        IConfigBuilder configReader,
+        ILoggingInitializer loggingInitializer,
+        IStrykerNugetFeedClient nugetClient,
+        IAnsiConsole console,
+        IFileSystem fileSystem)
+    {
+        _stryker = stryker ?? throw new ArgumentNullException(nameof(stryker));
+        _configReader = configReader ?? throw new ArgumentNullException(nameof(configReader));
+        _loggingInitializer = loggingInitializer ?? throw new ArgumentNullException(nameof(loggingInitializer));
+        _nugetClient = nugetClient ?? throw new ArgumentNullException(nameof(nugetClient));
+        _console = console ?? throw new ArgumentNullException(nameof(console));
+        _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
+    }
+
+    /// <summary>
+    /// Analyzes the arguments and displays an interface to the user. Kicks off the program.
+    /// </summary>
+    /// <param name="args">User input</param>
+    public async Task<int> RunAsync(string[] args)
+    {
+        var app = new CommandLineApplication(new ConsoleWrapper(_console))
+        {
+            Name = "Stryker",
+            FullName = "Stryker: Stryker mutator for .Net",
+            Description = "Stryker mutator for .Net",
+            ExtendedHelpText = "Welcome to Stryker for .Net! Run dotnet stryker to kick off a mutation test run",
+            HelpTextGenerator = new GroupedHelpTextGenerator()
+        };
+        _ = app.HelpOption();
+
+        var inputs = new StrykerInputs();
+        var cmdConfigReader = new CommandLineConfigReader(_console);
+
+        cmdConfigReader.RegisterCommandLineOptions(app, inputs);
+        cmdConfigReader.RegisterInitCommand(app, _fileSystem, inputs, args);
+
+        app.OnExecuteAsync(async (cancellationToken) =>
+        {
+            // app started
+            PrintStrykerASCIIName();
+
+            _configReader.Build(inputs, args, app, cmdConfigReader);
+            _loggingInitializer.SetupLogOptions(inputs);
+
+            // Print version info. Don't await, let it run in the background for performance reasons
+            _ = PrintStrykerVersionInformationAsync(cmdConfigReader.GetSkipVersionCheckOption(args, app)?.HasValue() ?? false);
+            await RunStrykerAsync(inputs).ConfigureAwait(false);
+            return ExitCode;
+        });
+
+        try
+        {
+            return await app.ExecuteAsync(args).ConfigureAwait(false);
+        }
+        catch (CommandParsingException ex)
+        {
+            await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(false);
+
+            if (ex is UnrecognizedCommandParsingException uex && uex.NearestMatches.Any())
+            {
+                await Console.Error.WriteLineAsync().ConfigureAwait(false);
+                await Console.Error.WriteLineAsync("Did you mean this?").ConfigureAwait(false);
+                foreach (var match in uex.NearestMatches)
+                {
+                    await Console.Error.WriteLineAsync("    " + match).ConfigureAwait(false);
+                }
+            }
+
+            return ExitCodes.OtherError;
+        }
+    }
+
+    private async Task RunStrykerAsync(IStrykerInputs inputs)
+    {
+        var result = await _stryker.RunMutationTestAsync(inputs).ConfigureAwait(false);
+
+        HandleStrykerRunResult(result);
+    }
+
+    private void HandleStrykerRunResult(StrykerRunResult result)
+    {
+        var logger = ApplicationLogging.LoggerFactory.CreateLogger<StrykerCli>();
+
+        if (double.IsNaN(result.MutationScore))
+        {
+            logger.LogInformation("Stryker was unable to calculate a mutation score");
+        }
+        else
+        {
+            logger.LogInformation("The final mutation score is {MutationScore:P2}", result.MutationScore);
+        }
+
+        if (result.ScoreIsLowerThanThresholdBreak())
+        {
+            var thresholdBreak = (double)result.Options.Thresholds.Break / 100;
+            logger.LogWarning("Final mutation score is below threshold break. Crashing...");
+
+            _console.WriteLine();
+            _console.MarkupLine($"[Red]The mutation score is lower than the configured break threshold of {thresholdBreak:P0}.[/]");
+            _console.MarkupLine(" [Red]Looks like you've got some work to do :smiling_face_with_halo:[/]");
+
+            ExitCode = ExitCodes.BreakThresholdViolated;
+        }
+    }
+
+    private void PrintStrykerASCIIName()
+    {
+        _console.MarkupLine(@"[Yellow]
+   _____ _              _               _   _ ______ _______
+  / ____| |            | |             | \ | |  ____|__   __|
+ | (___ | |_ _ __ _   _| | _____ _ __  |  \| | |__     | |
+  \___ \| __| '__| | | | |/ / _ \ '__| | . ` |  __|    | |
+  ____) | |_| |  | |_| |   <  __/ |    | |\  | |____   | |
+ |_____/ \__|_|   \__, |_|\_\___|_| (_)|_| \_|______|  |_|
+                   __/ |
+                  |___/
+[/]");
+        _console.WriteLine();
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0079:Remove unnecessary suppression", Justification = "Suppression is for sonarcloud which Roslyn does not know about.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Bug", "S3168:\"async\" methods should not return \"void\"", Justification = "This method is fire and forget. Task.Run also doesn't work in unit tests")]
+    private async Task PrintStrykerVersionInformationAsync(bool skipVersionCheck)
+    {
+        var logger = ApplicationLogging.LoggerFactory.CreateLogger<StrykerCli>();
+        var assembly = Assembly.GetExecutingAssembly();
+        var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+        if (!SemanticVersion.TryParse(version ?? string.Empty, out var currentVersion))
+        {
+            if (string.IsNullOrEmpty(version))
+            {
+                logger.LogWarning("{Attribute} is missing in {Assembly} at {AssemblyLocation}", nameof(AssemblyInformationalVersionAttribute), assembly, assembly.Location);
+            }
+            else
+            {
+                logger.LogWarning("Failed to parse version {Version} as a semantic version", version);
+            }
+            return;
+        }
+
+        _console.MarkupLine(string.Create(CultureInfo.InvariantCulture, $"Version: [Green]{currentVersion}[/]"));
+        logger.LogDebug("Stryker starting, version: {Version}", currentVersion);
+        _console.WriteLine();
+
+        if (skipVersionCheck)
+        {
+            return;
+        }
+
+        var latestVersion = await _nugetClient.GetLatestVersionAsync().ConfigureAwait(false);
+        if (latestVersion > currentVersion)
+        {
+            _console.MarkupLine(string.Create(CultureInfo.InvariantCulture, $@"[Yellow]A new version of Stryker.NET ({latestVersion}) is available. Please consider upgrading using `dotnet tool update -g dotnet-stryker`[/]"));
+            _console.WriteLine();
+        }
+        else
+        {
+            var previewVersion = await _nugetClient.GetPreviewVersionAsync().ConfigureAwait(false);
+            if (previewVersion > currentVersion)
+            {
+                _console.MarkupLine(string.Create(CultureInfo.InvariantCulture, $@"[Cyan]A preview version of Stryker.NET ({previewVersion}) is available.
+If you would like to try out this preview version you can install it with `dotnet tool update -g dotnet-stryker --version {previewVersion}`
+Since this is a preview feature things might not work as expected! Please report any findings on GitHub![/]"));
+                _console.WriteLine();
+            }
+        }
+    }
+}

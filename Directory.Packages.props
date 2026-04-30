@@ -80,8 +80,14 @@
     <PackageVersion Include="ResXResourceReader.NetStandard" Version="1.3.0" />
 
     <!-- NuGet API / RPC -->
-    <PackageVersion Include="NuGet.Frameworks" Version="7.3.0" />
-    <PackageVersion Include="NuGet.Protocol" Version="7.3.0" />
+    <!--
+      NuGet.Protocol/Packaging 7.3.0 → 7.3.1 patches GHSA-g4vj-cjjj-v7hg
+      (Defense-in-Depth: package-ID/version validation during download).
+      NuGet.Packaging is pinned explicitly because it is otherwise transitive-only.
+    -->
+    <PackageVersion Include="NuGet.Frameworks" Version="7.3.1" />
+    <PackageVersion Include="NuGet.Packaging" Version="7.3.1" />
+    <PackageVersion Include="NuGet.Protocol" Version="7.3.1" />
     <PackageVersion Include="StreamJsonRpc" Version="2.24.84" />
 
     <!-- Build determinism -->
