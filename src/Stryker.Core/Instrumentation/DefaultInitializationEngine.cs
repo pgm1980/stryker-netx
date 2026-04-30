@@ -69,7 +69,7 @@ internal sealed class DefaultInitializationEngine : BaseEngine<BlockSyntax>
     /// <returns>the method with the initialization block removed.</returns>
     protected override SyntaxNode Revert(BlockSyntax body)
     {
-        if (body == null || body.Statements.Count == 0 || body.Statements[0].Kind() != SyntaxKind.Block)
+        if (body is null || body.Statements is not [BlockSyntax, ..])
         {
             throw new InvalidOperationException(
                 "Can't find initializer block at the beginning of method.");

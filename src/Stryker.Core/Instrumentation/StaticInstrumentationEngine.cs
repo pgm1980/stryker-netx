@@ -22,7 +22,7 @@ internal sealed class StaticInstrumentationEngine : BaseEngine<BlockSyntax>
 
     protected override SyntaxNode Revert(BlockSyntax node)
     {
-        if (node.Statements.Count == 1 && node.Statements[0] is UsingStatementSyntax usingStatement)
+        if (node.Statements is [UsingStatementSyntax usingStatement])
         {
             return usingStatement.Statement;
         }
