@@ -16,5 +16,7 @@
   <Project Path="src/Stryker.RegexMutators/Stryker.RegexMutators.csproj" />
   <Project Path="src/Stryker.Solutions/Stryker.Solutions.csproj" />
   <Project Path="src/Stryker.TestRunner/Stryker.TestRunner.csproj" />
+  <Project Path="src/Stryker.TestRunner.MicrosoftTestPlatform/Stryker.TestRunner.MicrosoftTestPlatform.csproj" />
+  <Project Path="src/Stryker.TestRunner.VsTest/Stryker.TestRunner.VsTest.csproj" />
   <Project Path="src/Stryker.Utilities/Stryker.Utilities.csproj" />
 </Solution>

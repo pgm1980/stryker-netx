@@ -234,8 +234,8 @@ Sprint 1 Phase {X}: PILOT (Phase 1, Stryker.Abstractions) ist abgeschlossen. Du 
 | Stryker.RegexMutators (Phase 3) | 22 (1 file-rename: WrappedGuidsEnumeration→WrappedIdentifierEnumeration) | 26 → 0 | ~15 min Subagent | RegexMutation hat 4× required + 1× nullable (ReplacementNode kann null sein); private helper-methods static (CA1822); KEIN pragma |
 | Stryker.Solutions (Phase 3, ImplicitUsings=enable Sonderfall) | 4 → 6 (2 file-splits: ISolutionProvider + SolutionProvider) | 21 → 0 | ~15 min Subagent | csproj overrides ImplicitUsings=enable (Stryker-original choice); 24× MA0006 string.Equals; KEIN pragma |
 | Stryker.TestRunner (Phase 3) | 7 (1 file-rename) | 4 → 15 (deeper layer) → 0 | ~10 min Subagent | CS0738 backing-field-pattern (Dictionary private + IReadOnlyDictionary public); MA0025 NotImplementedException→NotSupportedException; KEIN pragma |
-| (Phase 4) TestRunner.MTP | TBD | Schätzung 50–100 | TBD | Subagent G |
-| (Phase 4) TestRunner.VsTest | TBD | Schätzung 100–200 | TBD | Subagent H |
+| Stryker.TestRunner.MicrosoftTestPlatform (Phase 4, ImplicitUsings=enable) | 37 → 42 (5 file-splits) | **143 → 0** | ~30 min Subagent | InternalsVisibleTo-AssemblyAttributes preserved für UnitTest-Project; surgical VSTHRD003-pragma (TaskCompletionSource owned by class); Method-Splits via MutantTestSessionContext nested-class-Pattern |
+| Stryker.TestRunner.VsTest (Phase 4) | 13 → 17 (4 file-splits) | **232 → 0** | ~45 min Subagent | EmbeddedResource für Microsoft.TestPlatform.Portable.nupkg + GeneratePathProperty preserved; 3 surgical pragmas (MA0158 ×2 für Monitor.Pulse/Wait; MA0099 ×1 für TestFrameworks-default-state; S1172 ×1 für closure-capture-false-positive); CA1873 + CA1711 als globale .editorconfig-Tunings (CA1873 = LoggerMessage-twin von CA1848 phased; CA1711 = Stryker EventArgs/EventHandler-Naming-Convention) |
 | (Phase 5) Stryker.Core | TBD | Schätzung 200–500 | TBD | Hauptsession + Buildalyzer-9 + MsBuildHelper-Fix |
 | (Phase 6) Stryker.CLI | TBD | Schätzung 100–200 | TBD | Hauptsession + Identity-Migration + Wrapper |
 
