@@ -34,8 +34,10 @@ public class CoverageCollector : InProcDataCollection, IDisposable
 
     private const string AnyId = "*";
     private const string TemplateForConfiguration =
-        @"<InProcDataCollectionRunSettings><InProcDataCollectors><InProcDataCollector {0}>
-<Configuration>{1}</Configuration></InProcDataCollector></InProcDataCollectors></InProcDataCollectionRunSettings>";
+        """
+        <InProcDataCollectionRunSettings><InProcDataCollectors><InProcDataCollector {0}>
+        <Configuration>{1}</Configuration></InProcDataCollector></InProcDataCollectors></InProcDataCollectionRunSettings>
+        """;
 
     public const string PropertyName = "Stryker.Coverage";
     public const string OutOfTestsPropertyName = "Stryker.Coverage.OutOfTests";

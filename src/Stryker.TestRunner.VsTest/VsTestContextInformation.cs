@@ -295,18 +295,22 @@ public sealed partial class VsTestContextInformation : IDisposable
             ? string.Empty
             : $"<TestCaseFilter>{SecurityElement.Escape(Options.TestCaseFilter)}</TestCaseFilter>" + Environment.NewLine;
         return
-            $@"
-<MaxCpuCount>{Math.Max(0, maxCpu)}</MaxCpuCount>
-{frameworkConfig}{platformConfig}{testCaseFilter}
-<DisableAppDomain>true</DisableAppDomain>";
+            $"""
+
+            <MaxCpuCount>{Math.Max(0, maxCpu)}</MaxCpuCount>
+            {frameworkConfig}{platformConfig}{testCaseFilter}
+            <DisableAppDomain>true</DisableAppDomain>
+            """;
     }
 
     private string GenerateRunSettingsForDiscovery(string? frameworkVersion = null, string? platform = null) =>
-        $@"<RunSettings>
- <RunConfiguration>
-{GenerateCoreSettings(Options.Concurrency, frameworkVersion, platform)}  <DesignMode>true</DesignMode>
- </RunConfiguration>
-</RunSettings>";
+        $"""
+        <RunSettings>
+         <RunConfiguration>
+        {GenerateCoreSettings(Options.Concurrency, frameworkVersion, platform)}  <DesignMode>true</DesignMode>
+         </RunConfiguration>
+        </RunSettings>
+        """;
 
     /// <summary>Builds the VsTest run settings XML for the given configuration.</summary>
     public string GenerateRunSettings(int? timeout, bool forCoverage, IDictionary<int, ITestIdentifiers>? mutantTestsMap,
@@ -335,13 +339,15 @@ public sealed partial class VsTestContextInformation : IDisposable
 
         // we need to block parallel run to capture coverage and when testing multiple mutants in a single run
         var runSettings =
-            $@"<RunSettings>
-<RunConfiguration>
-  <CollectSourceInformation>false</CollectSourceInformation>
-{timeoutSettings}{settingsForCoverage}
-<DesignMode>false</DesignMode>{GenerateCoreSettings(1, frameworkVersion, platform)}
-</RunConfiguration>{dataCollectorSettings}
-</RunSettings>";
+            $"""
+            <RunSettings>
+            <RunConfiguration>
+              <CollectSourceInformation>false</CollectSourceInformation>
+            {timeoutSettings}{settingsForCoverage}
+            <DesignMode>false</DesignMode>{GenerateCoreSettings(1, frameworkVersion, platform)}
+            </RunConfiguration>{dataCollectorSettings}
+            </RunSettings>
+            """;
 
         return runSettings;
     }

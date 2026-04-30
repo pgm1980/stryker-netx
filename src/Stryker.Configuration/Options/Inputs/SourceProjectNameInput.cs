@@ -6,7 +6,7 @@ public class SourceProjectNameInput : Input<string>
 {
     public override string Default => string.Empty;
 
-    protected override string Description => @"Used to find the project to test in the project references of the test project. Example: ""ExampleProject.csproj""";
+    protected override string Description => """Used to find the project to test in the project references of the test project. Example: "ExampleProject.csproj" """;
 
     public string Validate()
     {
