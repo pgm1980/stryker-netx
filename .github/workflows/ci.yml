@@ -1,0 +1,77 @@
+name: ci
+run-name: ci ${{ github.head_ref || github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: build + test (${{ matrix.os }})
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.x
+            10.x
+
+      - name: Restore (locked-mode)
+        env:
+          RestoreLockedMode: true
+        run: dotnet restore stryker-netx.slnx
+
+      - name: Build (TreatWarningsAsErrors)
+        run: dotnet build stryker-netx.slnx --no-restore --configuration Debug
+
+      - name: Test (xUnit + ArchUnitNET + FsCheck)
+        run: dotnet test stryker-netx.slnx --no-build --configuration Debug --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}
+          path: '**/TestResults/**/coverage.cobertura.xml'
+          if-no-files-found: ignore
+
+  semgrep:
+    name: semgrep security scan
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Semgrep scan src/ + tests/
+        run: semgrep scan --config auto --error src tests
+
+  ci-complete:
+    name: CI complete
+    runs-on: ubuntu-latest
+    needs: [build-test, semgrep]
+    if: always()
+    steps:
+      - name: Verify upstream jobs
+        run: |
+          if [ "${{ needs.build-test.result }}" != "success" ]; then
+            echo "build-test failed"
+            exit 1
+          fi
+          if [ "${{ needs.semgrep.result }}" != "success" ]; then
+            echo "semgrep failed"
+            exit 1
+          fi
+          echo "All CI checks passed."

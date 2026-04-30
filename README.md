@@ -1,63 +1,114 @@
 # stryker-netx
 
-> **A 1:1 port of [Stryker.NET](https://github.com/stryker-mutator/stryker-net) 4.14.1 to C# 14 and .NET 10.**
->
-> ⚠️ **Status:** Sprint 0 (Architecture & Design) complete. Sprint 1 (Implementation) not yet started. Not production-ready. Repository is currently private.
+> **A 1:1 port of [Stryker.NET](https://github.com/stryker-mutator/stryker-net) 4.14.1 to C# 14 / .NET 10 — fully `.slnx`-aware.**
 
----
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-## Why this project exists
+`stryker-netx` is a fork of Stryker.NET that targets `.NET 10`, eliminates the `Buildalyzer` dependency in favour of `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace`, and supports the modern `.slnx` (XML-based) solution format that ships as the default with the .NET 9 / 10 SDKs. All public CLI flags, configuration schema, and reporter outputs remain 1:1 compatible with upstream Stryker.NET 4.14.1.
 
-[Stryker.NET](https://stryker-mutator.io/) is the established mutation-testing framework for the .NET ecosystem. As of version 4.14.1 (released 2026-04-10), it does not work reliably with **.NET 9 / .NET 10** projects because of:
+## Why this fork exists
 
-1. **Buildalyzer 8.0 transitive dependency** cannot parse .NET 10 MSBuild structures (Buildalyzer issue [#318](https://github.com/Buildalyzer/Buildalyzer/issues/318)). Buildalyzer 9.0 — the fix — was released only 8 days *after* Stryker.NET 4.14.1 (2026-04-18).
-2. **`MsBuildHelper`** falls back to `vswhere` / `MsBuild.exe` paths that fail on .NET-10-SDK-only machines without Visual Studio (stryker-net issue [#3351](https://github.com/stryker-mutator/stryker-net/issues/3351)).
+Upstream Stryker.NET 4.14.1 (released 2026-04-10) does not run on .NET 9 / .NET 10 projects nor on `.slnx` solutions because:
 
-**stryker-netx** addresses these blockers via a 1:1 port that:
-- targets `net10.0` (with `Stryker.DataCollector` pinned to `netstandard2.0` for VsTest-adapter compatibility);
-- updates Buildalyzer to 9.0+ and Microsoft.* dependencies to .NET 10 versions;
-- fixes the `MsBuildHelper` fallback to default to `dotnet msbuild`;
-- preserves CLI flags, configuration schema, and reporter outputs identical to Upstream Stryker.NET 4.14.1.
+1. **Buildalyzer 8.0 transitive dependency** cannot parse .NET 10 MSBuild structures. Buildalyzer 9.0 — the fix — landed *eight days after* Stryker.NET 4.14.1.
+2. **`MsBuildHelper`** falls back to `vswhere`/`MsBuild.exe` paths that don't exist on .NET-10-SDK-only machines.
+3. **`.slnx`** support is missing from upstream's `SolutionFile` parser.
+
+`stryker-netx` replaces the Buildalyzer pipeline entirely with `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace`, gives the CLI a parallel `Microsoft.VisualStudio.SolutionPersistence`-based `.slnx` reader, and renames the tool to avoid colliding with the upstream package.
 
 ## Disclaimer
 
-This project is an **independent fork**. It is **NOT affiliated with, endorsed by, or sponsored by** the official Stryker.NET project, the Stryker Mutator team, or Info Support BV (the Dutch organization behind Stryker). The "Stryker" name is used here solely descriptively (Stryker-Mutator-compatible tooling) and not as a trademark assertion.
+`stryker-netx` is an **independent community fork**. It is **NOT affiliated with, endorsed by, or sponsored by** the official Stryker.NET project, the Stryker Mutator team, or Info Support BV. The "Stryker" name is used here descriptively (Stryker-Mutator-compatible tooling) and not as a trademark assertion.
 
-If you are looking for the official Stryker.NET project: https://github.com/stryker-mutator/stryker-net
+For the official Stryker.NET project see https://github.com/stryker-mutator/stryker-net.
 
-## Compatibility (target state for v1.0.0)
+## Compatibility
 
 | Component | Supported |
 |-----------|-----------|
-| .NET Runtime (Stryker tool itself) | .NET 10 |
+| .NET Runtime (the tool itself) | .NET 10 |
 | Test-project Target Frameworks | net8.0, net9.0, net10.0 |
 | C# Language Version (in user code) | C# 12, 13, 14 |
-| Solution formats | `.sln`, `.slnx` |
+| Solution formats | `.sln`, **`.slnx`** |
 | Test runners | VsTest, Microsoft Testing Platform |
-| OS | Windows (primary), Linux (primary), macOS (best-effort) |
+| Test frameworks | xUnit, MSTest 2/3, NUnit, TUnit |
+| OS | Windows ✓, Linux ✓ (CI), macOS (best-effort) |
 
-## Installation (target state — not yet released)
+## Installation
 
 ```bash
-# Once published to NuGet:
-dotnet tool install -g dotnet-stryker-netx --version 1.0.0-preview.1
+dotnet tool install -g dotnet-stryker-netx
+```
 
-# Then in your test project directory:
-cd /path/to/your/test/project
+Or pin a specific version:
+
+```bash
+dotnet tool install -g dotnet-stryker-netx --version 1.0.0-preview.2
+```
+
+## Quickstart
+
+In your test project directory:
+
+```bash
+cd /path/to/your/Tests
 dotnet stryker-netx
 ```
 
-CLI flags and configuration are 1:1 compatible with Stryker.NET 4.14.1 — see the [official Stryker.NET configuration docs](https://stryker-mutator.io/docs/stryker-net/configuration) for details.
+Or against a solution from the solution directory:
+
+```bash
+cd /path/to/your/solution
+dotnet stryker-netx --solution YourApp.slnx
+```
+
+Or with a `stryker-config.json`:
+
+```bash
+dotnet stryker-netx --config-file stryker-config.json
+```
+
+CLI flags, configuration schema, and reporter outputs are 1:1 compatible with [upstream Stryker.NET configuration docs](https://stryker-mutator.io/docs/stryker-net/configuration).
+
+## Migration from Stryker.NET
+
+If you already use `dotnet-stryker`, switching is a two-step rename:
+
+1. Uninstall the upstream tool, install `stryker-netx`:
+   ```bash
+   dotnet tool uninstall -g dotnet-stryker
+   dotnet tool install -g dotnet-stryker-netx
+   ```
+2. In your scripts / CI workflows, replace `dotnet stryker` with `dotnet stryker-netx`.
+
+That's it. **`stryker-config.json`, CLI flags, and reporter output formats are unchanged.** No config file edits required.
+
+## Known limitations (v1.0.0-preview.2)
+
+- `<ProjectReference Include="..." Aliases="X"/>` (project-references with extern aliases) is not yet handled in the mutated-compilation step — `extern alias X;` in source code triggers `CS0430` after mutation. Tracking issue / fix planned for the next sub-phase. Workaround: drop the `Aliases` metadata or use `<Reference>` (metadata-reference) form instead.
+- Integration-test parity with upstream is partial — see `integrationtest/` for the full upstream-compatibility test matrix; categories that pass / fail are documented in the Sprint 3 lessons.
+- `JsonReport` reporter still uses runtime reflection (not source-generated) — Sprint 4 candidate. Functional, just not AOT-trimmable.
 
 ## Project status
 
-| Phase | Status | Output |
-|-------|--------|--------|
-| Sprint 0 — Architecture & Design | ✅ Complete | [architecture spec](_docs/architecture%20spec/architecture_specification.md), [software design spec](_docs/design%20spec/software_design_specification.md), 12 ADRs |
-| Sprint 1 — Mega-Sprint Implementation | ⏳ Pending | TFM update, Buildalyzer 9, analyzer big-bang, test-stack migration, repo identity |
-| Sprint 2+ — Refinement | ⏳ Future | Performance, additional features, public release |
+| Sprint | Outcome |
+|--------|---------|
+| Sprint 0 — Architecture & Design | ✅ 12 ADRs, FRs, NFRs, test stack chosen |
+| Sprint 1 — Implementation (Mega-Sprint, 10 phases) | ✅ Tag `v1.0.0-preview.1` — Buildalyzer fully removed, all 11 + 6 projects on .NET 10, 233 ILogger calls source-generated |
+| Sprint 2 — Code Excellence (8 phases) | ✅ Tag `v1.0.0-preview.2` — C# 14 extension members, [GeneratedRegex], JsonSerializerContext, field keyword, list patterns, RSL — code-quality lifted to "high-end" |
+| Sprint 3 — Production Hardening | 🚧 In progress — integration suite, NuGet packaging, CI |
 
-Realistic Sprint 1 duration estimate: **4–6 weeks** (mega-sprint covering 11 production + 6 test projects via DAG-layer-parallel subagents).
+See [`_docs/`](`_docs`) for sprint lessons docs.
+
+## Building from source
+
+Requires .NET SDK **10.0.107+**.
+
+```bash
+dotnet build stryker-netx.slnx
+dotnet test stryker-netx.slnx
+dotnet pack src/Stryker.CLI/Stryker.CLI.csproj -c Release -p:PackageVersion=$YOUR_VERSION
+```
 
 ## Contributing
 
@@ -67,16 +118,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). All contributions require **DCO sign-off
 
 Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attribution to the original Stryker.NET project and its authors.
 
-## Reference Material
+## References
 
-- [_reference/stryker-4.14.1/](_reference/stryker-4.14.1) — Original Stryker.NET 4.14.1 source code (read-only baseline)
-- [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md) — Architecture decisions (12 ADRs)
-- [_docs/design spec/software_design_specification.md](_docs/design%20spec/software_design_specification.md) — Functional and non-functional requirements
-- [_config/development_process.md](_config/development_process.md) — Scrum-based development process
-- [CLAUDE.md](CLAUDE.md) — Binding development directives (tooling, code standards, subagent policy)
-- [DEEP_MEMORY.md](DEEP_MEMORY.md) — 360° project memory (vision, stack, roadmap, risks)
 - Original Stryker.NET project: https://github.com/stryker-mutator/stryker-net
-
----
-
-*This README will be expanded with concrete usage examples and CI/CD recipes once Sprint 1 produces a working build.*
+- Stryker Mutator docs: https://stryker-mutator.io/
+- Architecture decisions: [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md)
+- Sprint lessons: [_docs/sprint_1_lessons.md](_docs/sprint_1_lessons.md), [_docs/sprint_2_lessons.md](_docs/sprint_2_lessons.md)

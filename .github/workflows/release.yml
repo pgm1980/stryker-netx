@@ -1,0 +1,83 @@
+name: release
+run-name: release ${{ github.ref_name }}
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  pack-and-publish:
+    name: Pack and publish to NuGet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.x
+            10.x
+
+      - name: Derive package version from tag
+        id: version
+        run: |
+          ref="${{ github.ref_name }}"
+          version="${ref#v}"
+          echo "package_version=$version" >> "$GITHUB_OUTPUT"
+          echo "Resolved package version: $version"
+
+      - name: Restore (locked-mode)
+        env:
+          RestoreLockedMode: true
+        run: dotnet restore stryker-netx.slnx
+
+      - name: Build (Release)
+        run: dotnet build stryker-netx.slnx --no-restore --configuration Release
+
+      - name: Test (Release)
+        run: dotnet test stryker-netx.slnx --no-build --configuration Release
+
+      - name: Pack
+        run: |
+          dotnet pack src/Stryker.CLI/Stryker.CLI.csproj \
+            --no-build --configuration Release \
+            -p:PackageVersion=${{ steps.version.outputs.package_version }} \
+            --output ./publish
+
+      - name: Verify package
+        run: |
+          ls -la ./publish/
+          echo "---"
+          dotnet tool install dotnet-stryker-netx \
+            --add-source ./publish \
+            --tool-path ./publish-toolinstall \
+            --version ${{ steps.version.outputs.package_version }}
+          ./publish-toolinstall/dotnet-stryker-netx --help || true
+
+      - name: Push to NuGet
+        if: ${{ secrets.NUGET_API_KEY != '' }}
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push ./publish/dotnet-stryker-netx.${{ steps.version.outputs.package_version }}.nupkg \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      - name: Skipped NuGet push notice
+        if: ${{ secrets.NUGET_API_KEY == '' }}
+        run: |
+          echo "NUGET_API_KEY secret not set — skipping push (dry-run)."
+          echo "To enable: add NUGET_API_KEY at repo Settings → Secrets and variables → Actions."
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./publish/*.nupkg
+          generate_release_notes: true
+          fail_on_unmatched_files: true
