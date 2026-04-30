@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.Solutions — Layer 1 (Domain).
+    Solution-file parsing (.sln/.slnx) via Microsoft.VisualStudio.SolutionPersistence.
+    Sonderfall: ImplicitUsings=enable (überschreibt Directory.Build.props default `disable`),
+    da das Original (Stryker 4.14.1) keine using-Statements im Code-File ausschreibt
+    und auf ImplicitUsings angewiesen ist (z.B. System.Linq, System.Collections.Generic).
+    1:1 namespace-compatibility with upstream Stryker.NET 4.14.1 (ADR-003).
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.Solutions</AssemblyName>
+    <RootNamespace>Stryker.Solutions</RootNamespace>
+    <PackageId>Stryker.Solutions</PackageId>
+    <Description>Solution-file parsing (.sln/.slnx) for stryker-netx via Microsoft.VisualStudio.SolutionPersistence.</Description>
+    <PackageTags>mutation-testing;stryker;dotnet;netx;solution;sln;slnx</PackageTags>
+    <!-- Sonderfall: 1:1 mit Stryker 4.14.1 — Code nutzt implizite using-Auflösung. -->
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.SolutionPersistence" />
+  </ItemGroup>
+
+</Project>

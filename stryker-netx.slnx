@@ -11,6 +11,10 @@
       Phase 7 — tests/Stryker.Architecture.Tests/, benchmarks/Stryker.Benchmarks/
   -->
   <Project Path="src/Stryker.Abstractions/Stryker.Abstractions.csproj" />
+  <Project Path="src/Stryker.Configuration/Stryker.Configuration.csproj" />
   <Project Path="src/Stryker.DataCollector/Stryker.DataCollector.csproj" />
+  <Project Path="src/Stryker.RegexMutators/Stryker.RegexMutators.csproj" />
+  <Project Path="src/Stryker.Solutions/Stryker.Solutions.csproj" />
+  <Project Path="src/Stryker.TestRunner/Stryker.TestRunner.csproj" />
   <Project Path="src/Stryker.Utilities/Stryker.Utilities.csproj" />
 </Solution>

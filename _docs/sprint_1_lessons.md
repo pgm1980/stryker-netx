@@ -230,10 +230,10 @@ Sprint 1 Phase {X}: PILOT (Phase 1, Stryker.Abstractions) ist abgeschlossen. Du 
 | Stryker.Abstractions (Phase 1, PILOT) | 56 (vor Splits) → 58 (nach Splits) | 25 (real) + 447 (CS1591) | ~2h Hauptsession | Pilot — Lessons-Aufbau |
 | Stryker.Utilities (Phase 2) | 15 .cs (nach Phase-2-Splits) | 74 initial → 0 | ~3h: Hauptsession (kleine Files) + Subagent (3 große Files mit Mirror-Pragma) + Hauptsession (Mirror-Pattern abgelehnt → Option B → Mirror-Files manuell modernisiert mit Method-Splits, Nullable-Annotations, CultureInfo, StringComparer.Ordinal) | Worktree-Isolation für Subagent fehlte; Mirror-File-Pragma-Pattern initial vom Subagent vorgeschlagen, vom User verworfen → Sektion 5 als Anti-Pattern dokumentiert |
 | Stryker.DataCollector (Phase 2, netstandard2.0) | 2 (Original) → 3 (nach ThrowingListener-Split) | 35 initial → 0 | ~30 min Hauptsession | Sonderfall netstandard2.0; CA1001 (IDisposable wegen TraceListener-Field); kein `required`-Modifier (netstandard2.0-Polyfill-Frei-Stil) — stattdessen nullable annotations |
-| (Phase 3) Configuration | TBD | Schätzung 50–100 | TBD | Subagent C |
-| (Phase 3) RegexMutators | TBD | Schätzung 80–150 | TBD | Subagent D |
-| (Phase 3) Solutions | TBD | Schätzung 50–100 | TBD | Subagent E |
-| (Phase 3) TestRunner | TBD | Schätzung 30–60 | TBD | Subagent F |
+| Stryker.Configuration (Phase 3) | 59 → 60 (3 file-splits: InputDefinition→3, StrykerInputs→2, IdProvider rename) | 148 → 220 (Welleneffekt durch IStrykerOptions nullable-Annotations) → 0 | ~30 min Subagent | Triggered IStrykerOptions.cs nullable-annotation update in Stryker.Abstractions (interface-properties string→string?); 1 surgical S1075-pragma für DashboardUrlInput; KEIN file-scope-pragma |
+| Stryker.RegexMutators (Phase 3) | 22 (1 file-rename: WrappedGuidsEnumeration→WrappedIdentifierEnumeration) | 26 → 0 | ~15 min Subagent | RegexMutation hat 4× required + 1× nullable (ReplacementNode kann null sein); private helper-methods static (CA1822); KEIN pragma |
+| Stryker.Solutions (Phase 3, ImplicitUsings=enable Sonderfall) | 4 → 6 (2 file-splits: ISolutionProvider + SolutionProvider) | 21 → 0 | ~15 min Subagent | csproj overrides ImplicitUsings=enable (Stryker-original choice); 24× MA0006 string.Equals; KEIN pragma |
+| Stryker.TestRunner (Phase 3) | 7 (1 file-rename) | 4 → 15 (deeper layer) → 0 | ~10 min Subagent | CS0738 backing-field-pattern (Dictionary private + IReadOnlyDictionary public); MA0025 NotImplementedException→NotSupportedException; KEIN pragma |
 | (Phase 4) TestRunner.MTP | TBD | Schätzung 50–100 | TBD | Subagent G |
 | (Phase 4) TestRunner.VsTest | TBD | Schätzung 100–200 | TBD | Subagent H |
 | (Phase 5) Stryker.Core | TBD | Schätzung 200–500 | TBD | Hauptsession + Buildalyzer-9 + MsBuildHelper-Fix |
