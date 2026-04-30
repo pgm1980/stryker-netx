@@ -15,7 +15,7 @@ public class ThresholdLowInput : Input<int?>
         if (SuppliedInput is not null)
         {
             var low = SuppliedInput.Value;
-            if (low > 100 || low < 0)
+            if (low is > 100 or < 0)
             {
                 throw new InputException("Threshold low must be between 0 and 100.");
             }

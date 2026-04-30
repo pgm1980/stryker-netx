@@ -142,7 +142,7 @@ public sealed partial class VsTestRunnerPool : ITestRunner
         // initialize the map
         foreach (var testResult in testResults)
         {
-            if (testResult.Outcome != TestOutcome.Passed && testResult.Outcome != TestOutcome.Failed)
+            if (testResult.Outcome is not (TestOutcome.Passed or TestOutcome.Failed))
             {
                 // skip any test result that is not a pass or fail
                 continue;

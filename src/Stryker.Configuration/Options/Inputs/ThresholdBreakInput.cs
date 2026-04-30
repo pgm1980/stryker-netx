@@ -15,7 +15,7 @@ public class ThresholdBreakInput : Input<int?>
         if (SuppliedInput is not null)
         {
             var @break = SuppliedInput.Value;
-            if (@break > 100 || @break < 0)
+            if (@break is > 100 or < 0)
             {
                 throw new InputException("Threshold break must be between 0 and 100.");
             }

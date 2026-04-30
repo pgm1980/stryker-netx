@@ -23,7 +23,7 @@ public class Mutant : IMutant
 
     public string? ResultStatusReason { get; set; }
 
-    public bool CountForStats => ResultStatus != MutantStatus.CompileError && ResultStatus != MutantStatus.Ignored;
+    public bool CountForStats => ResultStatus is not (MutantStatus.CompileError or MutantStatus.Ignored);
 
     public bool IsStaticValue { get; set; }
 

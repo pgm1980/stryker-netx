@@ -85,7 +85,7 @@ public partial class SinceMutantFilter : IMutantFilter
 
     private static List<IMutant> SetNotRunMutantsToIgnored(IEnumerable<IMutant> mutants)
     {
-        foreach (var mutant in mutants.Where(m => m.ResultStatus == MutantStatus.Pending || m.ResultStatus == MutantStatus.NoCoverage))
+        foreach (var mutant in mutants.Where(m => m.ResultStatus is MutantStatus.Pending or MutantStatus.NoCoverage))
         {
             mutant.ResultStatus = MutantStatus.Ignored;
             mutant.ResultStatusReason = "Mutant not changed compared to target commit";

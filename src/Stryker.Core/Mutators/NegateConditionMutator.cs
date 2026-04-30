@@ -66,7 +66,7 @@ public class NegateConditionMutator : MutatorBase<ExpressionSyntax>
         }
         if (node is BinaryExpressionSyntax binary)
         {
-            return binary.Kind() == SyntaxKind.EqualsExpression || binary.Kind() == SyntaxKind.NotEqualsExpression;
+            return binary.Kind() is SyntaxKind.EqualsExpression or SyntaxKind.NotEqualsExpression;
         }
         return false;
     }

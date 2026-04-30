@@ -193,6 +193,14 @@ dotnet_diagnostic.IDE0302.severity = warning     # Collection initialization can
 dotnet_diagnostic.IDE0305.severity = warning     # Collection initialization can be simplified (toarray)
 dotnet_diagnostic.IDE0306.severity = warning     # Collection expression — pre-existing IEnumerable
 
+# Phase 10.6 — Pattern matching modernization
+# IDE0019 / IDE0020 / IDE0038 / IDE0078: prefer pattern matching over is + cast / typeof,
+#         is + null check, switch pattern arms, and pattern combinators.
+dotnet_diagnostic.IDE0019.severity = warning     # Use pattern matching (as cast)
+dotnet_diagnostic.IDE0020.severity = warning     # Use pattern matching (is type check)
+dotnet_diagnostic.IDE0038.severity = warning     # Use pattern matching (typeof check)
+dotnet_diagnostic.IDE0078.severity = warning     # Use pattern matching (combinators)
+
 # ============================================================================
 # Test-project specific overrides (Phase 7 onwards)
 # ============================================================================
