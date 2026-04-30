@@ -6,14 +6,14 @@
 
 `stryker-netx` is a fork of Stryker.NET that targets `.NET 10`, eliminates the `Buildalyzer` dependency in favour of `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace`, supports the modern `.slnx` (XML-based) solution format, and (since v2.0.0) ships a substantially expanded mutation-operator catalogue plus a `MutationProfile` opt-in surface for tunable noise/aggression. All public CLI flags and the `stryker-config.json` schema remain 1:1 backwards-compatible with upstream Stryker.NET 4.14.1.
 
-## What's new in v2.0.0
+## What's new in v2.0 line
 
-v2.0.0 is **fully backwards-compatible**: existing v1.x users see zero behavioral change unless they opt into a stronger mutation profile.
+v2.0.x is **fully backwards-compatible**: existing v1.x users see zero behavioral change unless they opt into a stronger mutation profile.
 
 - **`--mutation-profile` flag** (`Defaults` | `Stronger` | `All`) — orthogonal to `--mutation-level`; controls *which mutators* run (not just which mutations).
-- **14 net-new mutators** across 4 batches (typed-driven, PIT-1, PIT-2 + cargo-mutants, .NET-greenfield).
+- **22 net-new mutators** across 5 batches (typed-driven, PIT-1, PIT-2 + cargo-mutants, .NET-greenfield, **v2.0.1 spec-gap closure**).
 - **Operator hierarchy** + `[MutationProfileMembership]` attribute on every mutator (ADR-014, ADR-018).
-- **SemanticModel-driven type-aware mutators** (ADR-015).
+- **SemanticModel-driven type-aware mutators** (ADR-015) — used by `TypeDrivenReturn`, `ArgumentPropagation`, `MemberVariable`, `MethodBodyReplacement`.
 - **Equivalent-Mutant Filter pipeline** as a first-class stage (ADR-017).
 - **`--engine` flag** (`Recompile` default | `HotSwap` SCAFFOLDING-only — see roadmap).
 
@@ -90,8 +90,8 @@ CLI flags, configuration schema, and reporter outputs are 1:1 compatible with [u
 | Profile | Active mutators | Use case |
 |---------|-----------------|----------|
 | `Defaults` (default) | 26 v1.x mutators only | Drop-in v1.x parity. Same behavior as upstream Stryker.NET. |
-| `Stronger` | Defaults + 9 type-aware / catalogue-closing mutators | Catch more bugs while keeping noise manageable. |
-| `All` | Stronger + 5 most-aggressive operators (UOI, ConstructorNull, NakedReceiver, ExceptionSwap, GenericConstraint) | Maximum coverage; expect mutation volume to grow ~2-4× and runtime accordingly. |
+| `Stronger` | Defaults + 15 type-aware / catalogue-closing mutators (= 41 total) | Catch more bugs while keeping noise manageable. |
+| `All` | Stronger + 7 most-aggressive operators (UoiMutator, NakedReceiver, ExceptionSwap, GenericConstraint, ArgumentPropagation, AsSpanAsMemory, MethodBodyReplacement) (= 48 total) | Maximum coverage; expect mutation volume to grow ~3-5× and runtime accordingly. |
 
 Set via CLI:
 
@@ -110,7 +110,7 @@ Or in `stryker-config.json`:
 }
 ```
 
-## Operator catalogue (v2.0.0)
+## Operator catalogue (v2.0.1)
 
 | Family | v1.x mutators (Defaults) | Stronger additions | All-only additions |
 |--------|--------------------------|--------------------|--------------------|
@@ -121,19 +121,21 @@ Or in `stryker-config.json`:
 | Strings | String, StringEmpty, StringMethod, StringMethodToConstant, InterpolatedString | — | — |
 | Collections / LINQ | Linq, Collection, Initializer, ArrayCreation | TypeDrivenReturn (cargo-mutants C2) | — |
 | Object construction | ObjectCreation | ConstructorNull (PIT CONSTRUCTOR_CALLS) | — |
-| Method calls | (covered indirectly) | — | NakedReceiver (PIT EXP_NAKED_RECEIVER) |
-| Pattern matching | IsPatternExpression, RelationalPattern, BinaryPattern | MatchGuard (cargo-mutants C4) | — |
+| Method calls | (covered indirectly) | — | NakedReceiver (PIT EXP_NAKED_RECEIVER), ArgumentPropagation (PIT EXP_ARGUMENT_PROPAGATION, v2.0.1) |
+| Pattern matching | IsPatternExpression, RelationalPattern, BinaryPattern | MatchGuard (cargo-mutants C4), SwitchArmDeletion (cargo-mutants C3, v2.0.1) | — |
 | Records | (covered by ObjectCreation/Initializer) | WithExpression (cargo-mutants C5) | — |
-| Async / await | (none in v1.x) | AsyncAwait (greenfield) | — |
-| DateTime | (none in v1.x) | DateTime (greenfield) | — |
-| Span / Memory | (none in v1.x) | SpanMemory (greenfield) | — |
-| Exceptions | (none in v1.x) | — | ExceptionSwap (greenfield) |
-| Generics | (none in v1.x) | — | GenericConstraint (greenfield) |
+| Member variables | (covered by AssignmentExpression) | MemberVariable (PIT EXP_MEMBER_VARIABLE, v2.0.1) | — |
+| Method bodies | (covered by Block/Statement) | — | MethodBodyReplacement (cargo-mutants C1, v2.0.1) |
+| Async / await | (none in v1.x) | AsyncAwait, ConfigureAwait (v2.0.1), TaskWhenAllToWhenAny (v2.0.1) | — |
+| DateTime | (none in v1.x) | DateTime, DateTimeAddSign (v2.0.1) | — |
+| Span / Memory | (none in v1.x) | SpanMemory | AsSpanAsMemory (v2.0.1) |
+| Exceptions | (none in v1.x) | — | ExceptionSwap |
+| Generics | (none in v1.x) | — | GenericConstraint |
 | Other | Block, Statement, Assignment, Checked, Regex, NullCoalescing | — | — |
 
-Total: **26 (Defaults) + 9 (Stronger) + 5 (All) = 40 mutators**.
+Total: **26 (Defaults) + 15 (Stronger) + 7 (All-only) = 48 mutators** (v2.0.1).
 
-After Sprint 12, the catalogue is the most comprehensive published .NET mutation-operator suite — closing all operator-shaped recommendations from PIT, cargo-mutants, mutmut, and adding 5 .NET-specific operators no other framework has.
+After v2.0.1, the catalogue closes nearly all operator-shaped recommendations from PIT (`AOD`, `ROR`, `UOI`, `INLINE_CONSTS`, `CONSTRUCTOR_CALLS`, `EXP_NAKED_RECEIVER`, `EXP_ARGUMENT_PROPAGATION`, `EXP_MEMBER_VARIABLE`) and cargo-mutants (typed default returns, `with`-expression field deletion, `when`-clause mutation, switch-arm deletion, conservative-defaults equality filtering, function-body replacement), plus 9 .NET-specific operators (Async/Await, ConfigureAwait, Task.WhenAll/WhenAny, DateTime Now/UtcNow, DateTime AddDays-sign, Span/Memory Slice, AsSpan/AsMemory, Exception-Swap, Generic-Constraint). The remaining open items (CRCR full matrix, mutmut-style coverage-driven skip + Roslyn-diagnostics filter, HotSwap engine implementation) are roadmapped to v2.1.
 
 ## Mutation Engines (v2.0.0)
 
@@ -167,7 +169,14 @@ See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking
 - `JsonReport` reporter still uses runtime reflection (not source-generated) — functional, just not AOT-trimmable. Tracking for a future "AOT" sprint.
 - Validation framework count-based assertions in `integrationtest/Validation/ValidationProject/ValidateStrykerResults.cs` hardcode upstream Stryker.NET 4.14.1's exact mutant counts and have NOT been reconciled to our mutator output (which legitimately differs slightly due to C#-14-aware behavior + the v2.0 expanded catalogue). The framework BUILDS and the InitCommand validation test PASSES; per-fixture count reconciliation is a follow-up task.
 - **HotSwap engine** — scaffolding only in v2.0.0 (see Mutation Engines table above).
-- **CRCR full matrix**, **coverage-driven mutation skip**, and **Roslyn Diagnostics filter** are roadmapped for v2.0.x patches / v2.1.0.
+- **Open spec items** carried into the v2.1 roadmap (see [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md#roadmap-v20x--v21) for the full list). Not yet implemented in v2.0.1:
+  - PIT: `CRCR` full matrix
+  - Greenfield: `Span<T> ↔ ReadOnlySpan<T>` declaration-site swap (Slice-zero variant ships in v2.0.0; full AsSpan↔AsMemory swap ships in v2.0.1)
+  - mutmut: coverage-driven mutation skip, Roslyn Diagnostics filter
+  - HotSwap engine implementation (scaffolding only)
+- **AsyncAwaitMutator** semantics — emits `await x → x.GetAwaiter().GetResult()`, **not** `await x → x.Result` as listed in the comparison spec. The two are similar but not identical (`.Result` wraps exceptions in `AggregateException`; `GetAwaiter().GetResult()` unwraps). Documented for transparency.
+- **GenericConstraintMutator** semantics — drops the **entire** constraint clause set on a method, rather than the spec-listed constraint *loosening* (`where T : class → where T : new()`). Closely related but more aggressive.
+- **SpanMemoryMutator** semantics — emits `span.Slice(start, length) → span.Slice(0, length)`, a stryker-netx-specific variant. The spec-listed `AsSpan() ↔ AsMemory()` swap ships separately as `AsSpanAsMemoryMutator` (v2.0.1, All only). The declaration-site `Span<T> ↔ ReadOnlySpan<T>` swap is roadmapped to v2.1.
 
 ## Project status
 
@@ -186,6 +195,7 @@ See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking
 | Sprint 10 — PIT-1 Operator Batch | ✅ Tag `v2.0.0-preview.5` |
 | Sprint 11 — PIT-2 + cargo-mutants Batch | ✅ Tag `v2.0.0-rc.1` |
 | Sprint 12 — Greenfield + Release | ✅ Tag **`v2.0.0`** — production |
+| Sprint 13 — Spec-gap closure | ✅ Tag **`v2.0.1`** — 8 new mutators (ConfigureAwait, DateTimeAddSign, SwitchArmDeletion, MemberVariable, TaskWhenAllToWhenAny, ArgumentPropagation, AsSpanAsMemory, MethodBodyReplacement) closing remaining §4.1 / §4.2 / §4.4 spec items |
 
 See [`_docs/`](_docs/) for per-sprint lessons.
 
