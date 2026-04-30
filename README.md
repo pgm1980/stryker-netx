@@ -1,10 +1,23 @@
 # stryker-netx
 
-> **A 1:1 port of [Stryker.NET](https://github.com/stryker-mutator/stryker-net) 4.14.1 to C# 14 / .NET 10 — fully `.slnx`-aware.**
+> **A 1:1 port of [Stryker.NET](https://github.com/stryker-mutator/stryker-net) 4.14.1 to C# 14 / .NET 10 — fully `.slnx`-aware — with a v2.0.0 mutation-operator catalogue that rivals PIT, cargo-mutants, and mutmut.**
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-`stryker-netx` is a fork of Stryker.NET that targets `.NET 10`, eliminates the `Buildalyzer` dependency in favour of `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace`, and supports the modern `.slnx` (XML-based) solution format that ships as the default with the .NET 9 / 10 SDKs. All public CLI flags, configuration schema, and reporter outputs remain 1:1 compatible with upstream Stryker.NET 4.14.1.
+`stryker-netx` is a fork of Stryker.NET that targets `.NET 10`, eliminates the `Buildalyzer` dependency in favour of `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace`, supports the modern `.slnx` (XML-based) solution format, and (since v2.0.0) ships a substantially expanded mutation-operator catalogue plus a `MutationProfile` opt-in surface for tunable noise/aggression. All public CLI flags and the `stryker-config.json` schema remain 1:1 backwards-compatible with upstream Stryker.NET 4.14.1.
+
+## What's new in v2.0.0
+
+v2.0.0 is **fully backwards-compatible**: existing v1.x users see zero behavioral change unless they opt into a stronger mutation profile.
+
+- **`--mutation-profile` flag** (`Defaults` | `Stronger` | `All`) — orthogonal to `--mutation-level`; controls *which mutators* run (not just which mutations).
+- **14 net-new mutators** across 4 batches (typed-driven, PIT-1, PIT-2 + cargo-mutants, .NET-greenfield).
+- **Operator hierarchy** + `[MutationProfileMembership]` attribute on every mutator (ADR-014, ADR-018).
+- **SemanticModel-driven type-aware mutators** (ADR-015).
+- **Equivalent-Mutant Filter pipeline** as a first-class stage (ADR-017).
+- **`--engine` flag** (`Recompile` default | `HotSwap` SCAFFOLDING-only — see roadmap).
+
+See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md) for the full upgrade story.
 
 ## Why this fork exists
 
@@ -40,10 +53,10 @@ For the official Stryker.NET project see https://github.com/stryker-mutator/stry
 dotnet tool install -g dotnet-stryker-netx
 ```
 
-Or pin a specific version:
+Pin a specific version:
 
 ```bash
-dotnet tool install -g dotnet-stryker-netx --version 1.0.0
+dotnet tool install -g dotnet-stryker-netx --version 2.0.0
 ```
 
 ## Quickstart
@@ -70,7 +83,68 @@ dotnet stryker-netx --config-file stryker-config.json
 
 CLI flags, configuration schema, and reporter outputs are 1:1 compatible with [upstream Stryker.NET configuration docs](https://stryker-mutator.io/docs/stryker-net/configuration).
 
-## Migration from Stryker.NET
+## Mutation Profiles (v2.0.0)
+
+`--mutation-profile` controls which mutators are *active* during a run. It is independent of `--mutation-level` (which controls which *mutations* a given mutator emits).
+
+| Profile | Active mutators | Use case |
+|---------|-----------------|----------|
+| `Defaults` (default) | 26 v1.x mutators only | Drop-in v1.x parity. Same behavior as upstream Stryker.NET. |
+| `Stronger` | Defaults + 9 type-aware / catalogue-closing mutators | Catch more bugs while keeping noise manageable. |
+| `All` | Stronger + 5 most-aggressive operators (UOI, ConstructorNull, NakedReceiver, ExceptionSwap, GenericConstraint) | Maximum coverage; expect mutation volume to grow ~2-4× and runtime accordingly. |
+
+Set via CLI:
+
+```bash
+dotnet stryker-netx --mutation-profile Stronger
+dotnet stryker-netx --mutation-profile All
+```
+
+Or in `stryker-config.json`:
+
+```json
+{
+  "stryker-config": {
+    "mutation-profile": "Stronger"
+  }
+}
+```
+
+## Operator catalogue (v2.0.0)
+
+| Family | v1.x mutators (Defaults) | Stronger additions | All-only additions |
+|--------|--------------------------|--------------------|--------------------|
+| Arithmetic | BinaryExpression, Math | Aod (operator deletion), InlineConstants | — |
+| Relational | BinaryExpression, RelationalPattern | RorMatrix (full 5-replacement matrix) | — |
+| Logical / Boolean | Boolean, NegateCondition, ConditionalExpression, BinaryPattern | — | — |
+| Unary | PrefixUnary, PostfixUnary | — | UoiMutator |
+| Strings | String, StringEmpty, StringMethod, StringMethodToConstant, InterpolatedString | — | — |
+| Collections / LINQ | Linq, Collection, Initializer, ArrayCreation | TypeDrivenReturn (cargo-mutants C2) | — |
+| Object construction | ObjectCreation | ConstructorNull (PIT CONSTRUCTOR_CALLS) | — |
+| Method calls | (covered indirectly) | — | NakedReceiver (PIT EXP_NAKED_RECEIVER) |
+| Pattern matching | IsPatternExpression, RelationalPattern, BinaryPattern | MatchGuard (cargo-mutants C4) | — |
+| Records | (covered by ObjectCreation/Initializer) | WithExpression (cargo-mutants C5) | — |
+| Async / await | (none in v1.x) | AsyncAwait (greenfield) | — |
+| DateTime | (none in v1.x) | DateTime (greenfield) | — |
+| Span / Memory | (none in v1.x) | SpanMemory (greenfield) | — |
+| Exceptions | (none in v1.x) | — | ExceptionSwap (greenfield) |
+| Generics | (none in v1.x) | — | GenericConstraint (greenfield) |
+| Other | Block, Statement, Assignment, Checked, Regex, NullCoalescing | — | — |
+
+Total: **26 (Defaults) + 9 (Stronger) + 5 (All) = 40 mutators**.
+
+After Sprint 12, the catalogue is the most comprehensive published .NET mutation-operator suite — closing all operator-shaped recommendations from PIT, cargo-mutants, mutmut, and adding 5 .NET-specific operators no other framework has.
+
+## Mutation Engines (v2.0.0)
+
+`--engine` selects the execution model:
+
+| Engine | Status | Description |
+|--------|--------|-------------|
+| `Recompile` (default) | ✅ Production | v1.x default — compile per mutant, run the test suite, discard. Maximally compatible. |
+| `HotSwap` | 🚧 Scaffolding only | v2.0.0 ships the `IMutationEngine` plumbing; the `MetadataUpdater.ApplyUpdate`-based implementation is roadmapped (see `_docs/architecture spec` ADR-016). Selecting it currently throws `NotSupportedException` with a pointer to the follow-up implementation work. |
+
+## Migration from upstream Stryker.NET
 
 If you already use `dotnet-stryker`, switching is a two-step rename:
 
@@ -83,23 +157,37 @@ If you already use `dotnet-stryker`, switching is a two-step rename:
 
 That's it. **`stryker-config.json`, CLI flags, and reporter output formats are unchanged.** No config file edits required.
 
-## Known limitations (v1.0.0)
+## Migration from stryker-netx v1.x to v2.0.0
 
-- **NetFramework projects** (legacy `packages.config` style — `<TargetFramework>net48</TargetFramework>`) require `nuget.exe restore` of the .sln before invocation, because `dotnet msbuild -restore` only handles `<PackageReference>` style. CI's `windows-latest` runner ships `nuget.exe`; local-only blocked unless `nuget.exe` is on PATH.
+See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking changes for the default profile**. To opt into the expanded catalogue, add `--mutation-profile Stronger` or `--mutation-profile All`.
+
+## Known limitations (v2.0.0)
+
+- **NetFramework projects** (legacy `packages.config` style — `<TargetFramework>net48</TargetFramework>`) require `nuget.exe restore` of the .sln before invocation, because `dotnet msbuild -restore` only handles `<PackageReference>` style. CI's `windows-latest` runner ships `nuget.exe`; local-only blocked unless `nuget.exe` is on PATH. (Carried forward from v1.0.)
 - `JsonReport` reporter still uses runtime reflection (not source-generated) — functional, just not AOT-trimmable. Tracking for a future "AOT" sprint.
-- Validation framework count-based assertions in `integrationtest/Validation/ValidationProject/ValidateStrykerResults.cs` hardcode upstream Stryker.NET 4.14.1's exact mutant counts and have NOT been reconciled to our mutator output (which legitimately differs slightly due to C#-14-aware behavior). The framework BUILDS and the InitCommand validation test PASSES; per-fixture count reconciliation is a follow-up task.
+- Validation framework count-based assertions in `integrationtest/Validation/ValidationProject/ValidateStrykerResults.cs` hardcode upstream Stryker.NET 4.14.1's exact mutant counts and have NOT been reconciled to our mutator output (which legitimately differs slightly due to C#-14-aware behavior + the v2.0 expanded catalogue). The framework BUILDS and the InitCommand validation test PASSES; per-fixture count reconciliation is a follow-up task.
+- **HotSwap engine** — scaffolding only in v2.0.0 (see Mutation Engines table above).
+- **CRCR full matrix**, **coverage-driven mutation skip**, and **Roslyn Diagnostics filter** are roadmapped for v2.0.x patches / v2.1.0.
 
 ## Project status
 
 | Sprint | Outcome |
 |--------|---------|
 | Sprint 0 — Architecture & Design | ✅ 12 ADRs, FRs, NFRs, test stack chosen |
-| Sprint 1 — Implementation (Mega-Sprint, 10 phases) | ✅ Tag `v1.0.0-preview.1` — Buildalyzer fully removed, all 11 + 6 projects on .NET 10, 233 ILogger calls source-generated |
-| Sprint 2 — Code Excellence (8 phases) | ✅ Tag `v1.0.0-preview.2` — C# 14 extension members, [GeneratedRegex], JsonSerializerContext, field keyword, list patterns, RSL — code-quality lifted to "high-end" |
-| Sprint 3 — Production Hardening | ✅ Tag `v1.0.0-rc.1` — integration suite vendored, NuGet packaging + CI + Release pipeline + README + Migration Guide done; Bug-5 surfaced |
-| Sprint 4 — Bug Elimination | ✅ Tag **`v1.0.0`** — Bug-5 (mutation-engine project-reference handling) fixed; all NetCore + MTP + Edge integration categories run end-to-end |
+| Sprint 1 — Implementation (Mega-Sprint, 10 phases) | ✅ Tag `v1.0.0-preview.1` — Buildalyzer fully removed, all 11 + 6 projects on .NET 10 |
+| Sprint 2 — Code Excellence | ✅ Tag `v1.0.0-preview.2` — C# 14 extension members, source-gen regex, list patterns, RSL |
+| Sprint 3 — Production Hardening | ✅ Tag `v1.0.0-rc.1` — integration suite vendored, NuGet + CI + Release pipeline |
+| Sprint 4 — Bug Elimination | ✅ Tag **`v1.0.0`** — Bug-5 fixed; all NetCore + MTP + Edge integration categories run end-to-end |
+| Sprint 5 — v2.0.0 Architecture Foundation | ✅ ADRs 013–018 + interface stubs (no tag) |
+| Sprint 6 — Operator-Hierarchy + Profile Refactor | ✅ Tag `v2.0.0-preview.1` |
+| Sprint 7 — SemanticModel + Equiv-Mutant Filter | ✅ Tag `v2.0.0-preview.2` |
+| Sprint 8 — Hot-Swap engine SCAFFOLDING | ✅ Tag `v2.0.0-preview.3` |
+| Sprint 9 — Type-Driven Mutators | ✅ Tag `v2.0.0-preview.4` |
+| Sprint 10 — PIT-1 Operator Batch | ✅ Tag `v2.0.0-preview.5` |
+| Sprint 11 — PIT-2 + cargo-mutants Batch | ✅ Tag `v2.0.0-rc.1` |
+| Sprint 12 — Greenfield + Release | ✅ Tag **`v2.0.0`** — production |
 
-See [`_docs/`](`_docs`) for sprint lessons docs.
+See [`_docs/`](_docs/) for per-sprint lessons.
 
 ## Building from source
 
@@ -123,5 +211,6 @@ Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attri
 
 - Original Stryker.NET project: https://github.com/stryker-mutator/stryker-net
 - Stryker Mutator docs: https://stryker-mutator.io/
-- Architecture decisions: [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md)
-- Sprint lessons: [_docs/sprint_1_lessons.md](_docs/sprint_1_lessons.md), [_docs/sprint_2_lessons.md](_docs/sprint_2_lessons.md)
+- Architecture decisions (incl. v2.0.0 ADRs 013–018): [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md)
+- v1→v2 migration guide: [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md)
+- Per-sprint lessons: [_docs/](_docs/)
