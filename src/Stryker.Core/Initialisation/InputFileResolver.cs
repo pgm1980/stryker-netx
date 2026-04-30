@@ -41,14 +41,19 @@ public partial class InputFileResolver : IInputFileResolver
         ISolutionProvider solutionProvider,
         ILogger<InputFileResolver> logger)
     {
-        FileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
-        _workspaceProvider = workspaceProvider ?? throw new ArgumentNullException(nameof(workspaceProvider));
+        ArgumentNullException.ThrowIfNull(fileSystem);
+        ArgumentNullException.ThrowIfNull(workspaceProvider);
         // INugetRestoreProcess is retained on the constructor signature for backwards-compatibility
         // with external callers that still pass it via DI; full-framework restore retry was removed
         // in Phase 9b because MSBuildWorkspace handles package restore internally.
         ArgumentNullException.ThrowIfNull(nugetRestoreProcess);
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _solutionProvider = solutionProvider ?? throw new ArgumentNullException(nameof(solutionProvider));
+        ArgumentNullException.ThrowIfNull(solutionProvider);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        FileSystem = fileSystem;
+        _workspaceProvider = workspaceProvider;
+        _solutionProvider = solutionProvider;
+        _logger = logger;
     }
 
     public IFileSystem FileSystem { get; }

@@ -36,12 +36,19 @@ public partial class StrykerCli
         IAnsiConsole console,
         IFileSystem fileSystem)
     {
-        _stryker = stryker ?? throw new ArgumentNullException(nameof(stryker));
-        _configReader = configReader ?? throw new ArgumentNullException(nameof(configReader));
-        _loggingInitializer = loggingInitializer ?? throw new ArgumentNullException(nameof(loggingInitializer));
-        _nugetClient = nugetClient ?? throw new ArgumentNullException(nameof(nugetClient));
-        _console = console ?? throw new ArgumentNullException(nameof(console));
-        _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
+        ArgumentNullException.ThrowIfNull(stryker);
+        ArgumentNullException.ThrowIfNull(configReader);
+        ArgumentNullException.ThrowIfNull(loggingInitializer);
+        ArgumentNullException.ThrowIfNull(nugetClient);
+        ArgumentNullException.ThrowIfNull(console);
+        ArgumentNullException.ThrowIfNull(fileSystem);
+
+        _stryker = stryker;
+        _configReader = configReader;
+        _loggingInitializer = loggingInitializer;
+        _nugetClient = nugetClient;
+        _console = console;
+        _fileSystem = fileSystem;
     }
 
     /// <summary>

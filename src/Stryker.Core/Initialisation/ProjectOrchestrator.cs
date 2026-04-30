@@ -37,12 +37,19 @@ public sealed partial class ProjectOrchestrator : IProjectOrchestrator
         IMutationTestExecutor mutationTestExecutor,
         ILogger<ProjectOrchestrator> logger)
     {
-        _projectMutator = projectMutator ?? throw new ArgumentNullException(nameof(projectMutator));
-        _initializationProcess = initializationProcess ?? throw new ArgumentNullException(nameof(initializationProcess));
-        _fileResolver = fileResolver ?? throw new ArgumentNullException(nameof(fileResolver));
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-        _mutationTestExecutor = mutationTestExecutor ?? throw new ArgumentNullException(nameof(mutationTestExecutor));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(projectMutator);
+        ArgumentNullException.ThrowIfNull(initializationProcess);
+        ArgumentNullException.ThrowIfNull(fileResolver);
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(mutationTestExecutor);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _projectMutator = projectMutator;
+        _initializationProcess = initializationProcess;
+        _fileResolver = fileResolver;
+        _serviceProvider = serviceProvider;
+        _mutationTestExecutor = mutationTestExecutor;
+        _logger = logger;
     }
 
     public async Task<IEnumerable<IMutationTestProcess>> MutateProjectsAsync(IStrykerOptions options, IReporter reporters,

@@ -18,7 +18,8 @@ public partial class MutationTestExecutor : IMutationTestExecutor
 
     public MutationTestExecutor(ILogger<MutationTestExecutor> logger)
     {
-        Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        Logger = logger;
     }
 
     public async Task TestAsync(IProjectAndTests project, IList<IMutant> mutantsToTest, ITimeoutValueCalculator timeoutMs,

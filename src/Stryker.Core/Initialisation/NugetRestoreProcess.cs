@@ -20,8 +20,11 @@ public partial class NugetRestoreProcess : INugetRestoreProcess
 
     public NugetRestoreProcess(IProcessExecutor processExecutor, ILogger<NugetRestoreProcess> logger)
     {
-        ProcessExecutor = processExecutor ?? throw new ArgumentNullException(nameof(processExecutor));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(processExecutor);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        ProcessExecutor = processExecutor;
+        _logger = logger;
     }
 
     public void RestorePackages(string solutionPath, string? msbuildPath = null)
