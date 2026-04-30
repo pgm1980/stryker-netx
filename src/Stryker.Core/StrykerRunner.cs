@@ -79,7 +79,7 @@ public partial class StrykerRunner(
         // produce a non-zero exit code. In DEBUG builds the catch is omitted so the debugger
         // breaks at the throw site. Matches upstream Stryker.NET 4.14.1 behaviour exactly.
 #pragma warning disable S2139
-        catch (Exception ex) when (!(ex is InputException))
+        catch (Exception ex) when (ex is not InputException)
         {
             LogMutationTestError(_logger, ex);
             throw;
