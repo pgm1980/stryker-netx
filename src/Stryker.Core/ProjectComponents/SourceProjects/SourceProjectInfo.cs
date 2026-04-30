@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using Buildalyzer;
 using Stryker.Abstractions;
+using Stryker.Abstractions.Analysis;
 using Stryker.Abstractions.ProjectComponents;
 using Stryker.Core.InjectedHelpers;
-using Stryker.Utilities.Buildalyzer;
+using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.ProjectComponents.SourceProjects;
 
@@ -16,14 +16,14 @@ public class SourceProjectInfo : IProjectAndTests
 
     public SolutionInfo? SolutionInfo { get; set; }
 
-    public IAnalyzerResult AnalyzerResult { get; init; } = null!; // initialized via object initializer in InputFileResolver.BuildSourceProjectInfo
+    public IProjectAnalysis Analysis { get; init; } = null!; // initialized via object initializer in InputFileResolver.BuildSourceProjectInfo
 
     /// <summary>
     /// The Folder/File structure found in the project under test.
     /// </summary>
     public IReadOnlyProjectComponent ProjectContents { get; set; } = null!; // initialized via setter in InputFileResolver.BuildSourceProjectInfo
 
-    public bool IsFullFramework => AnalyzerResult.TargetsFullFramework();
+    public bool IsFullFramework => Analysis.TargetsFullFramework();
 
     public string HelperNamespace => CodeInjector.HelperNamespace;
 

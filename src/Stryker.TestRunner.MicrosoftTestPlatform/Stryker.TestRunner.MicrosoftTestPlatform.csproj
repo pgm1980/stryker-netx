@@ -5,7 +5,6 @@
     New Microsoft Testing Platform adapter (RPC over JSON-RPC, CliWrap process control).
     Sonderfall: ImplicitUsings=enable (1:1 mit Stryker.NET 4.14.1 - Code nutzt implizite using-Aufloesung).
     InternalsVisibleTo: UnitTest project + DynamicProxyGenAssembly2 (Moq) - 1:1 beibehalten.
-    Buildalyzer ist transitive via Utilities; deshalb VisualBasic-Override (NU1608-Mitigation).
     1:1 namespace-compatibility with upstream Stryker.NET 4.14.1 (ADR-003).
   -->
 
@@ -37,8 +36,8 @@
     <PackageReference Include="StreamJsonRpc" />
     <PackageReference Include="Microsoft.Testing.Platform" />
     <!--
-      VisualBasic reference: NU1608 mitigation (Buildalyzer 9.0 is transitive via Utilities,
-      pulls in VisualBasic 4.0.0 which clashes with Common 5.3.0). See sprint_1_lessons.md Sektion 2.
+      VisualBasic kept for parity with Microsoft.CodeAnalysis.Common 5.3.0; pulled in transitively
+      via Stryker.Utilities' Workspaces.MSBuild reference.
     -->
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
   </ItemGroup>

@@ -4,18 +4,18 @@ using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
 using System.Text;
-using Buildalyzer;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
+using Stryker.Abstractions.Analysis;
 using Stryker.Abstractions.Options;
 using Stryker.Abstractions.ProjectComponents;
 using Stryker.Core.MutantFilters;
 using Stryker.Core.ProjectComponents;
 using Stryker.Core.ProjectComponents.Csharp;
 using Stryker.Core.ProjectComponents.SourceProjects;
-using Stryker.Utilities.Buildalyzer;
+using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.Initialisation;
 
@@ -37,53 +37,53 @@ public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
     public override IReadOnlyProjectComponent Build()
     {
         CsharpFolderComposite inputFiles;
-        if (_projectInfo.AnalyzerResult.SourceFiles != null && _projectInfo.AnalyzerResult.SourceFiles.Length > 0)
+        if (_projectInfo.Analysis.SourceFiles is { Count: > 0 })
         {
-            inputFiles = FindProjectFilesUsingBuildalyzer(_projectInfo.AnalyzerResult, _options);
+            inputFiles = FindProjectFilesUsingAnalysis(_projectInfo.Analysis, _options);
         }
         else
         {
-            _logger.LogWarning("Buildalyzer could not find sourcefiles. This should not happen. We fallback to filesystem scan. Please report an issue at github.");
-            inputFiles = FindProjectFilesScanningProjectFolders(_projectInfo.AnalyzerResult);
+            _logger.LogWarning("Project analysis could not find sourcefiles. This should not happen. We fallback to filesystem scan. Please report an issue at github.");
+            inputFiles = FindProjectFilesScanningProjectFolders(_projectInfo.Analysis);
         }
         return inputFiles;
     }
 
     // This is a backup strategy
-    private CsharpFolderComposite FindProjectFilesScanningProjectFolders(IAnalyzerResult analyzerResult)
+    private CsharpFolderComposite FindProjectFilesScanningProjectFolders(IProjectAnalysis analysis)
     {
         var inputFiles = new CsharpFolderComposite();
-        var sourceProjectDir = Path.GetDirectoryName(analyzerResult.ProjectFilePath) ?? string.Empty;
-        var cSharpParseOptions = analyzerResult.GetParseOptions(_options);
-        foreach (var dir in ExtractProjectFolders(analyzerResult))
+        var sourceProjectDir = Path.GetDirectoryName(analysis.ProjectFilePath) ?? string.Empty;
+        var cSharpParseOptions = analysis.GetParseOptions(_options);
+        foreach (var dir in ExtractProjectFolders(analysis))
         {
             var folder = FileSystem.Path.Combine(Path.GetDirectoryName(sourceProjectDir) ?? string.Empty, dir);
             _logger.LogDebug("Scanning {Folder}", folder);
-            inputFiles.Add(FindInputFiles(folder, sourceProjectDir, analyzerResult, cSharpParseOptions));
+            inputFiles.Add(FindInputFiles(folder, sourceProjectDir, analysis, cSharpParseOptions));
         }
 
         return inputFiles;
     }
 
     public override void InjectHelpers(IReadOnlyProjectComponent inputFiles)
-        => InjectMutantHelpers((CsharpFolderComposite)inputFiles, _projectInfo.AnalyzerResult.GetParseOptions(_options));
+        => InjectMutantHelpers((CsharpFolderComposite)inputFiles, _projectInfo.Analysis.GetParseOptions(_options));
 
-    private CsharpFolderComposite FindProjectFilesUsingBuildalyzer(IAnalyzerResult analyzerResult, IStrykerOptions options)
+    private CsharpFolderComposite FindProjectFilesUsingAnalysis(IProjectAnalysis analysis, IStrykerOptions options)
     {
-        var generatedAssemblyInfo = analyzerResult.AssemblyAttributeFileName();
+        var generatedAssemblyInfo = analysis.AssemblyAttributeFileName();
         var projectUnderTestFolderComposite = new CsharpFolderComposite()
         {
-            FullPath = Path.GetDirectoryName(analyzerResult.ProjectFilePath) ?? string.Empty,
-            RelativePath = Path.GetDirectoryName(Path.GetDirectoryName(analyzerResult.ProjectFilePath)) ?? string.Empty,
+            FullPath = Path.GetDirectoryName(analysis.ProjectFilePath) ?? string.Empty,
+            RelativePath = Path.GetDirectoryName(Path.GetDirectoryName(analysis.ProjectFilePath)) ?? string.Empty,
         };
         var cache = new Dictionary<string, CsharpFolderComposite>(StringComparer.Ordinal) { [string.Empty] = projectUnderTestFolderComposite };
 
         // Save cache in a singleton, so we can use it in other parts of the project
         FolderCompositeCacheRegistry.Get<CsharpFolderComposite>().Cache = cache;
 
-        foreach (var sourceFile in analyzerResult.SourceFiles)
+        foreach (var sourceFile in analysis.SourceFiles)
         {
-            var projectDir = Path.GetDirectoryName(analyzerResult.ProjectFilePath) ?? string.Empty;
+            var projectDir = Path.GetDirectoryName(analysis.ProjectFilePath) ?? string.Empty;
             var relativePath = Path.GetRelativePath(projectDir, sourceFile);
             var folderComposite = GetOrBuildFolderComposite(cache, Path.GetDirectoryName(relativePath) ?? string.Empty, projectDir, projectUnderTestFolderComposite);
 
@@ -95,7 +95,7 @@ public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
             };
 
             // Get the syntax tree for the source file
-            var syntaxTree = CSharpSyntaxTree.ParseText(file.SourceCode, analyzerResult.GetParseOptions(options), file.FullPath, encoding: Encoding.UTF32);
+            var syntaxTree = CSharpSyntaxTree.ParseText(file.SourceCode, analysis.GetParseOptions(options), file.FullPath, encoding: Encoding.UTF32);
 
             // don't mutate auto generated code
             if (syntaxTree.IsGenerated())
@@ -117,13 +117,13 @@ public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
         return projectUnderTestFolderComposite;
     }
 
-    public override Action PostBuildAction() => () => ScanPackageContentFiles(_projectInfo.AnalyzerResult, (CsharpFolderComposite)_projectInfo.ProjectContents);
+    public override Action PostBuildAction() => () => ScanPackageContentFiles(_projectInfo.Analysis, (CsharpFolderComposite)_projectInfo.ProjectContents);
 
-    public void ScanPackageContentFiles(IAnalyzerResult analyzerResult, CsharpFolderComposite projectUnderTestFolderComposite)
+    public void ScanPackageContentFiles(IProjectAnalysis analysis, CsharpFolderComposite projectUnderTestFolderComposite)
     {
         // look for extra source files coming from Nuget packages
-        var folder = analyzerResult.GetProperty("ContentPreprocessorOutputDirectory");
-        var sourceProjectDir = Path.GetDirectoryName(analyzerResult.ProjectFilePath) ?? string.Empty;
+        var folder = analysis.GetPropertyOrDefault("ContentPreprocessorOutputDirectory");
+        var sourceProjectDir = Path.GetDirectoryName(analysis.ProjectFilePath) ?? string.Empty;
         if (string.IsNullOrEmpty(folder))
         {
             return;
@@ -131,7 +131,7 @@ public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
         folder = Path.Combine(sourceProjectDir, folder);
         if (FileSystem.Directory.Exists(folder))
         {
-            projectUnderTestFolderComposite.Add(FindInputFiles(folder, sourceProjectDir, analyzerResult.GetParseOptions(_options), false));
+            projectUnderTestFolderComposite.Add(FindInputFiles(folder, sourceProjectDir, analysis.GetParseOptions(_options), false));
         }
     }
 
@@ -166,7 +166,7 @@ public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
     /// Deprecated method, should not be maintained
     /// </summary>
     private CsharpFolderComposite FindInputFiles(string path, string sourceProjectDir,
-        IAnalyzerResult analyzerResult, CSharpParseOptions cSharpParseOptions)
+        IProjectAnalysis analysis, CSharpParseOptions cSharpParseOptions)
     {
         var rootFolderComposite = new CsharpFolderComposite
         {
@@ -176,7 +176,7 @@ public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
 
 
         rootFolderComposite.Add(
-            FindInputFiles(path, Path.GetDirectoryName(analyzerResult.ProjectFilePath) ?? string.Empty, cSharpParseOptions)
+            FindInputFiles(path, Path.GetDirectoryName(analysis.ProjectFilePath) ?? string.Empty, cSharpParseOptions)
         );
         return rootFolderComposite;
     }

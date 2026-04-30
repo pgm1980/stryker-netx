@@ -12,7 +12,7 @@ using Stryker.Core.Mutants;
 using Stryker.Core.ProjectComponents;
 using Stryker.Core.ProjectComponents.Csharp;
 using Stryker.Core.ProjectComponents.TestProjects;
-using Stryker.Utilities.Buildalyzer;
+using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.MutationTest;
 
@@ -70,9 +70,9 @@ public class CsharpMutationProcess : IMutationProcess
         // compile the mutated syntax trees
         var compileResult = compilingProcess.Compile(projectInfo.CompilationSyntaxTrees, ms, msForSymbols);
 
-        foreach (var testProject in info.TestProjectsInfo.AnalyzerResults)
+        foreach (var testProject in info.TestProjectsInfo.Analyses)
         {
-            var injectionPath = TestProjectsInfo.GetInjectionFilePath(testProject, input.SourceProjectInfo.AnalyzerResult);
+            var injectionPath = TestProjectsInfo.GetInjectionFilePath(testProject, input.SourceProjectInfo.Analysis);
             if (!_fileSystem.Directory.Exists(testProject.GetAssemblyDirectoryPath()))
             {
                 _fileSystem.Directory.CreateDirectory(testProject.GetAssemblyDirectoryPath());
@@ -86,7 +86,7 @@ public class CsharpMutationProcess : IMutationProcess
             if (msForSymbols != null)
             {
                 // inject the debug symbols into the test project
-                using var symbolDestination = _fileSystem.File.Create(Path.Combine(testProject.GetAssemblyDirectoryPath(), input.SourceProjectInfo.AnalyzerResult.GetSymbolFileName()));
+                using var symbolDestination = _fileSystem.File.Create(Path.Combine(testProject.GetAssemblyDirectoryPath(), input.SourceProjectInfo.Analysis.GetSymbolFileName()));
                 msForSymbols.Position = 0;
                 msForSymbols.CopyTo(symbolDestination);
             }

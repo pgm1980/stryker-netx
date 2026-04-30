@@ -10,7 +10,7 @@ using Stryker.Abstractions.Options;
 using Stryker.Abstractions.Testing;
 using Stryker.Core.MutationTest;
 using Stryker.Core.ProjectComponents.SourceProjects;
-using Stryker.Utilities.Buildalyzer;
+using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.Initialisation;
 
@@ -72,7 +72,7 @@ public class InitialisationProcess : IInitialisationProcess
         else
         {
             // build every test projects
-            var testProjects = projects.SelectMany(p => p.TestProjectsInfo.AnalyzerResults).Distinct().ToList();
+            var testProjects = projects.SelectMany(p => p.TestProjectsInfo.Analyses).Distinct().ToList();
             for (var i = 0; i < testProjects.Count; i++)
             {
                 _logger.LogInformation(
@@ -84,8 +84,8 @@ public class InitialisationProcess : IInitialisationProcess
                     testProjects[i].TargetsFullFramework(),
                     testProjects[i].ProjectFilePath,
                     options.SolutionPath ?? string.Empty,
-                    testProjects[i].GetProperty("Configuration"),
-                    testProjects[i].GetProperty("Platform"),
+                    testProjects[i].GetPropertyOrDefault("Configuration", string.Empty),
+                    testProjects[i].GetPropertyOrDefault("Platform", string.Empty),
                     msbuildPath: options.MsBuildPath ?? testProjects[i].MsBuildPath());
             }
         }
@@ -121,7 +121,7 @@ public class InitialisationProcess : IInitialisationProcess
         _logger.LogInformation(
             "Number of tests found: {TestCount} for project {ProjectFilePath}. Initial test run started.",
         testRunner.GetTests(projectInfo).Count,
-        projectInfo.AnalyzerResult.ProjectFilePath);
+        projectInfo.Analysis.ProjectFilePath);
 
         var result = await _initialTestProcess.InitialTestAsync(options, projectInfo, testRunner).ConfigureAwait(false);
 
@@ -163,7 +163,7 @@ public class InitialisationProcess : IInitialisationProcess
 
     private void DiscoverTests(SourceProjectInfo projectInfo, ITestRunner testRunner)
     {
-        foreach (var testProject in projectInfo.TestProjectsInfo.AnalyzerResults)
+        foreach (var testProject in projectInfo.TestProjectsInfo.Analyses)
         {
             if (testRunner.DiscoverTestsAsync(testProject.GetAssemblyPath()).GetAwaiter().GetResult())
             {
@@ -182,7 +182,7 @@ public class InitialisationProcess : IInitialisationProcess
                 causeFound = true;
                 var message =
                     $"Project '{testProject.ProjectFilePath}' did not report any test.";
-                if (testProject.PackageReferences?.ContainsKey(package) == true)
+                if (HasPackageReference(testProject, package))
                 {
                     message += $" This may be because the test adapter package, {package}, failed to deploy or run. " +
                              "Check if any dependency is missing or there is a version conflict, check the testdiscovery logs or explore with VsTest.console.";
@@ -216,5 +216,21 @@ public class InitialisationProcess : IInitialisationProcess
             projectInfo.LogError(messageForNoReason);
             _logger.LogWarning("{Message}", messageForNoReason);
         }
+    }
+
+    /// <summary>
+    /// Checks whether the project pulls in the given NuGet package, by inspecting either the
+    /// raw <c>PackageReference</c> items (when an MSBuild evaluation is available) or by
+    /// matching the package name against the resolved metadata reference DLL paths.
+    /// </summary>
+    private static bool HasPackageReference(Stryker.Abstractions.Analysis.IProjectAnalysis analysis, string package)
+    {
+        var packageItems = analysis.GetItemPaths("PackageReference");
+        if (packageItems.Any(p => p.Contains(package, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+        return analysis.References.Any(r => r.Contains($"{Path.DirectorySeparatorChar}{package}{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+            || r.Contains($"{Path.AltDirectorySeparatorChar}{package}{Path.AltDirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase));
     }
 }

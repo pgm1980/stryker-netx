@@ -1,11 +1,11 @@
 using System.Collections.Generic;
-using Buildalyzer;
+using Stryker.Abstractions.Analysis;
 
 namespace Stryker.Abstractions.ProjectComponents;
 
 public interface ITestProject
 {
-    IAnalyzerResult AnalyzerResult { get; }
+    IProjectAnalysis Analysis { get; }
     string ProjectFilePath { get; }
     IEnumerable<ITestFile> TestFiles { get; }
 

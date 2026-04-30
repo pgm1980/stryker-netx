@@ -18,17 +18,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Buildalyzer" />
     <PackageReference Include="DotNet.Glob" />
     <PackageReference Include="Microsoft.CodeAnalysis.Common" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <!--
-      VisualBasic reference: explicit override for CPM (resolves to 5.3.0 via Directory.Packages.props).
-      Buildalyzer 9.0 transitively pulls in VisualBasic 4.0.0 (with Common = 4.0.0 constraint),
-      which clashes with our pinned Common 5.3.0 (NU1608). Direct PackageReference here lets CPM
-      pin the central 5.3.0 version, overriding the transitive 4.0.0. VB is for vbproj-parsing in
-      Buildalyzer.Workspaces — not used at runtime by stryker (we only mutate C#). Re-evaluate when
-      Buildalyzer 9.x updates its VB-ref to 5.x or when we move to Roslyn 6.x.
+      VisualBasic kept for parity with Microsoft.CodeAnalysis.Common 5.3.0; not used at runtime
+      by Stryker.Abstractions (no VB code is mutated). Pinned via CPM to keep Roslyn versions aligned.
     -->
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
     <PackageReference Include="Microsoft.TestPlatform.ObjectModel" />

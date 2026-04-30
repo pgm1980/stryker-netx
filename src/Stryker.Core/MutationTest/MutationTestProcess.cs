@@ -12,7 +12,7 @@ using Stryker.Abstractions.Reporting;
 using Stryker.Abstractions.Testing;
 using Stryker.Core.CoverageAnalysis;
 using Stryker.TestRunner.Tests;
-using Stryker.Utilities.Buildalyzer;
+using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.MutationTest;
 
@@ -46,7 +46,7 @@ public class MutationTestProcess : IMutationTestProcess
         _options = options;
         _reporter = reporter;
         _projectContents = input.SourceProjectInfo.ProjectContents;
-        Input.TestProjectsInfo.BackupOriginalAssembly(Input.SourceProjectInfo.AnalyzerResult);
+        Input.TestProjectsInfo.BackupOriginalAssembly(Input.SourceProjectInfo.Analysis);
     }
 
     public void Mutate()
@@ -68,7 +68,7 @@ public class MutationTestProcess : IMutationTestProcess
         return new StrykerRunResult(_options, _projectContents.GetMutationScore());
     }
 
-    public void Restore() => Input.TestProjectsInfo.RestoreOriginalAssembly(Input.SourceProjectInfo.AnalyzerResult);
+    public void Restore() => Input.TestProjectsInfo.RestoreOriginalAssembly(Input.SourceProjectInfo.Analysis);
 
     private async Task TestMutantsAsync(IEnumerable<IMutant> mutantsToTest)
     {

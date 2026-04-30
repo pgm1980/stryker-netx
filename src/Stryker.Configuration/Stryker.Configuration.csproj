@@ -3,7 +3,7 @@
   <!--
     Stryker.Configuration — Layer 1 (Domain).
     Configuration-loading: YAML/JSON config files, CLI-arg merging, validation.
-    Depends on Stryker.Abstractions + Stryker.Utilities. Buildalyzer is transitive via Utilities.
+    Depends on Stryker.Abstractions + Stryker.Utilities.
     1:1 namespace-compatibility with upstream Stryker.NET 4.14.1 (ADR-003).
   -->
 
@@ -20,8 +20,8 @@
     <PackageReference Include="Microsoft.CodeAnalysis.Common" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <!--
-      VisualBasic reference: NU1608 mitigation (Buildalyzer 9.0 is transitive via Utilities,
-      pulls in VisualBasic 4.0.0 which clashes with Common 5.3.0). See sprint_1_lessons.md Sektion 2.
+      VisualBasic kept for parity with Microsoft.CodeAnalysis.Common 5.3.0; pulled in transitively
+      via Stryker.Utilities' Workspaces.MSBuild reference.
     -->
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
     <PackageReference Include="Serilog" />

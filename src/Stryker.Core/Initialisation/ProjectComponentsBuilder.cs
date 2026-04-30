@@ -4,8 +4,8 @@ using System.Text.RegularExpressions;
 using Stryker.Abstractions.Exceptions;
 using System.Xml.Linq;
 using System.Linq;
+using Stryker.Abstractions.Analysis;
 using Stryker.Abstractions.ProjectComponents;
-using Buildalyzer;
 using System.IO;
 using System.IO.Abstractions;
 using Stryker.Utilities;
@@ -20,9 +20,9 @@ public abstract class ProjectComponentsBuilder
 
     protected ProjectComponentsBuilder(IFileSystem fileSystem) => FileSystem = fileSystem;
 
-    protected IEnumerable<string> ExtractProjectFolders(IAnalyzerResult projectAnalyzerResult)
+    protected IEnumerable<string> ExtractProjectFolders(IProjectAnalysis projectAnalysis)
     {
-        var projectFilePath = projectAnalyzerResult.ProjectFilePath;
+        var projectFilePath = projectAnalysis.ProjectFilePath;
         var projectFile = FileSystem.File.OpenText(projectFilePath);
         var xDocument = XDocument.Load(projectFile);
         var folders = new List<string>();
@@ -31,7 +31,7 @@ public abstract class ProjectComponentsBuilder
 
         foreach (var sharedProject in FindSharedProjects(xDocument))
         {
-            var sharedProjectName = ReplaceMsbuildProperties(sharedProject, projectAnalyzerResult);
+            var sharedProjectName = ReplaceMsbuildProperties(sharedProject, projectAnalysis);
 
             if (!FileSystem.File.Exists(FileSystem.Path.Combine(projectDirectory, sharedProjectName)))
             {
@@ -63,20 +63,19 @@ public abstract class ProjectComponentsBuilder
         RegexOptions.ExplicitCapture | RegexOptions.Compiled,
         TimeSpan.FromMilliseconds(200));
 
-    private static string ReplaceMsbuildProperties(string projectReference, IAnalyzerResult projectAnalyzerResult)
+    private static string ReplaceMsbuildProperties(string projectReference, IProjectAnalysis projectAnalysis)
     {
-        var properties = projectAnalyzerResult.Properties;
-
         return MsBuildPropertyRegex.Replace(projectReference,
             m =>
             {
                 var property = m.Groups["name"].Value;
-                if (properties.TryGetValue(property, out var propertyValue))
+                var propertyValue = projectAnalysis.GetPropertyOrDefault(property);
+                if (!string.IsNullOrEmpty(propertyValue))
                 {
                     return propertyValue;
                 }
 
-                var message = $"Missing MSBuild property ({property}) in project reference ({projectReference}). Please check your project file ({projectAnalyzerResult.ProjectFilePath}) and try again.";
+                var message = $"Missing MSBuild property ({property}) in project reference ({projectReference}). Please check your project file ({projectAnalysis.ProjectFilePath}) and try again.";
                 throw new InputException(message);
             });
     }

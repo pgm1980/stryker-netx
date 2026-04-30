@@ -21,24 +21,6 @@
           "Azure.Storage.Common": "12.26.0"
         }
       },
-      "Buildalyzer": {
-        "type": "Direct",
-        "requested": "[9.0.0, )",
-        "resolved": "9.0.0",
-        "contentHash": "ckfw+JA7qVrCT84VGcW1hZdTfSA0vTFByeaZ7qvK6XSWIooElKrA6j4ATVn0xIxTpf56WHcvYQ/caatPQUgRsg==",
-        "dependencies": {
-          "Buildalyzer.Logger": "9.0.0",
-          "MSBuild.StructuredLogger": "2.2.158",
-          "Microsoft.Build": "17.14.28",
-          "Microsoft.Build.Tasks.Core": "17.14.28",
-          "Microsoft.CodeAnalysis.CSharp": "4.0.0",
-          "Microsoft.CodeAnalysis.VisualBasic": "4.0.0",
-          "Microsoft.Extensions.Logging": "6.0.0",
-          "Microsoft.VisualStudio.SolutionPersistence": "1.0.52",
-          "MsBuildPipeLogger.Server": "1.1.6",
-          "NuGet.Frameworks": "6.9.1"
-        }
-      },
       "DotNet.Glob": {
         "type": "Direct",
         "requested": "[3.1.3, )",
@@ -348,10 +330,10 @@
           "System.IO.Hashing": "10.0.1"
         }
       },
-      "Buildalyzer.Logger": {
+      "Humanizer.Core": {
         "type": "Transitive",
-        "resolved": "9.0.0",
-        "contentHash": "9zJ/NpiBiUzySAMcLfHFlENgMN1TSYSlXcIts4v9i3+NOKTodRehRKlL9wBDHn2oPLyjpo0kxUlsyRUwzymNfA=="
+        "resolved": "2.14.1",
+        "contentHash": "lQKvtaTDOXnoVJ20ibTuSIOf2i0uO0MPbDhd1jm238I+U/2ZnRENj0cktKZhtchBMtCUSRQ5v4xBCUbKNmyVMw=="
       },
       "LibGit2Sharp.NativeBinaries": {
         "type": "Transitive",
@@ -376,6 +358,17 @@
         "type": "Transitive",
         "resolved": "8.0.0",
         "contentHash": "3WA9q9yVqJp222P3x1wYIGDAkpjAku0TMUaaQV22g6L67AI0LdOIrVS7Ht2vJfLHGSPVuqN94vIr15qn+HEkHw=="
+      },
+      "Microsoft.CodeAnalysis.Workspaces.Common": {
+        "type": "Transitive",
+        "resolved": "5.3.0",
+        "contentHash": "QSf1ge9A+XFZbGL+gIqXYBIKlm8QdQVLvHDPZiydG11W6mJY7XBMusrsgIEz6L8GYMzGJKTM78m9icliGMF7NA==",
+        "dependencies": {
+          "Humanizer.Core": "2.14.1",
+          "Microsoft.CodeAnalysis.Analyzers": "5.3.0-2.25625.1",
+          "Microsoft.CodeAnalysis.Common": "[5.3.0]",
+          "System.Composition": "9.0.0"
+        }
       },
       "Microsoft.Extensions.Configuration.Abstractions": {
         "type": "Transitive",
@@ -429,23 +422,6 @@
         "type": "Transitive",
         "resolved": "17.13.22",
         "contentHash": "fC20ITOxlUpGQ0ltAxITQbeFxwuB6OjLT3lByC4+/Gm46o/Mwv9hlIVrBhiUhnqdQzUUvr4EHkdiYe7WOSMLmw=="
-      },
-      "MSBuild.StructuredLogger": {
-        "type": "Transitive",
-        "resolved": "2.2.158",
-        "contentHash": "A7hI65/MrDKdPpu4rsnqimDdAs42B05gpfOIyzWPJ+pqw6Q3p4r1I/AjWVe3joKGHIQSpL+0AX2tzLVVCaR0ug==",
-        "dependencies": {
-          "Microsoft.Build.Framework": "17.5.0",
-          "Microsoft.Build.Utilities.Core": "17.5.0"
-        }
-      },
-      "MsBuildPipeLogger.Server": {
-        "type": "Transitive",
-        "resolved": "1.1.6",
-        "contentHash": "rls0hb7plSfVFCqScDxTqtGpIlMfoQEchqjmK/YtXDML11GU5jI+oCi9YsikGulJVUv/vLSY6Ktah0uXwv25EA==",
-        "dependencies": {
-          "Microsoft.Build": "15.3.409"
-        }
       },
       "Nerdbank.MessagePack": {
         "type": "Transitive",
@@ -530,6 +506,54 @@
         "resolved": "9.0.0",
         "contentHash": "oTE5IfuMoET8yaZP/vdvy9xO47guAv/rOhe4DODuFBN3ySprcQOlXqO3j+e/H/YpKKR5sglrxRaZ2HYOhNJrqA=="
       },
+      "System.Composition": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "3Djj70fFTraOarSKmRnmRy/zm4YurICm+kiCtI0dYRqGJnLX6nJ+G3WYuFJ173cAPax/gh96REcbNiVqcrypFQ==",
+        "dependencies": {
+          "System.Composition.AttributedModel": "9.0.0",
+          "System.Composition.Convention": "9.0.0",
+          "System.Composition.Hosting": "9.0.0",
+          "System.Composition.Runtime": "9.0.0",
+          "System.Composition.TypedParts": "9.0.0"
+        }
+      },
+      "System.Composition.AttributedModel": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "iri00l/zIX9g4lHMY+Nz0qV1n40+jFYAmgsaiNn16xvt2RDwlqByNG4wgblagnDYxm3YSQQ0jLlC/7Xlk9CzyA=="
+      },
+      "System.Composition.Convention": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "+vuqVP6xpi582XIjJi6OCsIxuoTZfR0M7WWufk3uGDeCl3wGW6KnpylUJ3iiXdPByPE0vR5TjJgR6hDLez4FQg==",
+        "dependencies": {
+          "System.Composition.AttributedModel": "9.0.0"
+        }
+      },
+      "System.Composition.Hosting": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "OFqSeFeJYr7kHxDfaViGM1ymk7d4JxK//VSoNF9Ux0gpqkLsauDZpu89kTHHNdCWfSljbFcvAafGyBoY094btQ==",
+        "dependencies": {
+          "System.Composition.Runtime": "9.0.0"
+        }
+      },
+      "System.Composition.Runtime": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "w1HOlQY1zsOWYussjFGZCEYF2UZXgvoYnS94NIu2CBnAGMbXFAX8PY8c92KwUItPmowal68jnVLBCzdrWLeEKA=="
+      },
+      "System.Composition.TypedParts": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "aRZlojCCGEHDKqh43jaDgaVpYETsgd7Nx4g1zwLKMtv4iTo0627715ajEFNpEEBTgLmvZuv8K0EVxc3sM4NWJA==",
+        "dependencies": {
+          "System.Composition.AttributedModel": "9.0.0",
+          "System.Composition.Hosting": "9.0.0",
+          "System.Composition.Runtime": "9.0.0"
+        }
+      },
       "System.Configuration.ConfigurationManager": {
         "type": "Transitive",
         "resolved": "9.0.0",
@@ -590,7 +614,6 @@
       "stryker.abstractions": {
         "type": "Project",
         "dependencies": {
-          "Buildalyzer": "[9.0.0, )",
           "DotNet.Glob": "[3.1.3, )",
           "Microsoft.CodeAnalysis.CSharp": "[5.3.0, )",
           "Microsoft.CodeAnalysis.Common": "[5.3.0, )",
@@ -675,10 +698,12 @@
       "stryker.utilities": {
         "type": "Project",
         "dependencies": {
-          "Buildalyzer": "[9.0.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[5.3.0, )",
+          "Microsoft.CodeAnalysis.CSharp.Workspaces": "[5.3.0, )",
           "Microsoft.CodeAnalysis.Common": "[5.3.0, )",
           "Microsoft.CodeAnalysis.VisualBasic": "[5.3.0, )",
+          "Microsoft.CodeAnalysis.VisualBasic.Workspaces": "[5.3.0, )",
+          "Microsoft.CodeAnalysis.Workspaces.MSBuild": "[5.3.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.5, )",
           "Mono.Cecil": "[0.11.6, )",
           "ResXResourceReader.NetStandard": "[1.3.0, )",
@@ -691,6 +716,53 @@
         "requested": "[3.10.1, )",
         "resolved": "3.10.1",
         "contentHash": "C+WzXwzpQsJVNqvuh19ZO/bw/vR43L+DC/CmvK+PATUBkail2AWYE6an17dOGgWaVGzF9sU28YwRwfNfkPrQdg=="
+      },
+      "Microsoft.CodeAnalysis.CSharp.Workspaces": {
+        "type": "CentralTransitive",
+        "requested": "[5.3.0, )",
+        "resolved": "5.3.0",
+        "contentHash": "mRwxchBs3ewXK4dqK4R/eVCx99VIq1k/lhwArlu+fJuV0uzmbkTTRw4jR9gN9sOcAQfX0uV9KQlmCk1yC0JNog==",
+        "dependencies": {
+          "Humanizer.Core": "2.14.1",
+          "Microsoft.CodeAnalysis.Analyzers": "5.3.0-2.25625.1",
+          "Microsoft.CodeAnalysis.CSharp": "[5.3.0]",
+          "Microsoft.CodeAnalysis.Common": "[5.3.0]",
+          "Microsoft.CodeAnalysis.Workspaces.Common": "[5.3.0]",
+          "System.Composition": "9.0.0"
+        }
+      },
+      "Microsoft.CodeAnalysis.VisualBasic.Workspaces": {
+        "type": "CentralTransitive",
+        "requested": "[5.3.0, )",
+        "resolved": "5.3.0",
+        "contentHash": "pAGdr4qs7+v287DPiiM8px1cBXnhe8LxymkVGTnCwv2OEjCk5HO2zIoFvype4ivKJTRW3aTUUV8ab+915wbv+w==",
+        "dependencies": {
+          "Humanizer.Core": "2.14.1",
+          "Microsoft.CodeAnalysis.Analyzers": "5.3.0-2.25625.1",
+          "Microsoft.CodeAnalysis.Common": "[5.3.0]",
+          "Microsoft.CodeAnalysis.VisualBasic": "[5.3.0]",
+          "Microsoft.CodeAnalysis.Workspaces.Common": "[5.3.0]",
+          "System.Composition": "9.0.0"
+        }
+      },
+      "Microsoft.CodeAnalysis.Workspaces.MSBuild": {
+        "type": "CentralTransitive",
+        "requested": "[5.3.0, )",
+        "resolved": "5.3.0",
+        "contentHash": "2Mg/ppo5dza1e4DJWX4+RIHMc3FgnYzuHTaLRZDupiK1LTi/PAZ1PBpF/iivHVNKQKwipHE984gy37MbM0RO9Q==",
+        "dependencies": {
+          "Humanizer.Core": "2.14.1",
+          "Microsoft.Build.Framework": "17.11.48",
+          "Microsoft.CodeAnalysis.Analyzers": "5.3.0-2.25625.1",
+          "Microsoft.CodeAnalysis.Workspaces.Common": "[5.3.0]",
+          "Microsoft.Extensions.DependencyInjection": "9.0.0",
+          "Microsoft.Extensions.Logging": "9.0.0",
+          "Microsoft.Extensions.Logging.Abstractions": "9.0.0",
+          "Microsoft.Extensions.Options": "9.0.0",
+          "Microsoft.Extensions.Primitives": "9.0.0",
+          "Microsoft.VisualStudio.SolutionPersistence": "1.0.52",
+          "System.Composition": "9.0.0"
+        }
       },
       "Microsoft.Extensions.Logging.Abstractions": {
         "type": "CentralTransitive",

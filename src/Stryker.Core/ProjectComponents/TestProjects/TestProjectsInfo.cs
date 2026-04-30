@@ -2,11 +2,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
-using Buildalyzer;
 using Microsoft.Extensions.Logging;
+using Stryker.Abstractions.Analysis;
 using Stryker.Abstractions.ProjectComponents;
-using Stryker.Utilities.Buildalyzer;
 using Stryker.Utilities.Logging;
+using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.ProjectComponents.TestProjects;
 
@@ -19,10 +19,10 @@ public class TestProjectsInfo : ITestProjectsInfo
 
     public IEnumerable<ITestFile> TestFiles => TestProjects.SelectMany(testProject => testProject.TestFiles).Distinct();
 
-    public IEnumerable<IAnalyzerResult> AnalyzerResults => TestProjects.Select(testProject => testProject.AnalyzerResult);
+    public IEnumerable<IProjectAnalysis> Analyses => TestProjects.Select(testProject => testProject.Analysis);
 
     public IReadOnlyList<string> GetTestAssemblies() =>
-        AnalyzerResults.Select(a => a.GetAssemblyPath()).ToList();
+        Analyses.Select(a => a.GetAssemblyPath()).ToList();
 
     public TestProjectsInfo(IFileSystem fileSystem, ILogger<TestProjectsInfo>? logger = null)
     {
@@ -46,9 +46,9 @@ public class TestProjectsInfo : ITestProjectsInfo
 
     public override int GetHashCode() => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
 
-    public void RestoreOriginalAssembly(IAnalyzerResult sourceProject)
+    public void RestoreOriginalAssembly(IProjectAnalysis sourceProject)
     {
-        foreach (var testProject in AnalyzerResults)
+        foreach (var testProject in Analyses)
         {
             var injectionPath = GetInjectionFilePath(testProject, sourceProject);
             var backupFilePath = GetBackupName(injectionPath);
@@ -68,9 +68,9 @@ public class TestProjectsInfo : ITestProjectsInfo
         }
     }
 
-    public void BackupOriginalAssembly(IAnalyzerResult sourceProject)
+    public void BackupOriginalAssembly(IProjectAnalysis sourceProject)
     {
-        foreach (var testProject in AnalyzerResults)
+        foreach (var testProject in Analyses)
         {
             var injectionPath = GetInjectionFilePath(testProject, sourceProject);
             var backupFilePath = GetBackupName(injectionPath);
@@ -93,7 +93,7 @@ public class TestProjectsInfo : ITestProjectsInfo
         }
     }
 
-    public static string GetInjectionFilePath(IAnalyzerResult testProject, IAnalyzerResult sourceProject) => Path.Combine(testProject.GetAssemblyDirectoryPath(), sourceProject.GetAssemblyFileName());
+    public static string GetInjectionFilePath(IProjectAnalysis testProject, IProjectAnalysis sourceProject) => Path.Combine(testProject.GetAssemblyDirectoryPath(), sourceProject.GetAssemblyFileName());
 
     private static string GetBackupName(string injectionPath) => injectionPath + ".stryker-unchanged";
 }

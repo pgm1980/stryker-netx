@@ -6,20 +6,20 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Buildalyzer;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.Extensions.Logging;
 using Stryker.Abstractions;
+using Stryker.Abstractions.Analysis;
 using Stryker.Abstractions.Exceptions;
 using Stryker.Abstractions.Options;
 using Stryker.Configuration.Options;
 using Stryker.Core.MutationTest;
-using Stryker.Utilities.Buildalyzer;
 using Stryker.Utilities.EmbeddedResources;
 using Stryker.Utilities.Logging;
+using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.Compiling;
 
@@ -46,7 +46,7 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
     }
 
     private string AssemblyName =>
-        _input.SourceProjectInfo.AnalyzerResult.GetAssemblyName();
+        _input.SourceProjectInfo.Analysis.GetAssemblyName();
 
     /// <summary>
     /// Compiles the given input onto the memory stream
@@ -112,11 +112,11 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
 
     // Can't test or mock code generators, so we exclude them from coverage
     [ExcludeFromCodeCoverage]
-    private CSharpCompilation RunSourceGenerators(IAnalyzerResult analyzerResult, Compilation compilation)
+    private CSharpCompilation RunSourceGenerators(IProjectAnalysis analysis, Compilation compilation)
     {
-        var generators = analyzerResult.GetSourceGenerators(_logger);
+        var generators = analysis.GetSourceGenerators(_logger);
         _ = CSharpGeneratorDriver
-            .Create(generators, parseOptions: analyzerResult.GetParseOptions(_options), optionsProvider: new SimpleAnalyserConfigOptionsProvider(analyzerResult))
+            .Create(generators, parseOptions: analysis.GetParseOptions(_options), optionsProvider: new SimpleAnalyserConfigOptionsProvider(analysis))
             .RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
 
         var errors = diagnostics.Where(diagnostic => IgnoredErrors.Contains(diagnostic.Id) || (diagnostic.Severity == DiagnosticSeverity.Error && diagnostic.Location == Location.None)).ToList();
@@ -147,15 +147,15 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
 
     private CSharpCompilation GetCSharpCompilation(IEnumerable<SyntaxTree> syntaxTrees)
     {
-        var analyzerResult = _input.SourceProjectInfo.AnalyzerResult;
+        var analysis = _input.SourceProjectInfo.Analysis;
 
         var compilation = CSharpCompilation.Create(AssemblyName,
             syntaxTrees.ToList(),
-            _input.SourceProjectInfo.AnalyzerResult.LoadReferences(),
-            analyzerResult.GetCompilationOptions());
+            _input.SourceProjectInfo.Analysis.LoadReferences(),
+            analysis.GetCompilationOptions());
 
         // C# source generators must be executed before compilation
-        return RunSourceGenerators(analyzerResult, compilation);
+        return RunSourceGenerators(analysis, compilation);
     }
 
     private (CSharpRollbackProcessResult?, EmitResult, int) TryCompilation(
@@ -171,9 +171,9 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
         _logger.LogDebug("Trying compilation for the {RetryCount} time.", ReadableNumber(retryCount));
 
         var emitOptions = symbolStream == null ? null : new EmitOptions(false, DebugInformationFormat.PortablePdb,
-            _input.SourceProjectInfo.AnalyzerResult.GetSymbolFileName());
+            _input.SourceProjectInfo.Analysis.GetSymbolFileName());
         EmitResult? emitResult = null;
-        var resourceDescriptions = _input.SourceProjectInfo.AnalyzerResult.GetResources(_logger);
+        var resourceDescriptions = _input.SourceProjectInfo.Analysis.GetResources(_logger);
         while (emitResult == null)
         {
             if (previousEmitResult != null)
@@ -227,7 +227,7 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
                 using var ms = new MemoryStream();
                 local.Emit(
                     ms,
-                    manifestResources: _input.SourceProjectInfo.AnalyzerResult.GetResources(_logger),
+                    manifestResources: _input.SourceProjectInfo.Analysis.GetResources(_logger),
                     options: null);
             }
             catch (Exception e)
@@ -287,7 +287,7 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
     {
         private readonly NullAnalyzerConfigOptions _nullProvider = new();
 
-        public SimpleAnalyserConfigOptionsProvider(IAnalyzerResult result) => GlobalOptions = new SimpleAnalyzerConfigOptions(result);
+        public SimpleAnalyserConfigOptionsProvider(IProjectAnalysis analysis) => GlobalOptions = new SimpleAnalyzerConfigOptions(analysis);
 
         public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => _nullProvider;
 
@@ -298,22 +298,23 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
         private sealed class SimpleAnalyzerConfigOptions : AnalyzerConfigOptions
         {
             private const string Prefix = "build_property.";
-            private readonly IReadOnlyDictionary<string, string> _options;
+            private readonly IProjectAnalysis _analysis;
 
-            public SimpleAnalyzerConfigOptions(IAnalyzerResult result) => _options = result.Properties;
+            public SimpleAnalyzerConfigOptions(IProjectAnalysis analysis) => _analysis = analysis;
 
             public override bool TryGetValue(string key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? value)
             {
                 if (key.StartsWith(Prefix, StringComparison.Ordinal))
                 {
-                    return _options.TryGetValue(key[Prefix.Length..], out value);
+                    value = _analysis.GetPropertyOrDefault(key[Prefix.Length..]);
+                    return !string.IsNullOrEmpty(value);
                 }
 
                 value = null;
                 return false;
             }
 
-            public override IEnumerable<string> Keys => _options.Keys.Select(key => Prefix + key);
+            public override IEnumerable<string> Keys => [];
         }
 
         private sealed class NullAnalyzerConfigOptions : AnalyzerConfigOptions
@@ -329,4 +330,3 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
 
     }
 }
-

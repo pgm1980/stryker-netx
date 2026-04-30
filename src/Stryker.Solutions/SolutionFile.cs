@@ -196,9 +196,9 @@ public class SolutionFile
         // extract needed information
         var result = new SolutionFile { FileName = solutionPath };
         // Project paths in the .sln/.slnx model are stored relative to the solution
-        // file. Buildalyzer needs absolute paths (it treats relative paths against
-        // its current working directory, which yields the wrong project file when
-        // the CLI is invoked from a non-solution directory). Resolve once here.
+        // file. The downstream MSBuildWorkspace loader needs absolute paths (relative
+        // paths get resolved against the CLI's working directory, which yields the
+        // wrong project file when invoked from a non-solution directory). Resolve once here.
         var solutionDirectory = Path.GetDirectoryName(Path.GetFullPath(solutionPath)) ?? string.Empty;
         foreach (var buildType in solution.BuildTypes)
         {

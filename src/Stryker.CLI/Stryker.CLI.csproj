@@ -30,6 +30,13 @@
 
   <ItemGroup Label="External dependencies (versions in Directory.Packages.props)">
     <PackageReference Include="McMaster.Extensions.CommandLineUtils" />
+    <!--
+      Microsoft.Build.Locator is required at startup so MSBuildLocator.RegisterDefaults() can
+      bootstrap MSBuildWorkspace against the SDK MSBuild before any project is loaded by
+      Stryker.Core (Phase 9b). Stryker.Utilities references it with PrivateAssets="all", so the
+      CLI must take its own direct dependency.
+    -->
+    <PackageReference Include="Microsoft.Build.Locator" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="NuGet.Protocol" />
     <PackageReference Include="YamlDotNet" />

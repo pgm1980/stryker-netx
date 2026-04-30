@@ -17,9 +17,6 @@
   </PropertyGroup>
 
   <ItemGroup Label="Stryker core dependencies (production)">
-    <!-- KEY .NET-10 FIX: Buildalyzer 8.0.0 → 9.0.0 (Buildalyzer issue #318) -->
-    <PackageVersion Include="Buildalyzer" Version="9.0.0" />
-
     <!-- Roslyn — pinned at Stryker 4.14.1's version; revisit in Phase 5 via Context7 if C#-14-features fail -->
     <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="5.3.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
@@ -33,6 +30,13 @@
       at runtime — invoked once via MSBuildLocator.RegisterDefaults() at CLI startup.
     -->
     <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.3.0" />
+    <!--
+      Language-workspace packages: MSBuildWorkspace needs the C#/VB language services to know
+      how to load project files. Without them OpenProjectAsync throws "Sprache 'C#' wird nicht
+      unterstützt" / "Language 'C#' is not supported".
+    -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.VisualBasic.Workspaces" Version="5.3.0" />
     <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
     <!--
       Microsoft.Build* packages are pulled in transitively by Workspaces.MSBuild but must

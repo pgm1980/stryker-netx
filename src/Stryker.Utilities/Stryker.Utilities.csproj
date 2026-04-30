@@ -2,7 +2,7 @@
 
   <!--
     Stryker.Utilities — Layer 0 (Foundation).
-    Utility helpers (FileSystem-wrappers, Logging, Process-utils, Buildalyzer-helpers,
+    Utility helpers (FileSystem-wrappers, Logging, Process-utils, MSBuild-workspace-adapter,
     Mono.Cecil-helpers) used by all other Stryker modules. References Stryker.Abstractions.
     1:1 namespace-compatibility with upstream Stryker.NET 4.14.1 (ADR-003).
     TFM, LangVersion, Nullable, TWAE, Analyzer-Suite via Directory.Build.props.
@@ -18,31 +18,34 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Buildalyzer" />
     <PackageReference Include="Mono.Cecil" />
     <PackageReference Include="ResXResourceReader.NetStandard" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.CodeAnalysis.Common" />
     <!--
-      VisualBasic reference: explicit override for CPM (resolves to 5.3.0 via Directory.Packages.props).
-      Buildalyzer 9.0 transitively pulls in VisualBasic 4.0.0 — same NU1608 mitigation as Stryker.Abstractions.
-      See _docs/sprint_1_lessons.md Sektion 2.
+      VisualBasic kept for parity with Microsoft.CodeAnalysis.Common 5.3.0; Workspaces.MSBuild
+      transitively probes VB even when we only consume the C# workspace. Pinned via CPM.
     -->
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <!--
-      Phase 9 (Buildalyzer-Replacement): Microsoft.CodeAnalysis.Workspaces.MSBuild gives us a
-      first-party Roslyn workspace backed by the local .NET SDK MSBuild. Microsoft.Build.Locator
-      is required at runtime to point Workspaces.MSBuild at the SDK MSBuild before the workspace
-      is created (see Stryker.CLI.Program). Both are added during 9a so the new MSBuild adapter
-      can compile alongside the existing Buildalyzer code; Buildalyzer itself is removed in 9b.
-      PrivateAssets="all" stops these and their transitive Microsoft.Build* dependencies from
-      flowing into consumer projects (Stryker.Core, Stryker.CLI, Tests, Benchmarks); the
-      MSBuildLocator import target only fires inside Stryker.Utilities. Consumers of the new
-      adapter pull in Microsoft.Build.Locator directly when they need MSBuildLocator.RegisterDefaults
-      (currently only Stryker.CLI in Phase 9b).
+      Microsoft.CodeAnalysis.Workspaces.MSBuild gives us a first-party Roslyn workspace backed
+      by the local .NET SDK MSBuild. Microsoft.Build.Locator is required at runtime to point
+      Workspaces.MSBuild at the SDK MSBuild before the workspace is created (see
+      Stryker.CLI.Program). Workspaces.MSBuild flows transitively to consumers (Stryker.Core,
+      Stryker.CLI) because they instantiate MSBuildWorkspaceProvider at runtime — without the
+      flow the assembly isn't in the consumer's bin/. The transitive Microsoft.Build* packages
+      that come along trigger MSBuildLocator's MSBL001 check; the global guards in
+      Directory.Build.props mark those Microsoft.Build* refs PrivateAssets="all" + ExcludeAssets="runtime"
+      to silence the check while still letting MSBuild load from the SDK at runtime.
+      Microsoft.Build.Locator stays PrivateAssets="all" here because the LocatorTarget only
+      needs to fire inside Stryker.Utilities (and consumers that need RegisterDefaults — i.e.
+      Stryker.CLI — pull it in directly).
     -->
-    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
+    <!-- Language workspaces — MSBuildWorkspace cannot load C#/VB projects without them. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic.Workspaces" />
     <PackageReference Include="Microsoft.Build.Locator" PrivateAssets="all" />
     <!--
       Microsoft.Build* + Microsoft.NET.StringTools + NuGet.Frameworks are added globally by

@@ -7,7 +7,7 @@ using Stryker.Core.Initialisation;
 using Stryker.Core.MutationTest;
 using Stryker.Core.Reporters;
 using Stryker.Solutions;
-using Stryker.Utilities.Buildalyzer;
+using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.Infrastructure;
 
@@ -41,7 +41,10 @@ public static class ServiceCollectionExtensions
 
         // Helpers and utilities - Transient or Singleton based on state
         services.AddTransient<IProcessExecutor, ProcessExecutor>();
-        services.AddTransient<IBuildalyzerProvider, BuildalyzerProvider>();
+        // MSBuildWorkspace is not safe to share between concurrent runs; transient lifetime
+        // pairs with InputFileResolver's transient registration to ensure each Stryker run
+        // gets a freshly bootstrapped workspace.
+        services.AddTransient<IMSBuildWorkspaceProvider, MSBuildWorkspaceProvider>();
         services.AddSingleton<IFileSystem, FileSystem>();
 
         // Reporter factory - Singleton as it's stateless

@@ -42,12 +42,10 @@
     <PackageReference Include="LibGit2Sharp" />
     <PackageReference Include="Microsoft.CodeAnalysis.Common" />
     <PackageReference Include="DotNet.Glob" />
-    <PackageReference Include="Buildalyzer" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <!--
-      VisualBasic reference: NU1608 mitigation (Buildalyzer 9.0 transitively pulls in
-      Microsoft.CodeAnalysis.VisualBasic 4.0.0 which clashes with Common 5.3.0).
-      See _docs/sprint_1_lessons.md Sektion 2.
+      VisualBasic reference kept for parity with Microsoft.CodeAnalysis.Common 5.3.0;
+      Workspaces.MSBuild (now the project loader after Phase 9b) transitively probes VB.
     -->
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />

@@ -13,7 +13,7 @@ using Stryker.Abstractions.Options;
 using Stryker.Abstractions.Testing;
 using Stryker.TestRunner.Results;
 using Stryker.TestRunner.Tests;
-using Stryker.Utilities.Buildalyzer;
+using Stryker.Utilities.MSBuild;
 using Stryker.Utilities.Logging;
 using static Stryker.Abstractions.Testing.ITestRunner;
 
@@ -285,7 +285,7 @@ public sealed class VsTestRunner : IDisposable
 
         runEventHandler.ResultsUpdated += HandlerUpdate;
         // work around VsTest issues when using multiple test assemblies
-        foreach (var source in projectAndTests.TestProjectsInfo.AnalyzerResults)
+        foreach (var source in projectAndTests.TestProjectsInfo.Analyses)
         {
             var testForSource = _context.TestsPerSource[source.GetAssemblyPath()];
             var testsForAssembly = new TestIdentifierList(tests.GetIdentifiers().Where(id => testForSource.Contains(Guid.Parse(id))));

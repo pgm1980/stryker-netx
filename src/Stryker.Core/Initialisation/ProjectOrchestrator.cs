@@ -102,9 +102,10 @@ public sealed class ProjectOrchestrator : IProjectOrchestrator
             true => "Project name",
             _ => "Project version"
         };
-        var projectFilePath = projectInfo.AnalyzerResult.ProjectFilePath;
+        var projectFilePath = projectInfo.Analysis.ProjectFilePath;
 
-        if (!projectInfo.AnalyzerResult.Properties.TryGetValue("TargetPath", out var targetPath))
+        var targetPath = projectInfo.Analysis.GetPropertyOrDefault("TargetPath");
+        if (string.IsNullOrEmpty(targetPath))
         {
             throw new InputException($"Can't read {subject.ToLowerInvariant()} because the TargetPath property was not found in {projectFilePath}");
         }
