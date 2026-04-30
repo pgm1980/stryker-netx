@@ -1,7 +1,7 @@
 ---
-current_sprint: "12"
-sprint_goal: "Greenfield .NET-specific operators (Async/Await, DateTime, ExceptionSwap, Span/Memory, GenericConstraint) + README v2 + Migration Guide v1->v2 -> v2.0.0 (production)"
-branch: "feature/12-v2-greenfield-release"
+current_sprint: "13"
+sprint_goal: "Spec-gap closure: 8 new mutators (ArgumentPropagation, MemberVariable, MethodBodyReplacement, SwitchArmDeletion, TaskWhenAll<->WhenAny, ConfigureAwait swap, DateTime AddDays sign-flip, AsSpan<->AsMemory) -> v2.0.1"
+branch: "feature/13-v2-spec-gap-closure"
 started_at: "2026-05-01"
 housekeeping_done: true
 memory_updated: true
@@ -12,40 +12,48 @@ tests_passed: true
 documentation_updated: true
 ---
 
-# Sprint 12 — Greenfield .NET-specific operators + Release
+# Sprint 13 — Spec-gap closure (v2.0.1)
 
-**GitHub-Issue:** [#12](https://github.com/pgm1980/stryker-netx/issues/12)
-**Base-Tag:** `v2.0.0-rc.1` (Sprint 11 closed)
-**Final-Tag:** `v2.0.0` (production)
-**Reference inputs:** `_input/mutation_framework_comparison.md` §5 (greenfield .NET-specific) + `_docs/sprint_11_lessons.md`
+**GitHub-Issue:** [#13](https://github.com/pgm1980/stryker-netx/issues/13)
+**Base-Tag:** `v2.0.0` (Sprint 12 closed)
+**Final-Tag:** `v2.0.1`
+**Reference inputs:** `_input/mutation_framework_comparison.md` §4.1 + §4.2 + §4.4 + Phase A doc-reconciliation patch (commit 4ae08bd)
 
 ## Aktueller Phase-Stand
 
-- [x] **12.1** — `AsyncAwaitMutator` (`await x → x.GetAwaiter().GetResult()`) — Stronger | All
-- [x] **12.2** — `DateTimeMutator` (`DateTime.UtcNow → DateTime.MinValue/MaxValue`) — Stronger | All
-- [x] **12.3** — `ExceptionSwapMutator` (`throw new ArgumentException → throw new InvalidOperationException`) — All only
-- [x] **12.4** — `SpanMemoryMutator` (`span.Slice(a,b) → span.Slice(0,b) / span.Slice(a, span.Length-a)`) — Stronger | All
-- [x] **12.5** — `GenericConstraintMutator` (drop `where T : class` constraint) — All only
-- [x] **12.6** — Wire all 5 into `DefaultMutatorList`
-- [x] **12.7** — README.md v2 (root-level rewrite)
-- [x] **12.8** — `MIGRATION-v1-to-v2.md`
-- [x] **12.9** — Build/Test/E2E green
-- [x] **12.10** — Sprint-close + lessons + tag `v2.0.0` + GitHub release + merge to main
+**Phase A — completed in commit 4ae08bd (doc reconciliation):**
+- [x] **A.1** — README profile-count typo (+10/+4 statt +9/+5)
+- [x] **A.2** — README known-limitations + semantic-deviation entries
+- [x] **A.3** — MIGRATION roadmap split into open-by-section + documented-deviations
+- [x] **A.4** — MEMORY entries Sprint 11/12 corrected
 
-## Sprint-12-DoD
+**Phase B — implementation order ascending in risk:**
+- [x] **13.1** — `ConfigureAwaitMutator` — Stronger | All
+- [x] **13.2** — `DateTimeAddSignMutator` — Stronger | All
+- [x] **13.3** — `SwitchArmDeletionMutator` — Stronger | All
+- [x] **13.4** — `MemberVariableMutator` (type-aware) — Stronger | All
+- [x] **13.5** — `ArgumentPropagationMutator` (type-aware) — All only
+- [x] **13.6** — `TaskWhenAllToWhenAnyMutator` — Stronger | All
+- [x] **13.7** — `AsSpanAsMemoryMutator` — All only
+- [x] **13.8** — `MethodBodyReplacementMutator` (type-aware) — All only
+- [x] **13.9** — Wire all 8 into `DefaultMutatorList`
+- [x] **13.10** — README + MIGRATION final tally update (48 mutators total)
+- [x] **13.11** — Build/Test/E2E/Semgrep green
+- [x] **13.12** — Sprint-close + lessons + tag `v2.0.1` + GitHub release + merge to main
 
-- [x] 5 new greenfield mutator files
+## Sprint-13-DoD
+
+- [x] 8 new mutator files
 - [x] All carry `[MutationProfileMembership]`
 - [x] All wired into `DefaultMutatorList`
-- [x] README.md v2 written (operator catalogue table, profile flag, engine flag)
-- [x] MIGRATION-v1-to-v2.md written (zero breaking changes for default; how to opt-in)
 - [x] dotnet build 0/0
 - [x] dotnet test 27/27
 - [x] Sample E2E 100% under default profile
 - [x] Semgrep clean
+- [x] README + MIGRATION updated (26 + 15 + 7 = 48)
 - [x] Lessons doc
-- [x] Tag `v2.0.0` (production — no -preview/-rc suffix)
-- [x] GitHub release created with full v1->v2 changelog
+- [x] Tag `v2.0.1`
+- [x] GitHub release published
 - [x] Branch merged into main
-- [x] Issue #12 closed
+- [x] Issue #13 closed
 - [x] housekeeping_done=true

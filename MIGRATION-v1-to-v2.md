@@ -75,6 +75,7 @@ The `Stronger` profile activates 9 additional mutators that close the gap with P
 ### `Stronger` (= Defaults + catalogue closure)
 
 Adds:
+v2.0.0 adds:
 - **TypeDrivenReturnMutator** (cargo-mutants C2 — type-driven default returns: `Task<T>` → `Task.FromResult(default)`, `IEnumerable<T>` → `Enumerable.Empty<T>()`, etc.)
 - **InlineConstantsMutator** (PIT INLINE_CONSTS — every numeric literal `n` → `n+1` and `n-1`)
 - **AodMutator** (PIT-style Arithmetic Operator Deletion — `a + b → a` AND `a + b → b`)
@@ -86,17 +87,29 @@ Adds:
 - **DateTimeMutator** (greenfield — `DateTime.Now ↔ UtcNow`)
 - **SpanMemoryMutator** (greenfield — `span.Slice(s, l) → span.Slice(0, l)`)
 
-36 mutators total (= 26 + 10).
+v2.0.1 adds (spec-gap closure):
+- **ConfigureAwaitMutator** (greenfield — `ConfigureAwait(false) ↔ ConfigureAwait(true)` literal swap)
+- **DateTimeAddSignMutator** (greenfield — `AddDays(n) ↔ AddDays(-n)` for the full `Add*` family)
+- **SwitchArmDeletionMutator** (cargo-mutants C3 — drop a non-default switch-expression arm; only when a `_`-default exists to catch deleted cases)
+- **MemberVariableMutator** (PIT EXP_MEMBER_VARIABLE — instance field/property assignment reset to `default`)
+- **TaskWhenAllToWhenAnyMutator** (greenfield — `Task.WhenAll(...) ↔ Task.WhenAny(...)` swap)
+
+41 mutators total (= 26 + 15).
 
 ### `All` (= Stronger + the noisiest experimental operators)
 
-Adds:
+v2.0.0 adds:
 - **UoiMutator** (PIT Unary Operator Insertion — `x → x++/++x/x--/--x` on every identifier; very high mutation volume)
 - **NakedReceiverMutator** (PIT EXP_NAKED_RECEIVER — `a.M(b) → a`)
 - **ExceptionSwapMutator** (greenfield — `throw new ArgumentNullException → throw new ArgumentException` and family swaps)
 - **GenericConstraintMutator** (greenfield — drops `where T : ...` clauses; may produce non-compiling mutants which the runner correctly classifies as killed)
 
-40 mutators total (= 26 + 10 + 4).
+v2.0.1 adds (spec-gap closure):
+- **ArgumentPropagationMutator** (PIT EXP_ARGUMENT_PROPAGATION — `foo.Bar(a, b) → a` when arg-type is implicitly convertible to return-type; type-aware via SemanticModel)
+- **AsSpanAsMemoryMutator** (greenfield — `AsSpan() ↔ AsMemory()` and read-only variants; high compile-failure rate, runner classifies failed-compile as killed)
+- **MethodBodyReplacementMutator** (cargo-mutants C1 "function-body replacement genre" — non-void method bodies replaced with `{ return default; }`, void with `{ }`; skips async/abstract/partial/extern/expression-bodied)
+
+48 mutators total (= 26 + 15 + 7).
 
 ---
 
@@ -146,7 +159,7 @@ No type was renamed, removed, or had a method signature change.
 
 ## Roadmap (v2.0.x → v2.1)
 
-The full reconciliation against `_input/mutation_framework_comparison.md` shows v2.0.0 covers ~45% of spec items exactly, ~16% with semantic-deviation, and 32% remain open. The deltas below are tracked for v2.0.x patch releases and v2.1.
+After v2.0.1 the operator catalogue closes nearly all operator-shaped recommendations from `_input/mutation_framework_comparison.md`. Remaining open items below.
 
 ### Cross-cutting infrastructure (v2.0.x → v2.1)
 
@@ -154,23 +167,10 @@ The full reconciliation against `_input/mutation_framework_comparison.md` shows 
 - **Coverage-driven mutation skip** (mutmut-style: skip mutants in lines with no test coverage)
 - **Roslyn Diagnostics filter** (mutmut-style: feed compilation diagnostics into the equivalence-filter pipeline as a new `IEquivalentMutantFilter`)
 
-### Open PIT operators (§4.1)
+### Open operators (§4.1 / §4.4)
 
 - **CRCR full matrix** (constant-replacement composite — partial overlap with `InlineConstantsMutator`'s `n+1` / `n-1` axes; missing are the `0`, `1`, `-1`, `-c` substitutions)
-- **Argument Propagation** (`foo.Bar(a, b) → a` — replace a method call with one of its arguments when the type matches; type-aware, will use `TypeAwareMutatorBase`)
-- **Member Variable Mutator** (reset a field/property assignment to its default; targets `=` assignments to instance fields/properties)
-
-### Open cargo-mutants operators (§4.2)
-
-- **Function-Body-Replacement genre** (replace the entire body of a non-void method with `return default;`; for void methods, replace with empty body — coarser than the current per-statement mutators)
-- **Match-Arm-Deletion** for switch-expressions with `_`-default (delete a non-default arm; the wildcard catches the formerly-routed cases)
-
-### Open greenfield operators (§4.4)
-
-- **Async/Await — `Task.WhenAll → Task.WhenAny`**
-- **Async/Await — `ConfigureAwait(false) → ConfigureAwait(true)` swap**
-- **DateTime — `AddDays(n) ↔ AddDays(-n)` sign flip** (also `AddHours`, `AddMinutes`, `AddMonths`, `AddYears`)
-- **Span/Memory — `AsSpan() → AsMemory()` and `Span<T> ↔ ReadOnlySpan<T>`** (the current `SpanMemoryMutator` instead emits `Slice(start, length) → Slice(0, length)` — different mutation, kept as bonus)
+- **Span/Memory — declaration-site `Span<T> ↔ ReadOnlySpan<T>` swap** (the v2.0.0 `SpanMemoryMutator` emits `Slice(start, length) → Slice(0, length)`; the v2.0.1 `AsSpanAsMemoryMutator` covers the `AsSpan()/AsMemory()` invocation swap; the declaration-type swap is the third remaining piece)
 - **Access-Modifier-Mutation** (`private ↔ public`) — controversial; kept off the roadmap unless requested
 
 ### Documented semantic deviations from the spec
@@ -179,7 +179,7 @@ These are intentionally implemented differently from the spec's exact wording �
 
 - **`AsyncAwaitMutator`** emits `await x → x.GetAwaiter().GetResult()` rather than the spec's `await x → x.Result`. Both are sync-over-async substitutions; `.Result` wraps exceptions in `AggregateException`, `GetAwaiter().GetResult()` unwraps. Either way, tests that fail to await the result fail the mutant.
 - **`GenericConstraintMutator`** drops the entire `where T : ...` clause set rather than performing the spec-listed *loosening* (`where T : class → where T : new()`). Closely related but more aggressive. A loosening variant may be added under a separate mutator in v2.1.
-- **`SpanMemoryMutator`** targets `span.Slice(start, length) → span.Slice(0, length)`. The spec asked for `Span<T> ↔ ReadOnlySpan<T>` and `AsSpan() → AsMemory()`, neither of which is implemented — both are roadmapped.
+- **`SpanMemoryMutator`** targets `span.Slice(start, length) → span.Slice(0, length)`. The spec asked for `Span<T> ↔ ReadOnlySpan<T>` and `AsSpan() → AsMemory()` — the latter ships in v2.0.1 as `AsSpanAsMemoryMutator`; the former is roadmapped.
 
 ## Questions or issues
 

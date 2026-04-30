@@ -97,7 +97,16 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new SyntaxNodeOrchestrator()
     ];
 
-    private static List<IMutator> DefaultMutatorList() =>
+    private static List<IMutator> DefaultMutatorList()
+    {
+        var mutators = new List<IMutator>(48);
+        mutators.AddRange(BaselineMutators());
+        mutators.AddRange(V2OperatorBatches());
+        return mutators;
+    }
+
+    /// <summary>The 26 v1.x baseline mutators (active in every profile).</summary>
+    private static IEnumerable<IMutator> BaselineMutators() =>
     [
         new BinaryExpressionMutator(),
         new RelationalPatternMutator(),
@@ -125,32 +134,51 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new MathMutator(),
         new IsPatternExpressionMutator(),
         new CollectionExpressionMutator(),
-        // v2.0.0 Sprint 9 (ADR-015): type-driven return-value mutator.
-        // Belongs to Stronger | All profile only — not active under default Defaults
-        // profile, so v1.x behaviour is preserved at the orchestrator level too.
+    ];
+
+    /// <summary>
+    /// All v2.0.0 / v2.0.1 sprint-batched mutators. Each carries
+    /// <c>[MutationProfileMembership]</c> so the orchestrator filter activates
+    /// the right subset per profile — under <c>Defaults</c> none of these run,
+    /// preserving v1.x parity by construction.
+    /// </summary>
+    private static IEnumerable<IMutator> V2OperatorBatches() =>
+    [
+        // Sprint 9 (ADR-015): type-driven return-value mutator. Stronger | All.
         new TypeDrivenReturnMutator(),
-        // v2.0.0 Sprint 10 (PIT-1 operator batch): all Stronger | All only.
-        // Inline numeric literals, AOD operator deletion, ROR full-matrix.
+        // Sprint 10 (PIT-1 operator batch): inline numeric literals, AOD,
+        // ROR full-matrix — Stronger | All. UOI — All only.
         new InlineConstantsMutator(),
         new AodMutator(),
         new RorMatrixMutator(),
-        // UoiMutator: All only (most aggressive — every identifier × 4 mutations).
         new UoiMutator(),
-        // v2.0.0 Sprint 11 (PIT-2 + cargo-mutants batch): 4 catalogue-closing operators.
-        // ConstructorNullMutator + NakedReceiverMutator: Stronger | All / All only — disruptive.
-        // MatchGuardMutator + WithExpressionMutator: Stronger | All — pattern/record-specific.
+        // Sprint 11 (PIT-2 + cargo-mutants batch): 4 catalogue-closers.
+        // ConstructorNull + WithExpression + MatchGuard: Stronger | All.
+        // NakedReceiver: All only.
         new ConstructorNullMutator(),
         new MatchGuardMutator(),
         new WithExpressionMutator(),
         new NakedReceiverMutator(),
-        // v2.0.0 Sprint 12 (greenfield .NET-specific batch): 5 operators with no
-        // PIT/cargo/mutmut equivalent. All Stronger | All or All-only.
+        // Sprint 12 (greenfield .NET-specific batch): 5 operators with no
+        // PIT/cargo/mutmut equivalent. AsyncAwait + DateTime + SpanMemory:
+        // Stronger | All. ExceptionSwap + GenericConstraint: All only.
         new AsyncAwaitMutator(),
         new DateTimeMutator(),
         new SpanMemoryMutator(),
-        // ExceptionSwapMutator + GenericConstraintMutator: All only (most disruptive).
         new ExceptionSwapMutator(),
         new GenericConstraintMutator(),
+        // Sprint 13 (spec-gap closure): 8 operators closing remaining §4.1 +
+        // §4.2 + §4.4 gaps. ConfigureAwait + DateTimeAddSign + SwitchArmDeletion
+        // + MemberVariable + TaskWhenAllToWhenAny: Stronger | All.
+        // ArgumentPropagation + AsSpanAsMemory + MethodBodyReplacement: All only.
+        new ConfigureAwaitMutator(),
+        new DateTimeAddSignMutator(),
+        new SwitchArmDeletionMutator(),
+        new MemberVariableMutator(),
+        new TaskWhenAllToWhenAnyMutator(),
+        new ArgumentPropagationMutator(),
+        new AsSpanAsMemoryMutator(),
+        new MethodBodyReplacementMutator(),
     ];
 
     private IEnumerable<IMutator> Mutators { get; }
