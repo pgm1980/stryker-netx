@@ -23,7 +23,7 @@ namespace Stryker.Core.Initialisation;
 ///  - Scans project under test and store files to mutate
 ///  - Build composite for files
 /// </summary>
-public class InputFileResolver : IInputFileResolver
+public partial class InputFileResolver : IInputFileResolver
 {
     private readonly string[] _foldersToExclude = ["obj", "bin", "node_modules", "StrykerOutput"];
     private readonly ILogger _logger;
@@ -64,22 +64,22 @@ public class InputFileResolver : IInputFileResolver
             // load the solution file when provided
             try
             {
-                _logger.LogDebug("Loading solution file {SolutionFile}.", options.SolutionPath);
+                LogLoadingSolution(_logger, options.SolutionPath);
                 solution = _solutionProvider.GetSolution(options.SolutionPath);
             }
             catch (IOException e)
             {
-                _logger.LogCritical(e, "Failed to load solution file {SolutionFile}.", options.SolutionPath);
+                LogFailedLoadSolution(_logger, e, options.SolutionPath);
                 return [];
             }
             catch (UnauthorizedAccessException e)
             {
-                _logger.LogCritical(e, "Failed to access solution file {SolutionFile}.", options.SolutionPath);
+                LogFailedAccessSolution(_logger, e, options.SolutionPath);
                 return [];
             }
             catch (AggregateException e) // Handles exceptions from .Result on Task
             {
-                _logger.LogCritical(e, "Failed to load solution file {SolutionFile}.", options.SolutionPath);
+                LogFailedLoadSolution(_logger, e, options.SolutionPath);
                 return [];
             }
         }
@@ -111,21 +111,21 @@ public class InputFileResolver : IInputFileResolver
         var testProjectFileNames = testProjectsSpecified ? options.TestProjects.Select(FindTestProject).ToList()
             : [FindTestProject(options.ProjectPath ?? string.Empty)];
 
-        _logger.LogInformation("Analyzing {ProjectCount} test project(s).", testProjectFileNames.Count);
+        LogAnalyzingTestProjects(_logger, testProjectFileNames.Count);
         List<(string projectFile, string framework, string configuration, string platform)> projectList =
             [..testProjectFileNames.Select(p => (p, options.TargetFramework ?? string.Empty, configuration, platform))];
         // if test project is provided but no source project
         var targetProjectMode = testProjectsSpecified && string.IsNullOrEmpty(options.SourceProjectName);
         if (targetProjectMode)
         {
-            _logger.LogDebug("Assume working directory contains target project to be mutated.");
+            LogAssumeWorkingDirContainsTarget(_logger);
             normalizedProjectUnderTestNameFilter = NormalizePath(FindProjectFile(options.WorkingDirectory ?? string.Empty));
             targetProjectMode =
                 options.TestProjects.All(tp => !string.Equals(NormalizePath(tp), normalizedProjectUnderTestNameFilter, StringComparison.Ordinal));
             if (!targetProjectMode)
             {
                 // we detected a test project, discard it
-                _logger.LogDebug("Working directory contains a test project.");
+                LogWorkingDirIsTest(_logger);
                 normalizedProjectUnderTestNameFilter = null;
             }
         }
@@ -149,7 +149,7 @@ public class InputFileResolver : IInputFileResolver
         if (solution != null)
         {
             var (actualBuildType, actualPlatform) = solution.GetMatching(options.Configuration ?? string.Empty, options.Platform ?? string.Empty);
-            _logger.LogDebug("Using solution configuration/platform '{Configuration}|{Platform}'.", actualBuildType, actualPlatform);
+            LogUsingSolutionConfigPlatform(_logger, actualBuildType, actualPlatform);
             solutionInfo = new Stryker.Core.ProjectComponents.SourceProjects.SolutionInfo(solution.FileName, actualBuildType, actualPlatform);
             configuration = actualBuildType;
             platform = NormalizePlatform(actualPlatform);
@@ -170,11 +170,11 @@ public class InputFileResolver : IInputFileResolver
         {
             if (targetProjectMode)
             {
-                _logger.LogError("Project {ProjectFile} could not be found as a project referenced by the provided test projects.", normalizedProjectUnderTestNameFilter);
+                LogProjectNotReferencedByTests(_logger, normalizedProjectUnderTestNameFilter ?? string.Empty);
             }
             else
             {
-                _logger.LogError("No project could be found as a project referenced by the provided test projects.");
+                LogNoProjectReferencedByTests(_logger);
             }
 
             return result;
@@ -185,7 +185,7 @@ public class InputFileResolver : IInputFileResolver
         result = [.. result.Where(p => testProjectFileNames.TrueForAll(n => p.TestProjectsInfo.TestProjects.Any(t => string.Equals(t.ProjectFilePath, n, StringComparison.Ordinal))))];
         if (result.Count == 1)
         {
-            _logger.LogInformation("Selected project {ProjectFile} as it is referenced by all provided test projects.", result[0].Analysis.ProjectFilePath);
+            LogSelectedProject(_logger, result[0].Analysis.ProjectFilePath);
         }
 
         return result;
@@ -194,28 +194,31 @@ public class InputFileResolver : IInputFileResolver
     private List<SourceProjectInfo> ScanInSolutionMode(IStrykerOptions options, SolutionFile? solution,
         string? normalizedProjectUnderTestNameFilter)
     {
-        _logger.LogInformation("Stryker will mutate solution {Solution}.", FileSystem.Path.GetFileNameWithoutExtension(options.SolutionPath));
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            var solutionName = FileSystem.Path.GetFileNameWithoutExtension(options.SolutionPath) ?? string.Empty;
+            LogMutatingSolution(_logger, solutionName);
+        }
         // identify actual configuration/platform to use
         var (actualBuildType, actualPlatform) = solution!.GetMatching(options.Configuration ?? string.Empty, options.Platform ?? string.Empty);
         if ((!string.IsNullOrEmpty(options.Configuration) && !string.Equals(options.Configuration, actualBuildType, StringComparison.Ordinal)) ||
             (!string.IsNullOrEmpty(options.Platform) && !string.Equals(options.Platform, actualPlatform, StringComparison.Ordinal)))
         {
-            _logger.LogWarning("Using configuration/platform '{ActualBuildType}|{ActualPlatform}' instead of requested '{Configuration}|{Platform}'.",
-                actualBuildType, actualPlatform, options.Configuration, options.Platform);
+            LogConfigPlatformInsteadOf(_logger, actualBuildType, actualPlatform, options.Configuration ?? string.Empty, options.Platform ?? string.Empty);
         }
         else
         {
-            _logger.LogInformation("Using configuration/platform '{Configuration}|{Platform}'.", actualBuildType, actualPlatform);
+            LogUsingConfigPlatform(_logger, actualBuildType, actualPlatform);
         }
 
-        _logger.LogInformation("Identifying projects to mutate in {Solution}. This can take a while.", options.SolutionPath);
+        LogIdentifyingProjects(_logger, options.SolutionPath ?? string.Empty);
 
         var solutionInfo = new Stryker.Core.ProjectComponents.SourceProjects.SolutionInfo(solution.FileName, actualBuildType, actualPlatform);
         // analyze all projects
         var projectsWithDetails = solution.GetProjectsWithDetails(actualBuildType, actualPlatform)
             .Select(p => (p.file, framework: options.TargetFramework ?? string.Empty, p.buildType, NormalizePlatform(p.platform))).ToList();
 
-        _logger.LogDebug("Analyzing {ProjectCount} projects.", projectsWithDetails.Count);
+        LogAnalyzingProjects(_logger, projectsWithDetails.Count);
         // we match test projects to mutable projects
         var mutableProjectsAnalyses = AnalyzeAllNeededProjects(projectsWithDetails,
             normalizedProjectUnderTestNameFilter ?? string.Empty,
@@ -229,7 +232,7 @@ public class InputFileResolver : IInputFileResolver
     public string FindTestProject(string path)
     {
         var projectFile = FindProjectFile(path);
-        _logger.LogDebug("Using {ProjectFile} as test project", projectFile);
+        LogUsingTestProject(_logger, projectFile);
         return projectFile;
     }
 
@@ -247,7 +250,7 @@ public class InputFileResolver : IInputFileResolver
         List<IProjectAnalysis> unusedTestProjects)
     {
         // build all projects
-        _logger.LogDebug("Analyzing {Count} projects.", findMutableAnalyses.Count);
+        LogAnalyzingProjectCount(_logger, findMutableAnalyses.Count);
 
         // we match test projects to mutable projects
         if (findMutableAnalyses.All(r =>
@@ -273,7 +276,7 @@ public class InputFileResolver : IInputFileResolver
             return projectInfos;
         }
 
-        _logger.LogError("Project analysis failed.");
+        LogProjectAnalysisFailed(_logger);
         throw new InputException("No valid project analysis results could be found.");
     }
 
@@ -283,51 +286,41 @@ public class InputFileResolver : IInputFileResolver
     {
         if (findMutableAnalyses.Count == 0)
         {
-            _logger.LogWarning("""
-                               No project found, check settings and ensure project file is not corrupted.
-                               Use --diag option to have the analysis logs in the log file.
-                               """);
+            LogNoProjectFound(_logger);
             return;
         }
         foreach (var (mutableProject, testProjects) in findMutableAnalyses)
         {
-            _logger.LogInformation("Project {ProjectPath} analysis {Result}.",
-                mutableProject.ProjectFilePath,
-                mutableProject.IsValid() ? "succeeded" : "failed hence can't be mutated");
+            LogProjectAnalysisResult(_logger, mutableProject.ProjectFilePath, mutableProject.IsValid() ? "succeeded" : "failed hence can't be mutated");
             if (testProjects.Count == 0)
             {
-                _logger.LogWarning("  can't be mutated because no test project references it. If this is a test project, " +
-                                   "ensure it has the property: <IsTestProject>true</IsTestProject> in its project file.");
+                LogProjectNoTestRef(_logger);
                 continue;
             }
             // dump associated test projects
             foreach (var testProject in testProjects)
             {
-                _logger.LogInformation("  referenced by test project {ProjectName}, analysis {Result}.",
-                    testProject.ProjectFilePath,
-                    testProject.IsValid() ? "succeeded" : "failed");
+                LogReferencedByTestProject(_logger, testProject.ProjectFilePath, testProject.IsValid() ? "succeeded" : "failed");
             }
             // provide synthetic status
             if (testProjects.Any(r => r.IsValid()))
             {
-                _logger.LogInformation("  can be mutated.");
+                LogCanBeMutated(_logger);
             }
             else
             {
-                _logger.LogWarning("  can't be mutated because all referencing test projects' analysis failed.");
+                LogCantBeMutated(_logger);
             }
         }
         // dump test projects that do not reference any mutable project
         foreach (var unusedTestProject in unusedTestProjects)
         {
-            _logger.LogInformation("Test project {ProjectName} does not appear to test any mutable project, analysis {Result}.",
-                unusedTestProject.ProjectFilePath,
-                unusedTestProject.IsValid() ? "succeeded" : "failed");
+            LogUnusedTestProject(_logger, unusedTestProject.ProjectFilePath, unusedTestProject.IsValid() ? "succeeded" : "failed");
         }
 
         if (!optionsDiagMode)
         {
-            _logger.LogWarning("Use --diag option to have the analysis logs in the log file.");
+            LogDiagOptionTip(_logger);
         }
     }
 
@@ -377,7 +370,7 @@ public class InputFileResolver : IInputFileResolver
             }
 
             var projectLogName = FileSystem.Path.GetRelativePath(options.WorkingDirectory ?? string.Empty, projectFile);
-            _logger.LogDebug("Analyzing {ProjectFilePath}", projectLogName);
+            LogAnalyzingProjectFile(_logger, projectLogName);
 
             var analysis = MSBuildProjectAnalysisLoader.LoadAsync(
                 _workspaceProvider,
@@ -390,7 +383,7 @@ public class InputFileResolver : IInputFileResolver
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "Failed to analyze project {Project}.", projectFile);
+            LogFailedToAnalyzeProject(_logger, ex, projectFile);
             return [];
         }
     }
@@ -462,7 +455,7 @@ public class InputFileResolver : IInputFileResolver
         }
         if (analyses.Count == 0)
         {
-            _logger.LogTrace("No analyses to log. This indicates an early failure in analysis, check log file for details.");
+            LogNoAnalysesToLog(_logger);
             return;
         }
         var log = new StringBuilder();
@@ -492,7 +485,8 @@ public class InputFileResolver : IInputFileResolver
             log.AppendLine();
         }
         log.AppendLine("**** End project analysis result ****");
-        _logger.LogTrace("{Log}", log.ToString());
+        var logString = log.ToString();
+        LogTraceMessage(_logger, logString);
     }
 
     private IProjectAnalysis SelectAnalysis(IEnumerable<IProjectAnalysis> analyses, string? targetFramework)
@@ -519,21 +513,14 @@ public class InputFileResolver : IInputFileResolver
         if (validResults.Count == 1)
         {
             var single = validResults[0];
-            _logger.LogInformation(
-                "Could not find a valid analysis for target {TargetFramework} for project '{ProjectName}'. Selected version is {SelectedVersion}.",
-                targetFramework, projectName, single.TargetFramework);
+            LogSelectedVersionForFramework(_logger, targetFramework, projectName, single.TargetFramework);
             return single;
         }
 
         var first = PickFrameworkVersion();
         var availableFrameworks = validResults.Select(a => a.TargetFramework).Distinct(StringComparer.Ordinal);
         var firstFramework = first.TargetFramework;
-        _logger.LogWarning(
-            """
-             Could not find a valid analysis for target {TargetFramework} for project '{ProjectName}'.
-             The available target frameworks are: {AvailableFrameworks}.
-                  selected version is {SelectedVersion}.
-             """, targetFramework, projectName, string.Join(',', availableFrameworks), firstFramework);
+        LogNoValidAnalysisForFramework(_logger, targetFramework, projectName, string.Join(',', availableFrameworks), firstFramework);
 
         return first;
 
@@ -558,7 +545,7 @@ public class InputFileResolver : IInputFileResolver
                 continue;
             }
 
-            _logger.LogInformation("Could not find an assembly reference to a mutable assembly for project {ProjectName}. Will look into project references.", testProject.ProjectFilePath);
+            LogNoAssemblyRef(_logger, testProject.ProjectFilePath);
             // we try to find a project reference
             if (!ScanProjectReferences(mutableToTestMap, mutableProjects, testProject))
             {
@@ -631,9 +618,7 @@ public class InputFileResolver : IInputFileResolver
         var language = targetProjectInfo.Analysis.GetLanguage();
         if (language == Language.Fsharp)
         {
-            _logger.LogError(
-                "{Error}",
-                targetProjectInfo.LogError(
+            LogError(_logger, targetProjectInfo.LogError(
                     "Mutation testing of F# projects is not ready yet. No mutants will be generated."));
         }
 
@@ -654,7 +639,7 @@ public class InputFileResolver : IInputFileResolver
         targetProjectInfo.OnProjectBuilt = builder.PostBuildAction();
         targetProjectInfo.ProjectContents = inputFiles;
         targetProjectInfo.SolutionInfo = solutionInfo;
-        _logger.LogInformation("Found project {ProjectFileName} to mutate.", analysis.ProjectFilePath);
+        LogFoundProjectToMutate(_logger, analysis.ProjectFilePath);
         targetProjectInfo.TestProjectsInfo = new TestProjectsInfo(FileSystem)
         {
             TestProjects = testAnalyses.Select(testProjectAnalysis => new TestProject(FileSystem, testProjectAnalysis)).ToList()
@@ -684,7 +669,7 @@ public class InputFileResolver : IInputFileResolver
             throw new InputException($"No .csproj or .fsproj file found, please check your project directory at {path}");
         }
 
-        _logger.LogTrace("Scanned the directory {Path} for *.csproj files: found {ProjectFilesCount}", path, projectFiles);
+        LogScannedDirectory(_logger, path, projectFiles);
 
         switch (projectFiles.Length)
         {
@@ -702,8 +687,9 @@ public class InputFileResolver : IInputFileResolver
             case 0:
                 throw new InputException($"No .csproj or .fsproj file found, please check your project or solution directory at {path}");
             default:
-                _logger.LogTrace("Found project file {File} in path {Path}", projectFiles.Single(), path);
-                return projectFiles.Single();
+                var single = projectFiles.Single();
+                LogFoundProjectFile(_logger, single, path);
+                return single;
         }
     }
 
@@ -758,4 +744,115 @@ public class InputFileResolver : IInputFileResolver
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Loading solution file {SolutionFile}.")]
+    private static partial void LogLoadingSolution(ILogger logger, string solutionFile);
+
+    [LoggerMessage(Level = LogLevel.Critical, Message = "Failed to load solution file {SolutionFile}.")]
+    private static partial void LogFailedLoadSolution(ILogger logger, Exception ex, string solutionFile);
+
+    [LoggerMessage(Level = LogLevel.Critical, Message = "Failed to access solution file {SolutionFile}.")]
+    private static partial void LogFailedAccessSolution(ILogger logger, Exception ex, string solutionFile);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Analyzing {ProjectCount} test project(s).")]
+    private static partial void LogAnalyzingTestProjects(ILogger logger, int projectCount);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Assume working directory contains target project to be mutated.")]
+    private static partial void LogAssumeWorkingDirContainsTarget(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Working directory contains a test project.")]
+    private static partial void LogWorkingDirIsTest(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Using solution configuration/platform '{Configuration}|{Platform}'.")]
+    private static partial void LogUsingSolutionConfigPlatform(ILogger logger, string configuration, string platform);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Project {ProjectFile} could not be found as a project referenced by the provided test projects.")]
+    private static partial void LogProjectNotReferencedByTests(ILogger logger, string projectFile);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "No project could be found as a project referenced by the provided test projects.")]
+    private static partial void LogNoProjectReferencedByTests(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Selected project {ProjectFile} as it is referenced by all provided test projects.")]
+    private static partial void LogSelectedProject(ILogger logger, string projectFile);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Stryker will mutate solution {Solution}.")]
+    private static partial void LogMutatingSolution(ILogger logger, string solution);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Using configuration/platform '{ActualBuildType}|{ActualPlatform}' instead of requested '{Configuration}|{Platform}'.")]
+    private static partial void LogConfigPlatformInsteadOf(ILogger logger, string actualBuildType, string actualPlatform, string configuration, string platform);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Using configuration/platform '{Configuration}|{Platform}'.")]
+    private static partial void LogUsingConfigPlatform(ILogger logger, string configuration, string platform);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Identifying projects to mutate in {Solution}. This can take a while.")]
+    private static partial void LogIdentifyingProjects(ILogger logger, string solution);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Analyzing {ProjectCount} projects.")]
+    private static partial void LogAnalyzingProjects(ILogger logger, int projectCount);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Using {ProjectFile} as test project")]
+    private static partial void LogUsingTestProject(ILogger logger, string projectFile);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Analyzing {Count} projects.")]
+    private static partial void LogAnalyzingProjectCount(ILogger logger, int count);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Project analysis failed.")]
+    private static partial void LogProjectAnalysisFailed(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "No project found, check settings and ensure project file is not corrupted.\nUse --diag option to have the analysis logs in the log file.")]
+    private static partial void LogNoProjectFound(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Project {ProjectPath} analysis {Result}.")]
+    private static partial void LogProjectAnalysisResult(ILogger logger, string projectPath, string result);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "  can't be mutated because no test project references it. If this is a test project, ensure it has the property: <IsTestProject>true</IsTestProject> in its project file.")]
+    private static partial void LogProjectNoTestRef(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "  referenced by test project {ProjectName}, analysis {Result}.")]
+    private static partial void LogReferencedByTestProject(ILogger logger, string projectName, string result);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "  can be mutated.")]
+    private static partial void LogCanBeMutated(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "  can't be mutated because all referencing test projects' analysis failed.")]
+    private static partial void LogCantBeMutated(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Test project {ProjectName} does not appear to test any mutable project, analysis {Result}.")]
+    private static partial void LogUnusedTestProject(ILogger logger, string projectName, string result);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Use --diag option to have the analysis logs in the log file.")]
+    private static partial void LogDiagOptionTip(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Analyzing {ProjectFilePath}")]
+    private static partial void LogAnalyzingProjectFile(ILogger logger, string projectFilePath);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to analyze project {Project}.")]
+    private static partial void LogFailedToAnalyzeProject(ILogger logger, Exception ex, string project);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "No analyses to log. This indicates an early failure in analysis, check log file for details.")]
+    private static partial void LogNoAnalysesToLog(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "{Log}")]
+    private static partial void LogTraceMessage(ILogger logger, string log);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Could not find a valid analysis for target {TargetFramework} for project '{ProjectName}'. Selected version is {SelectedVersion}.")]
+    private static partial void LogSelectedVersionForFramework(ILogger logger, string targetFramework, string projectName, string selectedVersion);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not find a valid analysis for target {TargetFramework} for project '{ProjectName}'.\nThe available target frameworks are: {AvailableFrameworks}.\n     selected version is {SelectedVersion}.")]
+    private static partial void LogNoValidAnalysisForFramework(ILogger logger, string targetFramework, string projectName, string availableFrameworks, string selectedVersion);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Could not find an assembly reference to a mutable assembly for project {ProjectName}. Will look into project references.")]
+    private static partial void LogNoAssemblyRef(ILogger logger, string projectName);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "{Error}")]
+    private static partial void LogError(ILogger logger, string error);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Found project {ProjectFileName} to mutate.")]
+    private static partial void LogFoundProjectToMutate(ILogger logger, string projectFileName);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "Scanned the directory {Path} for *.csproj files: found {ProjectFilesCount}")]
+    private static partial void LogScannedDirectory(ILogger logger, string path, string[] projectFilesCount);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "Found project file {File} in path {Path}")]
+    private static partial void LogFoundProjectFile(ILogger logger, string file, string path);
 }

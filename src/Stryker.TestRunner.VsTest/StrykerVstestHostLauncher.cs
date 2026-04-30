@@ -9,7 +9,7 @@ namespace Stryker.TestRunner.VsTest;
 
 // can't be unit tested
 [ExcludeFromCodeCoverage]
-public sealed class StrykerVsTestHostLauncher : IStrykerTestHostLauncher
+public sealed partial class StrykerVsTestHostLauncher : IStrykerTestHostLauncher
 {
     private readonly string _id;
     private readonly bool _devMode;
@@ -61,7 +61,7 @@ public sealed class StrykerVsTestHostLauncher : IStrykerTestHostLauncher
 
         if (!currentProcess.Start())
         {
-            Logger.LogError("{Id}: Failed to start process {Arguments}.", _id, processInfo.Arguments);
+            LogFailedToStart(Logger, _id, processInfo.Arguments ?? string.Empty);
         }
 
         currentProcess.BeginOutputReadLine();
@@ -72,17 +72,26 @@ public sealed class StrykerVsTestHostLauncher : IStrykerTestHostLauncher
 
     private void Process_ErrorDataReceived(object? sender, DataReceivedEventArgs e)
     {
-        if (e.Data != null)
+        if (e.Data != null && Logger.IsEnabled(LogLevel.Debug))
         {
-            Logger.LogDebug("{Id}: {Data} (VsTest error)", _id, e.Data);
+            LogVsTestError(Logger, _id, e.Data);
         }
     }
 
     private void Process_OutputDataReceived(object? sender, DataReceivedEventArgs e)
     {
-        if (e.Data != null)
+        if (e.Data != null && Logger.IsEnabled(LogLevel.Trace))
         {
-            Logger.LogTrace("{Id}: {Data} (VsTest output)", _id, e.Data);
+            LogVsTestOutput(Logger, _id, e.Data);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "{Id}: Failed to start process {Arguments}.")]
+    private static partial void LogFailedToStart(ILogger logger, string id, string arguments);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{Id}: {Data} (VsTest error)")]
+    private static partial void LogVsTestError(ILogger logger, string id, string data);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "{Id}: {Data} (VsTest output)")]
+    private static partial void LogVsTestOutput(ILogger logger, string id, string data);
 }

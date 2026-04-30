@@ -22,7 +22,7 @@ namespace Stryker.TestRunner.VsTest;
 /// <summary>
 /// Coordinates a single VsTest worker: runs initial discovery, mutation tests, and coverage runs.
 /// </summary>
-public sealed class VsTestRunner : IDisposable
+public sealed partial class VsTestRunner : IDisposable
 {
     private IVsTestConsoleWrapper _vsTestConsole;
     private bool _disposedValue; // To detect redundant calls
@@ -70,9 +70,7 @@ public sealed class VsTestRunner : IDisposable
                 description = new VsTestDescription(new VsTestCase(result.TestCase));
                 _context.VsTests[result.TestCase.Id] = description;
                 _context.RegisterDiscoveredTest(description);
-                _logger.LogWarning(
-                    "{RunnerId}: Initial test run encounter an unexpected test case ({DisplayName}), mutation tests may be inaccurate. Disable coverage analysis if you have doubts.",
-                    RunnerId, result.TestCase.DisplayName);
+                LogUnexpectedTestCase(_logger, RunnerId, result.TestCase.DisplayName);
             }
 
             description.RegisterInitialTestResult(new VsTestResult(result));
@@ -103,7 +101,7 @@ public sealed class VsTestRunner : IDisposable
         var timeOutMs = ResolveTimeout(timeoutCalc, testCases);
         if (timeOutMs.HasValue)
         {
-            _logger.LogDebug("{RunnerId}: Using {TimeOutMs} ms as test run timeout", RunnerId, timeOutMs);
+            LogTestRunTimeout(_logger, RunnerId, timeOutMs.Value);
         }
 
         var ctx = new MutantTestSessionContext(this, mutants, totalCountOfTests, expectedTests, update);
@@ -160,14 +158,14 @@ public sealed class VsTestRunner : IDisposable
                 return;
             }
 
-            _runner._logger.LogDebug("{RunnerId}: Each mutant's fate has been established, we can stop.", _runner.RunnerId);
+            LogMutantFateEstablished(_runner._logger, _runner.RunnerId);
             try
             {
                 _runner._vsTestConsole.CancelTestRun();
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _runner._logger.LogWarning(ex, "Error while cancelling VsTest session.");
+                LogVsTestCancelError(_runner._logger, ex);
                 _runner.PrepareVsTestConsole();
             }
             _runner._currentSessionCancelled = true;
@@ -189,11 +187,16 @@ public sealed class VsTestRunner : IDisposable
             }
 
             testCases = needAll ? null : mutants.SelectMany(m => m.AssessingTests.GetIdentifiers()).ToList();
-            _logger.LogDebug("{RunnerId}: Testing [{Mutants}]", RunnerId,
-                string.Join(',', mutants.Select(m => m.DisplayName)));
-            _logger.LogTrace(
-                "{RunnerId}: against {TestCases}.", RunnerId,
-                testCases == null ? "all tests." : string.Join(", ", testCases));
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                var mutantNames = string.Join(',', mutants.Select(m => m.DisplayName));
+                LogTestingMutantsList(_logger, RunnerId, mutantNames);
+            }
+            if (_logger.IsEnabled(LogLevel.Trace))
+            {
+                var caseList = testCases == null ? "all tests." : string.Join(", ", testCases);
+                LogAgainstTestCases(_logger, RunnerId, caseList);
+            }
         }
         else
         {
@@ -228,7 +231,7 @@ public sealed class VsTestRunner : IDisposable
 
         if (ranTests.IsEmpty && (testResults.TestsInTimeout == null || testResults.TestsInTimeout.Count == 0))
         {
-            _logger.LogTrace("{RunnerId}: Test session reports 0 result and 0 stuck test.", RunnerId);
+            LogZeroResults(_logger, RunnerId);
         }
 
         var duration = TimeSpan.FromTicks(_context.VsTests.Values.Sum(t => t.InitialRunTime.Ticks));
@@ -268,9 +271,7 @@ public sealed class VsTestRunner : IDisposable
         var validSources = _context.GetValidSources(sourcesList).ToList();
         if (tests.IsEveryTest && validSources.Count == 0)
         {
-            _logger.LogWarning(
-                "{RunnerId}: Test {AssemblyOrAssemblies} not contain any test, skipping.", RunnerId,
-                sourcesList.Count < 2 ? "assembly does" : "assemblies do");
+            LogAssemblyHasNoTests(_logger, RunnerId, sourcesList.Count < 2 ? "assembly does" : "assemblies do");
             return (new SimpleRunResults(), new SimpleRunResults());
         }
 
@@ -296,7 +297,11 @@ public sealed class VsTestRunner : IDisposable
             }
             var runSettings = _context.GenerateRunSettings(timeOut, forCoverage, mutantTestsMap,
                 projectAndTests.HelperNamespace, source.TargetFramework, source.TargetPlatform());
-            _logger.LogTrace("{RunnerId}: testing assembly {Source}.", RunnerId, source.GetAssemblyFileName());
+            if (_logger.IsEnabled(LogLevel.Trace))
+            {
+                var asmName = source.GetAssemblyFileName();
+                LogTestingAssembly(_logger, RunnerId, asmName);
+            }
             var activeId = -1;
             if (mutantTestsMap is { Count: 1 })
             {
@@ -364,12 +369,12 @@ public sealed class VsTestRunner : IDisposable
             attempt++;
             if (attempt < MaxAttempts)
             {
-                _logger.LogInformation("{RunnerId}: Retrying the test session.", RunnerId);
+                LogRetryingSession(_logger, RunnerId);
                 eventHandler.DiscardCurrentRun();
             }
         }
 
-        _logger.LogWarning("{RunnerId}: VsTest failed {Attempt} times, settings: {RunSettings}", RunnerId, attempt, runSettings);
+        LogVsTestFailedTimes(_logger, RunnerId, attempt, runSettings);
     }
 
     private bool WaitForEnd(Task session, RunEventHandler eventHandler, int? timeOut, ref int attempt)
@@ -392,13 +397,12 @@ public sealed class VsTestRunner : IDisposable
             {
                 // the computer went to sleep during the session
                 // we should ignore the result and retry
-                _logger.LogWarning(
-                    "{RunnerId}: Rerun of the test session because computer entered power saving mode.", RunnerId);
+                LogRerunPowerSaving(_logger, RunnerId);
                 attempt--;
             }
             else
             {
-                _logger.LogDebug("{RunnerId}: Test session finished.", RunnerId);
+                LogTestSessionFinished(_logger, RunnerId);
             }
         }
         else
@@ -409,7 +413,7 @@ public sealed class VsTestRunner : IDisposable
             session.Wait();
             // we add a grace delay for notifications to be propagated
             eventHandler.Wait(VsTestExtraTimeOutInMs, out _);
-            _logger.LogDebug("{RunnerId}: Test session finished.", RunnerId);
+            LogTestSessionFinished(_logger, RunnerId);
         }
 
         return vsTestFailed;
@@ -427,7 +431,7 @@ public sealed class VsTestRunner : IDisposable
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 /* Ignore exception. vsTestConsole has been disposed outside our control */
-                _logger.LogTrace(ex, "{RunnerId}: EndSession on stale VsTest console threw — ignoring during recycle.", RunnerId);
+                LogStaleEndSession(_logger, ex, RunnerId);
             }
         }
 
@@ -451,7 +455,7 @@ public sealed class VsTestRunner : IDisposable
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
-                _logger.LogError(e, "Exception when disposing {RunnerId}", RunnerId);
+                LogDisposeException(_logger, e, RunnerId);
             }
         }
 
@@ -466,4 +470,49 @@ public sealed class VsTestRunner : IDisposable
     }
 
     #endregion
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{RunnerId}: Initial test run encounter an unexpected test case ({DisplayName}), mutation tests may be inaccurate. Disable coverage analysis if you have doubts.")]
+    private static partial void LogUnexpectedTestCase(ILogger logger, string runnerId, string displayName);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{RunnerId}: Using {TimeOutMs} ms as test run timeout")]
+    private static partial void LogTestRunTimeout(ILogger logger, string runnerId, int timeOutMs);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{RunnerId}: Each mutant's fate has been established, we can stop.")]
+    private static partial void LogMutantFateEstablished(ILogger logger, string runnerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Error while cancelling VsTest session.")]
+    private static partial void LogVsTestCancelError(ILogger logger, Exception ex);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{RunnerId}: Testing [{Mutants}]")]
+    private static partial void LogTestingMutantsList(ILogger logger, string runnerId, string mutants);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "{RunnerId}: against {TestCases}.")]
+    private static partial void LogAgainstTestCases(ILogger logger, string runnerId, string testCases);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "{RunnerId}: Test session reports 0 result and 0 stuck test.")]
+    private static partial void LogZeroResults(ILogger logger, string runnerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{RunnerId}: Test {AssemblyOrAssemblies} not contain any test, skipping.")]
+    private static partial void LogAssemblyHasNoTests(ILogger logger, string runnerId, string assemblyOrAssemblies);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "{RunnerId}: testing assembly {Source}.")]
+    private static partial void LogTestingAssembly(ILogger logger, string runnerId, string source);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "{RunnerId}: Retrying the test session.")]
+    private static partial void LogRetryingSession(ILogger logger, string runnerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{RunnerId}: VsTest failed {Attempt} times, settings: {RunSettings}")]
+    private static partial void LogVsTestFailedTimes(ILogger logger, string runnerId, int attempt, string runSettings);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{RunnerId}: Rerun of the test session because computer entered power saving mode.")]
+    private static partial void LogRerunPowerSaving(ILogger logger, string runnerId);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{RunnerId}: Test session finished.")]
+    private static partial void LogTestSessionFinished(ILogger logger, string runnerId);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "{RunnerId}: EndSession on stale VsTest console threw — ignoring during recycle.")]
+    private static partial void LogStaleEndSession(ILogger logger, Exception ex, string runnerId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Exception when disposing {RunnerId}")]
+    private static partial void LogDisposeException(ILogger logger, Exception ex, string runnerId);
 }

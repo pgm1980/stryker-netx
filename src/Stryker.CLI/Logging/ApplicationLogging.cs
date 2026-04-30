@@ -8,7 +8,7 @@ using MSLogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace Stryker.CLI.Logging;
 
-public static class ApplicationLogging
+public static partial class ApplicationLogging
 {
     private static ILoggerFactory? factory;
 
@@ -29,8 +29,54 @@ public static class ApplicationLogging
         if (logLevel >= LogEventLevel.Information) return; // LibGit2Sharp does not handle LogEventLevel.None properly.
 
         var libGit2SharpLogger = LoggerFactory.CreateLogger(nameof(LibGit2Sharp));
-        GlobalSettings.LogConfiguration = new LogConfiguration(LogLevelConverter.Convert(logLevel), (level, message) => libGit2SharpLogger.Log(LogLevelConverter.Convert(level), "{Message}", message));
+        GlobalSettings.LogConfiguration = new LogConfiguration(LogLevelConverter.Convert(logLevel), (level, message) => LogLibGitMessage(libGit2SharpLogger, LogLevelConverter.Convert(level), message));
     }
+
+    private static void LogLibGitMessage(Microsoft.Extensions.Logging.ILogger logger, MSLogLevel level, string message)
+    {
+        switch (level)
+        {
+            case MSLogLevel.Trace:
+                LogLibGitMessageTrace(logger, message);
+                break;
+            case MSLogLevel.Debug:
+                LogLibGitMessageDebug(logger, message);
+                break;
+            case MSLogLevel.Information:
+                LogLibGitMessageInformation(logger, message);
+                break;
+            case MSLogLevel.Warning:
+                LogLibGitMessageWarning(logger, message);
+                break;
+            case MSLogLevel.Error:
+                LogLibGitMessageError(logger, message);
+                break;
+            case MSLogLevel.Critical:
+                LogLibGitMessageCritical(logger, message);
+                break;
+            case MSLogLevel.None:
+            default:
+                break;
+        }
+    }
+
+    [LoggerMessage(Level = MSLogLevel.Trace, Message = "{Message}")]
+    private static partial void LogLibGitMessageTrace(Microsoft.Extensions.Logging.ILogger logger, string message);
+
+    [LoggerMessage(Level = MSLogLevel.Debug, Message = "{Message}")]
+    private static partial void LogLibGitMessageDebug(Microsoft.Extensions.Logging.ILogger logger, string message);
+
+    [LoggerMessage(Level = MSLogLevel.Information, Message = "{Message}")]
+    private static partial void LogLibGitMessageInformation(Microsoft.Extensions.Logging.ILogger logger, string message);
+
+    [LoggerMessage(Level = MSLogLevel.Warning, Message = "{Message}")]
+    private static partial void LogLibGitMessageWarning(Microsoft.Extensions.Logging.ILogger logger, string message);
+
+    [LoggerMessage(Level = MSLogLevel.Error, Message = "{Message}")]
+    private static partial void LogLibGitMessageError(Microsoft.Extensions.Logging.ILogger logger, string message);
+
+    [LoggerMessage(Level = MSLogLevel.Critical, Message = "{Message}")]
+    private static partial void LogLibGitMessageCritical(Microsoft.Extensions.Logging.ILogger logger, string message);
 
     public static ILoggerFactory LoggerFactory
     {

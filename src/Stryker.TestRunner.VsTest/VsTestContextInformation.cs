@@ -21,7 +21,7 @@ namespace Stryker.TestRunner.VsTest;
 /// <summary>
 /// Handles VsTest setup and configuration.
 /// </summary>
-public sealed class VsTestContextInformation : IDisposable
+public sealed partial class VsTestContextInformation : IDisposable
 {
     private readonly IFileSystem _fileSystem;
     private readonly Func<string, IStrykerTestHostLauncher> _hostBuilder;
@@ -116,7 +116,7 @@ public sealed class VsTestContextInformation : IDisposable
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
-            _logger.LogError(e, "Stryker failed to connect to vstest.console with error: {Error}", e.Message);
+            LogVsTestConnectFailed(_logger, e, e.Message);
             throw new GeneralStrykerException("Stryker failed to connect to vstest.console", e);
         }
 
@@ -209,9 +209,13 @@ public sealed class VsTestContextInformation : IDisposable
         handler.WaitEnd();
         if (handler.Aborted)
         {
-            _logger.LogDebug("TestDiscoverer: Discovery settings: {DiscoverySettings}", settings);
-            _logger.LogDebug("TestDiscoverer: {Messages}", string.Join(Environment.NewLine, messages));
-            _logger.LogError("TestDiscoverer: Test discovery has been aborted!");
+            LogDiscoverySettings(_logger, settings);
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                var combinedMessages = string.Join(Environment.NewLine, messages);
+                LogDiscoveryMessages(_logger, combinedMessages);
+            }
+            LogDiscoveryAborted(_logger);
         }
 
         wrapper.EndSession();
@@ -230,9 +234,10 @@ public sealed class VsTestContextInformation : IDisposable
             }
 
             description.AddSubCase();
-            _logger.LogTrace(
-                    "Test Case : name= {DisplayName} (id= {Id}, FQN= {FullyQualifiedName}).",
-                    testCase.DisplayName, testCase.Id, testCase.FullyQualifiedName);
+            if (_logger.IsEnabled(LogLevel.Trace))
+            {
+                LogTestCase(_logger, testCase.DisplayName, testCase.Id, testCase.FullyQualifiedName);
+            }
         }
 
         DetectTestFrameworks(VsTests.Values);
@@ -340,4 +345,19 @@ public sealed class VsTestContextInformation : IDisposable
 
         return runSettings;
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Stryker failed to connect to vstest.console with error: {Error}")]
+    private static partial void LogVsTestConnectFailed(ILogger logger, Exception ex, string error);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "TestDiscoverer: Discovery settings: {DiscoverySettings}")]
+    private static partial void LogDiscoverySettings(ILogger logger, string discoverySettings);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "TestDiscoverer: {Messages}")]
+    private static partial void LogDiscoveryMessages(ILogger logger, string messages);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "TestDiscoverer: Test discovery has been aborted!")]
+    private static partial void LogDiscoveryAborted(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "Test Case : name= {DisplayName} (id= {Id}, FQN= {FullyQualifiedName}).")]
+    private static partial void LogTestCase(ILogger logger, string displayName, Guid id, string fullyQualifiedName);
 }

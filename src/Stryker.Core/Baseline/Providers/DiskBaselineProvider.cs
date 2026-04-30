@@ -11,7 +11,7 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.Baseline.Providers;
 
-public sealed class DiskBaselineProvider : IBaselineProvider
+public sealed partial class DiskBaselineProvider : IBaselineProvider
 {
     private readonly IStrykerOptions _options;
     private readonly IFileSystem _fileSystem;
@@ -40,7 +40,7 @@ public sealed class DiskBaselineProvider : IBaselineProvider
             }
         }
 
-        _logger.LogDebug("No baseline was found at {ReportPath}", reportPath);
+        LogNoBaselineFound(_logger, reportPath);
         return null;
     }
 
@@ -58,6 +58,12 @@ public sealed class DiskBaselineProvider : IBaselineProvider
             await report.SerializeAsync(reportStream).ConfigureAwait(false);
         }
 
-        _logger.LogDebug("Baseline report has been saved to {ReportPath}", reportPath);
+        LogBaselineSaved(_logger, reportPath);
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "No baseline was found at {ReportPath}")]
+    private static partial void LogNoBaselineFound(ILogger logger, string reportPath);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Baseline report has been saved to {ReportPath}")]
+    private static partial void LogBaselineSaved(ILogger logger, string reportPath);
 }

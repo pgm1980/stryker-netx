@@ -15,7 +15,7 @@ namespace Stryker.Utilities.MSBuild;
 /// so that <c>Stryker.Core</c> can stay decoupled from
 /// <c>Microsoft.CodeAnalysis.Workspaces</c> (referenced as <c>PrivateAssets="all"</c>).
 /// </summary>
-public static class MSBuildProjectAnalysisLoader
+public static partial class MSBuildProjectAnalysisLoader
 {
     /// <summary>
     /// Loads a single project asynchronously and returns an <see cref="IProjectAnalysis"/>
@@ -46,9 +46,15 @@ public static class MSBuildProjectAnalysisLoader
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger?.LogWarning(ex, "Failed to load MSBuild evaluation for {Project}", projectFilePath);
+            if (logger is not null)
+            {
+                LogMSBuildEvaluationFailed(logger, ex, projectFilePath);
+            }
         }
 
         return new RoslynProjectAnalysis(roslynProject, evaluationProject);
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to load MSBuild evaluation for {Project}")]
+    private static partial void LogMSBuildEvaluationFailed(ILogger logger, Exception ex, string project);
 }

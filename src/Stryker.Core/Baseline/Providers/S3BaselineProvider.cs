@@ -15,7 +15,7 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.Baseline.Providers;
 
-public sealed class S3BaselineProvider : IBaselineProvider
+public sealed partial class S3BaselineProvider : IBaselineProvider
 {
     private const string DefaultOutputDirectoryName = "StrykerOutput";
     private const string StrykerReportName = "stryker-report.json";
@@ -53,12 +53,12 @@ public sealed class S3BaselineProvider : IBaselineProvider
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            _logger.LogDebug(ex, "No baseline was found at s3://{BucketName}/{Key}", _bucketName, key);
+            LogNoBaselineFound(_logger, ex, _bucketName, key);
             return null;
         }
         catch (AmazonS3Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to load baseline from S3: {ErrorCode} - {Message}", ex.ErrorCode, ex.Message);
+            LogBaselineLoadFailed(_logger, ex, ex.ErrorCode, ex.Message);
             return null;
         }
     }
@@ -81,14 +81,26 @@ public sealed class S3BaselineProvider : IBaselineProvider
                 };
 
                 await _s3Client.PutObjectAsync(request).ConfigureAwait(false);
-                _logger.LogDebug("Saved baseline report to s3://{BucketName}/{Key}", _bucketName, key);
+                LogBaselineSaved(_logger, _bucketName, key);
             }
         }
         catch (AmazonS3Exception ex)
         {
-            _logger.LogError(ex, "Failed to save baseline to S3: {ErrorCode} - {Message}", ex.ErrorCode, ex.Message);
+            LogBaselineSaveFailed(_logger, ex, ex.ErrorCode, ex.Message);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "No baseline was found at s3://{BucketName}/{Key}")]
+    private static partial void LogNoBaselineFound(ILogger logger, Exception ex, string bucketName, string key);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to load baseline from S3: {ErrorCode} - {Message}")]
+    private static partial void LogBaselineLoadFailed(ILogger logger, Exception ex, string errorCode, string message);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Saved baseline report to s3://{BucketName}/{Key}")]
+    private static partial void LogBaselineSaved(ILogger logger, string bucketName, string key);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to save baseline to S3: {ErrorCode} - {Message}")]
+    private static partial void LogBaselineSaveFailed(ILogger logger, Exception ex, string errorCode, string message);
 
     private string BuildObjectKey(string version) => $"{_outputPath}/{version}/{StrykerReportName}";
 

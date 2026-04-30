@@ -15,7 +15,7 @@ using Stryker.Utilities.Logging;
 namespace Stryker.Core.Mutants;
 
 /// <inheritdoc/>
-public class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTree, SemanticModel>
+public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTree, SemanticModel>
 {
     private static readonly TypeBasedStrategy<SyntaxNode, INodeOrchestrator> specificOrchestrator =
         new();
@@ -154,8 +154,7 @@ public class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTree, Seman
                     continue;
                 }
                 newMutant.Id = GetNextId();
-                Logger.LogDebug("Mutant {MutantId} created {OriginalNode} -> {ReplacementNode} using {Mutator}",
-                    newMutant.Id, mutation.OriginalNode, mutation.ReplacementNode, mutator.GetType());
+                LogMutantCreated(Logger, newMutant.Id, mutation.OriginalNode, mutation.ReplacementNode, mutator.GetType());
                 Mutants.Add(newMutant);
                 mutations.Add(newMutant);
             }
@@ -192,9 +191,15 @@ public class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTree, Seman
             {
                 continue;
             }
-            Logger.LogDebug("Mutant {NewMutant} discarded as it is a duplicate of {Mutant}", newMutant.Id, mutant.Id);
+            LogMutantDuplicate(Logger, newMutant.Id, mutant.Id);
             return true;
         }
         return false;
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Mutant {MutantId} created {OriginalNode} -> {ReplacementNode} using {Mutator}")]
+    private static partial void LogMutantCreated(ILogger logger, int mutantId, SyntaxNode originalNode, SyntaxNode replacementNode, System.Type mutator);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Mutant {NewMutant} discarded as it is a duplicate of {Mutant}")]
+    private static partial void LogMutantDuplicate(ILogger logger, int newMutant, int mutant);
 }

@@ -19,7 +19,7 @@ using Stryker.TestRunner.MicrosoftTestPlatform;
 
 namespace Stryker.Core.Initialisation;
 
-public sealed class ProjectOrchestrator : IProjectOrchestrator
+public sealed partial class ProjectOrchestrator : IProjectOrchestrator
 {
     private IInitialisationProcess _initializationProcess;
     private readonly ILogger _logger;
@@ -53,7 +53,7 @@ public sealed class ProjectOrchestrator : IProjectOrchestrator
 
         if (projectInfos.Count == 0)
         {
-            _logger.LogWarning("No project to mutate. Stryker will exit prematurely.");
+            LogNoProjectToMutate(_logger);
             return [];
         }
 
@@ -110,8 +110,7 @@ public sealed class ProjectOrchestrator : IProjectOrchestrator
             throw new InputException($"Can't read {subject.ToLowerInvariant()} because the TargetPath property was not found in {projectFilePath}");
         }
 
-        _logger.LogTrace("{Subject} missing for the dashboard reporter, reading it from {TargetPath}. " +
-                         "Note that this requires SourceLink to be properly configured in {ProjectPath}", subject, targetPath, projectFilePath);
+        LogSubjectMissing(_logger, subject, targetPath, projectFilePath);
 
         try
         {
@@ -122,13 +121,13 @@ public sealed class ProjectOrchestrator : IProjectOrchestrator
             if (missingProjectName)
             {
                 options.ProjectName = ReadProjectName(module, details);
-                _logger.LogDebug("Using {ProjectName} as project name for the dashboard reporter. (Read from the AssemblyMetadata/RepositoryUrl assembly attribute of {TargetName})", options.ProjectName, targetName);
+                LogUsingProjectName(_logger, options.ProjectName, targetName);
             }
 
             if (missingProjectVersion)
             {
                 options.ProjectVersion = ReadProjectVersion(module, details);
-                _logger.LogDebug("Using {ProjectVersion} as project version for the dashboard reporter. (Read from the AssemblyInformationalVersion assembly attribute of {TargetName})", options.ProjectVersion, targetName);
+                LogUsingProjectVersion(_logger, options.ProjectVersion, targetName);
             }
         }
         catch (Exception e) when (e is not InputException)
@@ -170,4 +169,16 @@ public sealed class ProjectOrchestrator : IProjectOrchestrator
     }
 
     public void Dispose() => _runner?.Dispose();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "No project to mutate. Stryker will exit prematurely.")]
+    private static partial void LogNoProjectToMutate(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "{Subject} missing for the dashboard reporter, reading it from {TargetPath}. Note that this requires SourceLink to be properly configured in {ProjectPath}")]
+    private static partial void LogSubjectMissing(ILogger logger, string subject, string targetPath, string projectPath);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Using {ProjectName} as project name for the dashboard reporter. (Read from the AssemblyMetadata/RepositoryUrl assembly attribute of {TargetName})")]
+    private static partial void LogUsingProjectName(ILogger logger, string projectName, string targetName);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Using {ProjectVersion} as project version for the dashboard reporter. (Read from the AssemblyInformationalVersion assembly attribute of {TargetName})")]
+    private static partial void LogUsingProjectVersion(ILogger logger, string projectVersion, string targetName);
 }

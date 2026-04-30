@@ -10,7 +10,7 @@ using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.ProjectComponents.TestProjects;
 
-public class TestProjectsInfo : ITestProjectsInfo
+public partial class TestProjectsInfo : ITestProjectsInfo
 {
     private readonly IFileSystem _fileSystem;
     private readonly ILogger<TestProjectsInfo> _logger;
@@ -63,7 +63,7 @@ public class TestProjectsInfo : ITestProjectsInfo
             }
             catch (IOException ex)
             {
-                _logger.LogWarning(ex, "Failed to restore output assembly {Path}. Mutated assembly is still in place.", injectionPath);
+                LogFailedToRestore(_logger, ex, injectionPath);
             }
         }
     }
@@ -88,7 +88,7 @@ public class TestProjectsInfo : ITestProjectsInfo
             }
             else
             {
-                _logger.LogWarning("Could not locate source assembly {InjectionPath}", injectionPath);
+                LogCouldNotLocateAssembly(_logger, injectionPath);
             }
         }
     }
@@ -96,4 +96,10 @@ public class TestProjectsInfo : ITestProjectsInfo
     public static string GetInjectionFilePath(IProjectAnalysis testProject, IProjectAnalysis sourceProject) => Path.Combine(testProject.GetAssemblyDirectoryPath(), sourceProject.GetAssemblyFileName());
 
     private static string GetBackupName(string injectionPath) => injectionPath + ".stryker-unchanged";
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to restore output assembly {Path}. Mutated assembly is still in place.")]
+    private static partial void LogFailedToRestore(ILogger logger, System.Exception ex, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not locate source assembly {InjectionPath}")]
+    private static partial void LogCouldNotLocateAssembly(ILogger logger, string injectionPath);
 }

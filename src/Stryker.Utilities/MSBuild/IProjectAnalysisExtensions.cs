@@ -23,7 +23,7 @@ namespace Stryker.Utilities.MSBuild;
 /// preserves the semantics of the corresponding extension on <c>IAnalyzerResult</c>
 /// so that callers can be migrated 1:1 in Phase 9b.
 /// </summary>
-public static class IProjectAnalysisExtensions
+public static partial class IProjectAnalysisExtensions
 {
     /// <summary>
     /// Returns the project's compiled assembly file name (e.g. <c>Sample.Library.dll</c>),
@@ -151,11 +151,7 @@ public static class IProjectAnalysisExtensions
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
-                logger.LogWarning(e,
-                    """
-                    Analyzer/Generator assembly {Analyzer} could not be loaded.
-                    Generated source code may be missing.
-                    """, analyzer);
+                LogAnalyzerLoadWarning(logger, e, analyzer);
             }
         }
 
@@ -165,23 +161,40 @@ public static class IProjectAnalysisExtensions
     [ExcludeFromCodeCoverage(Justification = "Impossible to unit test")]
     private static void LogAnalyzerLoadError(ILogger? logger, object? sender, AnalyzerLoadFailureEventArgs e)
     {
+        if (logger is null)
+        {
+            return;
+        }
+
         var source = (sender as AnalyzerReference)?.Display ?? "unknown";
-        logger?.LogWarning(
-            "Failed to load analyzer '{Source}': {Message} (error : {Error}, analyzer: {Analyzer}).",
-            source, e.Message, Enum.GetName(e.ErrorCode.GetType(), e.ErrorCode) ?? e.ErrorCode.ToString(),
+        LogAnalyzerLoadFailed(
+            logger,
+            source,
+            e.Message,
+            Enum.GetName(e.ErrorCode.GetType(), e.ErrorCode) ?? e.ErrorCode.ToString(),
             e.TypeName ?? "All");
         if (e.ErrorCode == AnalyzerLoadFailureEventArgs.FailureErrorCode.ReferencesNewerCompiler)
         {
-            logger?.LogWarning(
-                "The analyzer '{Source}' references a newer version ({ReferencedCompilerVersion}) of the compiler than the one used by Stryker.NET.",
-                source, e.ReferencedCompilerVersion);
+            LogAnalyzerNewerCompiler(logger, source, e.ReferencedCompilerVersion);
         }
 
         if (e.Exception != null)
         {
-            logger?.LogWarning(e.Exception, "Failed to load analyzer '{Source}'.", source);
+            LogAnalyzerLoadException(logger, e.Exception, source);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Analyzer/Generator assembly {Analyzer} could not be loaded.\nGenerated source code may be missing.")]
+    private static partial void LogAnalyzerLoadWarning(ILogger logger, Exception ex, string analyzer);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to load analyzer '{Source}': {Message} (error : {Error}, analyzer: {Analyzer}).")]
+    private static partial void LogAnalyzerLoadFailed(ILogger logger, string source, string message, string error, string analyzer);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The analyzer '{Source}' references a newer version ({ReferencedCompilerVersion}) of the compiler than the one used by Stryker.NET.")]
+    private static partial void LogAnalyzerNewerCompiler(ILogger logger, string source, Version? referencedCompilerVersion);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to load analyzer '{Source}'.")]
+    private static partial void LogAnalyzerLoadException(ILogger logger, Exception ex, string source);
 
     /// <summary>
     /// Materialises the project's metadata references as Roslyn

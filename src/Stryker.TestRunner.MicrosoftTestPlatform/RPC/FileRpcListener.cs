@@ -9,7 +9,7 @@ namespace Stryker.TestRunner.MicrosoftTestPlatform.RPC;
 /// One instance is created per <see cref="TestingPlatformClient"/> when log-to-file is enabled.
 /// </summary>
 [ExcludeFromCodeCoverage]
-internal sealed class FileRpcListener : TraceListener
+internal sealed partial class FileRpcListener : TraceListener
 {
     private readonly StreamWriter _writer;
     private readonly ILogger _logger;
@@ -25,10 +25,13 @@ internal sealed class FileRpcListener : TraceListener
         catch (Exception ex)
         {
             // Logging failure must not abort the test run; degrade to a no-op writer.
-            _logger.LogWarning(ex, "Could not open/create RPC log file '{FilePath}'", filePath);
+            LogCouldNotOpenRpcLog(_logger, ex, filePath);
             _writer = StreamWriter.Null;
         }
     }
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Could not open/create RPC log file '{FilePath}'")]
+    private static partial void LogCouldNotOpenRpcLog(ILogger logger, Exception ex, string filePath);
 
     public override void Write(string? message) => _writer.Write(message ?? string.Empty);
 

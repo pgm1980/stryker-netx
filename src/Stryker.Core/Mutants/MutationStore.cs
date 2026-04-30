@@ -14,7 +14,7 @@ namespace Stryker.Core.Mutants;
 /// This class stores mutations generated during syntax tree traversal and injects them (with the appropriate control structure)
 /// when requested
 /// </summary>
-internal sealed class MutationStore
+internal sealed partial class MutationStore
 {
     private static readonly ILogger Logger = ApplicationLogging.LoggerFactory.CreateLogger<MutationStore>();
     private readonly MutantPlacer _mutantPlacer;
@@ -71,7 +71,7 @@ internal sealed class MutationStore
         }
         else if (old.Store.Count > 0)
         {
-            Logger.LogDebug("{MutationsCount} mutation(s) could not be injected, they are dropped.", old.Store.Count);
+            LogMutationsDropped(Logger, old.Store.Count);
             foreach (var mutant in old.Store)
             {
                 mutant.ResultStatus = MutantStatus.CompileError;
@@ -115,7 +115,11 @@ internal sealed class MutationStore
             controller.StoreMutations(store);
             return true;
         }
-        Logger.LogDebug("There is no structure to control {MutationsCount} mutations. They are dropped.", store.Count());
+        if (Logger.IsEnabled(LogLevel.Debug))
+        {
+            var count = store.Count();
+            LogMutationsNoStructure(Logger, count);
+        }
         foreach (var mutant in store)
         {
             mutant.ResultStatus = MutantStatus.CompileError;
@@ -216,6 +220,12 @@ internal sealed class MutationStore
         blockStore.Store.Clear();
         return result as BlockSyntax ?? SyntaxFactory.Block(result);
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{MutationsCount} mutation(s) could not be injected, they are dropped.")]
+    private static partial void LogMutationsDropped(ILogger logger, int mutationsCount);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "There is no structure to control {MutationsCount} mutations. They are dropped.")]
+    private static partial void LogMutationsNoStructure(ILogger logger, int mutationsCount);
 
     private sealed class PendingMutations
     {

@@ -11,7 +11,7 @@ using Stryker.Abstractions.ProjectComponents;
 
 namespace Stryker.Core.Initialisation;
 
-public class ProjectMutator : IProjectMutator
+public partial class ProjectMutator : IProjectMutator
 {
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
@@ -56,8 +56,11 @@ public class ProjectMutator : IProjectMutator
             }
             else
             {
-                _logger.LogDebug("Could not locate unit test in any testfile. This should not happen and results in incorrect test reporting.");
+                LogCouldNotLocateUnitTest(_logger);
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Could not locate unit test in any testfile. This should not happen and results in incorrect test reporting.")]
+    private static partial void LogCouldNotLocateUnitTest(ILogger logger);
 }

@@ -14,7 +14,7 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.Baseline.Providers;
 
-public class AzureFileShareBaselineProvider : IBaselineProvider
+public partial class AzureFileShareBaselineProvider : IBaselineProvider
 {
     private const string DefaultOutputDirectoryName = "StrykerOutput";
     private const string StrykerReportName = "stryker-report.json";
@@ -49,10 +49,10 @@ public class AzureFileShareBaselineProvider : IBaselineProvider
         }
         else
         {
-            _logger.LogWarning("Problem authenticating with azure file share. Make sure your SAS is valid.");
+            LogAuthenticationProblem(_logger);
         }
 
-        _logger.LogDebug("No baseline was found at {ReportUri}", uri);
+        LogNoBaselineFound(_logger, uri);
         return null;
     }
 
@@ -74,16 +74,13 @@ public class AzureFileShareBaselineProvider : IBaselineProvider
                 }
                 catch (RequestFailedException ex)
                 {
-                    _logger.LogError(
-                        ex,
-                        "Failed to allocated file in azure file share at {ReportUri} with error code {ErrorCode}",
-                        uri, ex.ErrorCode);
+                    LogFileAllocationFailed(_logger, ex, uri, ex.ErrorCode ?? string.Empty);
                 }
             }
         }
         else
         {
-            _logger.LogWarning("Problem authenticating with azure file share. Make sure your SAS is valid.");
+            LogAuthenticationProblem(_logger);
         }
     }
 
@@ -149,7 +146,7 @@ public class AzureFileShareBaselineProvider : IBaselineProvider
 
     private async Task UploadFileContent(string uri, ShareFileClient fileClient, MemoryStream fileContentStream)
     {
-        _logger.LogDebug("Allocated azure file share file at {ReportUri}", uri);
+        LogFileAllocated(_logger, uri);
 
         var blockSize = 1 * 4194304; // 4MB max block size
         long offset = 0;
@@ -173,12 +170,30 @@ public class AzureFileShareBaselineProvider : IBaselineProvider
             try
             {
                 await fileClient.UploadRangeAsync(httpRange, uploadChunk).ConfigureAwait(false);
-                _logger.LogDebug("Uploaded report chunk {BytesUploaded}/{BytesTotal} to azure file share", offset, fileContentStream.Length);
+                LogChunkUploaded(_logger, offset, fileContentStream.Length);
             }
             catch (RequestFailedException ex)
             {
-                _logger.LogError(ex, "Failed to upload report chunk {BytesUploaded}/{BytesTotal} to azure file share with error code {ErrorCode}", offset, fileContentStream.Length, ex.ErrorCode);
+                LogChunkUploadFailed(_logger, ex, offset, fileContentStream.Length, ex.ErrorCode ?? string.Empty);
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Problem authenticating with azure file share. Make sure your SAS is valid.")]
+    private static partial void LogAuthenticationProblem(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "No baseline was found at {ReportUri}")]
+    private static partial void LogNoBaselineFound(ILogger logger, string reportUri);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to allocated file in azure file share at {ReportUri} with error code {ErrorCode}")]
+    private static partial void LogFileAllocationFailed(ILogger logger, Exception ex, string reportUri, string errorCode);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Allocated azure file share file at {ReportUri}")]
+    private static partial void LogFileAllocated(ILogger logger, string reportUri);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Uploaded report chunk {BytesUploaded}/{BytesTotal} to azure file share")]
+    private static partial void LogChunkUploaded(ILogger logger, long bytesUploaded, long bytesTotal);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to upload report chunk {BytesUploaded}/{BytesTotal} to azure file share with error code {ErrorCode}")]
+    private static partial void LogChunkUploadFailed(ILogger logger, Exception ex, long bytesUploaded, long bytesTotal, string errorCode);
 }

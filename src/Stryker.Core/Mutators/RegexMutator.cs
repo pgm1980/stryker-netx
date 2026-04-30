@@ -13,7 +13,7 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.Mutators;
 
-public class RegexMutator : MutatorBase<ObjectCreationExpressionSyntax>
+public partial class RegexMutator : MutatorBase<ObjectCreationExpressionSyntax>
 {
     private const string PatternArgumentName = "pattern";
     private ILogger Logger { get; }
@@ -50,10 +50,7 @@ public class RegexMutator : MutatorBase<ObjectCreationExpressionSyntax>
                     }
                     catch (ArgumentException exception)
                     {
-                        Logger.LogDebug(
-                            exception,
-                            "RegexMutator created mutation {CurrentValue} -> {ReplacementPattern} which is an invalid regular expression",
-                            currentValue, regexMutation.ReplacementPattern);
+                        LogInvalidRegex(Logger, exception, currentValue, regexMutation.ReplacementPattern);
                         continue;
                     }
 
@@ -70,4 +67,7 @@ public class RegexMutator : MutatorBase<ObjectCreationExpressionSyntax>
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "RegexMutator created mutation {CurrentValue} -> {ReplacementPattern} which is an invalid regular expression")]
+    private static partial void LogInvalidRegex(ILogger logger, Exception ex, string currentValue, string replacementPattern);
 }

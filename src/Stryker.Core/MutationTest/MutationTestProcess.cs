@@ -16,7 +16,7 @@ using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.MutationTest;
 
-public class MutationTestProcess : IMutationTestProcess
+public partial class MutationTestProcess : IMutationTestProcess
 {
     public MutationTestInput Input { get; set; } = null!; // set in Initialize() before any other call
 
@@ -123,7 +123,7 @@ public class MutationTestProcess : IMutationTestProcess
         {
             if (mutant.ResultStatus == MutantStatus.Pending)
             {
-                _logger.LogWarning("Mutation {Id} was not fully tested.", mutant.Id);
+                LogMutationNotFullyTested(_logger, mutant.Id);
             }
 
             OnMutantTested(mutant, reportedMutants);
@@ -170,16 +170,11 @@ public class MutationTestProcess : IMutationTestProcess
 
         if (mutantsNotRun.Count > blocks.Count)
         {
-            _logger.LogDebug(
-                "Mutations will be tested in {BlocksCount} test runs, instead of {MutantsNotRun}.",
-                blocks.Count,
-                mutantsNotRun.Count);
+            LogMutationsTestRunsOptimized(_logger, blocks.Count, mutantsNotRun.Count);
         }
         else
         {
-            _logger.LogDebug(
-                "Mutations will be tested in {BlocksCount} test runs.",
-                blocks.Count);
+            LogMutationsTestRuns(_logger, blocks.Count);
         }
 
 
@@ -237,4 +232,13 @@ public class MutationTestProcess : IMutationTestProcess
 
     public void GetCoverage() => _coverageAnalyser.DetermineTestCoverage(_options, Input.SourceProjectInfo,
         _mutationTestExecutor.TestRunner, _projectContents.Mutants, Input.InitialTestRun.Result.FailingTests);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Mutation {Id} was not fully tested.")]
+    private static partial void LogMutationNotFullyTested(ILogger logger, int id);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Mutations will be tested in {BlocksCount} test runs, instead of {MutantsNotRun}.")]
+    private static partial void LogMutationsTestRunsOptimized(ILogger logger, int blocksCount, int mutantsNotRun);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Mutations will be tested in {BlocksCount} test runs.")]
+    private static partial void LogMutationsTestRuns(ILogger logger, int blocksCount);
 }

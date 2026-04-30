@@ -10,7 +10,7 @@ using static Stryker.Abstractions.Testing.ITestRunner;
 
 namespace Stryker.Core.MutationTest;
 
-public class MutationTestExecutor : IMutationTestExecutor
+public partial class MutationTestExecutor : IMutationTestExecutor
 {
     // Test runner can't be set in the constructor because it is determined at runtime.
     public ITestRunner TestRunner { get; set; } = null!; // initialized after construction
@@ -29,18 +29,18 @@ public class MutationTestExecutor : IMutationTestExecutor
         {
             var result = await RunTestSessionAsync(project, mutantsToTest, timeoutMs, updateHandler, forceSingle).ConfigureAwait(false);
 
-            Logger.LogDebug(
-                "Test run for {Mutants} is {Result} ",
-                string.Join(", ", mutantsToTest.Select(x => x.DisplayName)),
-                result.FailingTests.Count == 0 ? "success" : "failed");
-
-            if (result.Messages is not null && result.Messages.Any())
+            if (Logger.IsEnabled(LogLevel.Debug))
             {
-                Logger.LogTrace(
-                    "Messages for {Mutants}: {NewLine}{Messages}",
-                    string.Join(", ", mutantsToTest.Select(x => x.DisplayName)),
-                    Environment.NewLine,
-                    string.Join("", result.Messages));
+                var displayNames = string.Join(", ", mutantsToTest.Select(x => x.DisplayName));
+                var status = result.FailingTests.Count == 0 ? "success" : "failed";
+                LogTestRun(Logger, displayNames, status);
+            }
+
+            if (result.Messages is not null && result.Messages.Any() && Logger.IsEnabled(LogLevel.Trace))
+            {
+                var displayNames = string.Join(", ", mutantsToTest.Select(x => x.DisplayName));
+                var messages = string.Join("", result.Messages);
+                LogMessages(Logger, displayNames, Environment.NewLine, messages);
             }
 
             var remainingMutants = mutantsToTest.Where((m) => m.ResultStatus == MutantStatus.Pending).ToList();
@@ -50,7 +50,7 @@ public class MutationTestExecutor : IMutationTestExecutor
                 if (!result.SessionTimedOut)
                 {
                     // something bad happened.
-                    Logger.LogError("Stryker failed to test {RemainingMutantsCount} mutant(s).", remainingMutants.Count);
+                    LogStrykerFailedToTest(Logger, remainingMutants.Count);
                     return;
                 }
 
@@ -71,7 +71,7 @@ public class MutationTestExecutor : IMutationTestExecutor
 
             if (remainingMutants.Count > 0)
             {
-                Logger.LogDebug("Not all mutants were tested.");
+                LogNotAllMutantsTested(Logger);
             }
 
             mutantsToTest = remainingMutants;
@@ -82,7 +82,11 @@ public class MutationTestExecutor : IMutationTestExecutor
         ITimeoutValueCalculator timeoutMs,
         TestUpdateHandler updateHandler, bool forceSingle)
     {
-        Logger.LogTrace("Testing {MutantsToTest}.", string.Join(" ,", mutantsToTest.Select(x => x.DisplayName)));
+        if (Logger.IsEnabled(LogLevel.Trace))
+        {
+            var displayNames = string.Join(" ,", mutantsToTest.Select(x => x.DisplayName));
+            LogTesting(Logger, displayNames);
+        }
         if (forceSingle)
         {
             foreach (var mutant in mutantsToTest)
@@ -117,4 +121,19 @@ public class MutationTestExecutor : IMutationTestExecutor
 
         return result;
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Test run for {Mutants} is {Result} ")]
+    private static partial void LogTestRun(ILogger logger, string mutants, string result);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "Messages for {Mutants}: {NewLine}{Messages}")]
+    private static partial void LogMessages(ILogger logger, string mutants, string newLine, string messages);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Stryker failed to test {RemainingMutantsCount} mutant(s).")]
+    private static partial void LogStrykerFailedToTest(ILogger logger, int remainingMutantsCount);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Not all mutants were tested.")]
+    private static partial void LogNotAllMutantsTested(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "Testing {MutantsToTest}.")]
+    private static partial void LogTesting(ILogger logger, string mutantsToTest);
 }

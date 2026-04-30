@@ -15,7 +15,7 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.Reporters;
 
-public class DashboardReporter : IReporter
+public partial class DashboardReporter : IReporter
 {
     private readonly IStrykerOptions _options;
     private readonly IDashboardClient _dashboardClient;
@@ -70,7 +70,7 @@ public class DashboardReporter : IReporter
         }
         else
         {
-            _logger.LogError("Uploading to stryker dashboard failed...");
+            LogUploadingFailed(_logger);
         }
 
         _console.WriteLine();
@@ -117,4 +117,7 @@ public class DashboardReporter : IReporter
     private bool ShouldPublishInRealTime() =>
         _options.ReportTypeToOpen == ReportType.Dashboard ||
         _options.Reporters.Contains(Reporter.RealTimeDashboard);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Uploading to stryker dashboard failed...")]
+    private static partial void LogUploadingFailed(ILogger logger);
 }

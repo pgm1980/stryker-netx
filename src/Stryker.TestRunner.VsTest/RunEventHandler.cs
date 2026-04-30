@@ -16,7 +16,7 @@ namespace Stryker.TestRunner.VsTest;
 /// via <see cref="IRunResults"/>. The class deliberately keeps the upstream Stryker.NET 4.14.1 name
 /// (<c>RunEventHandler</c>); CA1711 is project-wide silenced for matched-suffix VsTest event handlers.
 /// </summary>
-public sealed class RunEventHandler : ITestRunEventsHandler
+public sealed partial class RunEventHandler : ITestRunEventsHandler
 {
     private readonly ILogger _logger;
     private readonly string _runnerId;
@@ -131,7 +131,7 @@ public sealed class RunEventHandler : ITestRunEventsHandler
         ICollection<AttachmentSet>? runContextAttachments,
         ICollection<string>? executorUris)
     {
-        _logger.LogDebug("{RunnerId}: Received testrun complete.", _runnerId);
+        LogTestRunComplete(_logger, _runnerId);
         if (lastChunkArgs?.ActiveTests != null)
         {
             foreach (var activeTest in lastChunkArgs.ActiveTests)
@@ -172,17 +172,16 @@ public sealed class RunEventHandler : ITestRunEventsHandler
 
         if (testRunCompleteArgs.Error.GetType() == typeof(TransationLayerException))
         {
-            _logger.LogDebug(testRunCompleteArgs.Error,
-                "{RunnerId}: VsTest may have crashed, triggering VsTest restart!", _runnerId);
+            LogVsTestCrashed(_logger, testRunCompleteArgs.Error, _runnerId);
             Failed = true;
         }
         else if (testRunCompleteArgs.Error.InnerException is System.IO.IOException sock)
         {
-            _logger.LogWarning(sock, "{RunnerId}: Test session ended unexpectedly.", _runnerId);
+            LogTestSessionUnexpected(_logger, sock, _runnerId);
         }
         else if (!CancelRequested)
         {
-            _logger.LogDebug(testRunCompleteArgs.Error, "{RunnerId}: VsTest error.", _runnerId);
+            LogVsTestError(_logger, testRunCompleteArgs.Error, _runnerId);
         }
     }
 
@@ -191,8 +190,13 @@ public sealed class RunEventHandler : ITestRunEventsHandler
         throw new NotSupportedException();
 
     /// <inheritdoc />
-    public void HandleRawMessage(string rawMessage) =>
-        _logger.LogTrace("{RunnerId}: {RawMessage} [RAW]", _runnerId, rawMessage);
+    public void HandleRawMessage(string rawMessage)
+    {
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            LogRawMessage(_logger, _runnerId, rawMessage);
+        }
+    }
 
     /// <summary>Resets internal state for a new VsTest session.</summary>
     public void StartSession()
@@ -231,7 +235,7 @@ public sealed class RunEventHandler : ITestRunEventsHandler
             slept = watch.ElapsedMilliseconds - timeOut > 30 * 1000;
             if (slept)
             {
-                _logger.LogWarning("{RunnerId}: the computer slept during the testing, need to retry", _runnerId);
+                LogComputerSlept(_logger, _runnerId);
             }
 
             return _completed;
@@ -248,7 +252,31 @@ public sealed class RunEventHandler : ITestRunEventsHandler
             TestMessageLevel.Error => LogLevel.Error,
             _ => throw new ArgumentOutOfRangeException(nameof(level), level, null)
         };
-        var levelString = levelFinal.ToString();
-        _logger.LogTrace("{RunnerId}: [{LevelFinal}] {Message}", _runnerId, levelString, message);
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            var levelString = levelFinal.ToString();
+            LogVsTestLog(_logger, _runnerId, levelString, message ?? string.Empty);
+        }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{RunnerId}: Received testrun complete.")]
+    private static partial void LogTestRunComplete(ILogger logger, string runnerId);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{RunnerId}: VsTest may have crashed, triggering VsTest restart!")]
+    private static partial void LogVsTestCrashed(ILogger logger, Exception ex, string runnerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{RunnerId}: Test session ended unexpectedly.")]
+    private static partial void LogTestSessionUnexpected(ILogger logger, Exception ex, string runnerId);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{RunnerId}: VsTest error.")]
+    private static partial void LogVsTestError(ILogger logger, Exception ex, string runnerId);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "{RunnerId}: {RawMessage} [RAW]")]
+    private static partial void LogRawMessage(ILogger logger, string runnerId, string rawMessage);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{RunnerId}: the computer slept during the testing, need to retry")]
+    private static partial void LogComputerSlept(ILogger logger, string runnerId);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "{RunnerId}: [{LevelFinal}] {Message}")]
+    private static partial void LogVsTestLog(ILogger logger, string runnerId, string levelFinal, string message);
 }

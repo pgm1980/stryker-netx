@@ -21,7 +21,7 @@ namespace Stryker.TestRunner.VsTest.Helpers;
 /// </summary>
 /// This class is not unit tested currently, so proceed with caution
 [ExcludeFromCodeCoverage(Justification = "Deeply dependent on current platform, need a lot of work for mocking.")]
-public class VsTestHelper : IVsTestHelper
+public partial class VsTestHelper : IVsTestHelper
 {
     private readonly ILogger _logger;
     private readonly IFileSystem _fileSystem;
@@ -60,8 +60,7 @@ public class VsTestHelper : IVsTestHelper
 
             var osPlatform = paths.Keys.First(RuntimeInformation.IsOSPlatform);
             _platformVsTestToolPath = paths[osPlatform];
-            _logger.LogDebug("Using vstest.console: {OsPlatform} for OS {TestToolPath}",
-                osPlatform, _platformVsTestToolPath);
+            LogUsingVsTestConsole(_logger, osPlatform, _platformVsTestToolPath);
         }
 
         return _platformVsTestToolPath;
@@ -86,13 +85,13 @@ public class VsTestHelper : IVsTestHelper
             && nugetAssemblies.Any(p => RuntimeInformation.IsOSPlatform(p.Key)))
         {
             Merge(_vsTestPaths, nugetAssemblies);
-            _logger.LogDebug("Using vstest from nuget package folders");
+            LogUsingVsTestFromNuget(_logger);
         }
         else if (DeployEmbeddedVsTestBinaries() is var deployPath)
         {
             Merge(_vsTestPaths,
                 SearchNugetPackageFolders([deployPath], versionDependent: false));
-            _logger.LogDebug("Using vstest from deployed vstest package");
+            LogUsingVsTestFromDeployed(_logger);
         }
 
         return _vsTestPaths;
@@ -210,12 +209,12 @@ public class VsTestHelper : IVsTestHelper
             stream.CopyTo(file);
         }
 
-        _logger.LogDebug("VsTest zip was copied to: {ZipPath}", zipPath);
+        LogVsTestZipCopied(_logger, zipPath);
 
         ZipFile.ExtractToDirectory(zipPath, tempDir);
         _fileSystem.File.Delete(zipPath);
 
-        _logger.LogDebug("VsTest zip was unzipped to: {TempDir}", tempDir);
+        LogVsTestZipUnzipped(_logger, tempDir);
 
         return tempDir;
     }
@@ -255,16 +254,34 @@ public class VsTestHelper : IVsTestHelper
         {
             if (tries > 0)
             {
-                _logger.LogDebug(ex,
-                    "Tried cleaning up used vstest resources but we weren't ready to clean. Trying {Tries} more times.",
-                    tries.ToString(CultureInfo.InvariantCulture));
+                LogCleanupRetry(_logger, ex, tries);
                 Cleanup(tries - 1);
             }
             else
             {
-                _logger.LogWarning(ex,
-                    "Tried cleaning up used vstest resources but we weren't ready to clean. Out of tries, we're giving up sorry.");
+                LogCleanupFailedFinally(_logger, ex);
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Using vstest.console: {OsPlatform} for OS {TestToolPath}")]
+    private static partial void LogUsingVsTestConsole(ILogger logger, OSPlatform osPlatform, string testToolPath);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Using vstest from nuget package folders")]
+    private static partial void LogUsingVsTestFromNuget(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Using vstest from deployed vstest package")]
+    private static partial void LogUsingVsTestFromDeployed(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "VsTest zip was copied to: {ZipPath}")]
+    private static partial void LogVsTestZipCopied(ILogger logger, string zipPath);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "VsTest zip was unzipped to: {TempDir}")]
+    private static partial void LogVsTestZipUnzipped(ILogger logger, string tempDir);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Tried cleaning up used vstest resources but we weren't ready to clean. Trying {Tries} more times.")]
+    private static partial void LogCleanupRetry(ILogger logger, Exception ex, int tries);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Tried cleaning up used vstest resources but we weren't ready to clean. Out of tries, we're giving up sorry.")]
+    private static partial void LogCleanupFailedFinally(ILogger logger, Exception ex);
 }

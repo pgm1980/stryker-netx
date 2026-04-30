@@ -9,7 +9,7 @@ using Stryker.TestRunner.Tests;
 
 namespace Stryker.Core.CoverageAnalysis;
 
-public class CoverageAnalyser : ICoverageAnalyser
+public partial class CoverageAnalyser : ICoverageAnalyser
 {
     private readonly ILogger<CoverageAnalyser> _logger;
 
@@ -46,7 +46,7 @@ public class CoverageAnalyser : ICoverageAnalyser
     {
         if (coverage.Sum(c => c.MutationsCovered.Count) == 0)
         {
-            _logger.LogError("It looks like the test coverage capture failed. Disable coverage based optimisation.");
+            LogCoverageCaptureFailed(_logger);
             AssumeAllTestsAreNeeded(mutantsToScan);
             return;
         }
@@ -150,22 +150,31 @@ public class CoverageAnalyser : ICoverageAnalyser
         {
             mutant.ResultStatus = MutantStatus.NoCoverage;
             mutant.ResultStatusReason = "Not covered by any test.";
-            _logger.LogDebug("Mutant {MutantId} is not covered by any test.", mutant.Id);
+            LogMutantNotCovered(_logger, mutant.Id);
         }
         else if (mutant.AssessingTests.IsEmpty && mutant.ResultStatus == MutantStatus.Pending)
         {
             mutant.ResultStatus = MutantStatus.Survived;
             mutant.ResultStatusReason = "Only covered by already failing tests.";
-            _logger.LogInformation(
-                "Mutant {MutantId} is only covered by failing tests.", mutant.Id);
+            LogMutantOnlyFailingTests(_logger, mutant.Id);
         }
         else
         {
-            _logger.LogDebug(
-                "Mutant {MutantId} will be tested against ({TestCases}) tests.", mutant.Id,
-                mutant.AssessingTests.IsEveryTest ? "all" : mutant.AssessingTests.Count);
+            LogMutantTestCases(_logger, mutant.Id, mutant.AssessingTests.IsEveryTest ? "all" : mutant.AssessingTests.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "It looks like the test coverage capture failed. Disable coverage based optimisation.")]
+    private static partial void LogCoverageCaptureFailed(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Mutant {MutantId} is not covered by any test.")]
+    private static partial void LogMutantNotCovered(ILogger logger, int mutantId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Mutant {MutantId} is only covered by failing tests.")]
+    private static partial void LogMutantOnlyFailingTests(ILogger logger, int mutantId);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Mutant {MutantId} will be tested against ({TestCases}) tests.")]
+    private static partial void LogMutantTestCases(ILogger logger, int mutantId, string testCases);
 
     private static (MutationTestingRequirements, ITestIdentifiers) ParseResultForThisMutant(
         IReadOnlyDictionary<int, List<ICoverageRunResult>> mutationToResultMap, int mutantId)

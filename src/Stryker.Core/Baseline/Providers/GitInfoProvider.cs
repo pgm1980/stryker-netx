@@ -8,7 +8,7 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.Baseline.Providers;
 
-public sealed class GitInfoProvider : IGitInfoProvider
+public sealed partial class GitInfoProvider : IGitInfoProvider
 {
     private readonly IStrykerOptions _options;
     private readonly string? _repositoryPath;
@@ -37,13 +37,13 @@ public sealed class GitInfoProvider : IGitInfoProvider
         string? branchName = null;
         if (Repository?.Branches?.FirstOrDefault(b => b.IsCurrentRepositoryHead) is var identifiedBranch && identifiedBranch is { })
         {
-            _logger.LogDebug("{BranchName} identified as current branch", identifiedBranch.FriendlyName);
+            LogBranchIdentified(_logger, identifiedBranch.FriendlyName);
             branchName = identifiedBranch.FriendlyName;
         }
 
         if (string.IsNullOrWhiteSpace(branchName))
         {
-            _logger.LogDebug("Could not locate the current branch name, using project version instead: {ProjectVersion}", _options.ProjectVersion);
+            LogUsingProjectVersion(_logger, _options.ProjectVersion ?? string.Empty);
             branchName = _options.ProjectVersion;
         }
 
@@ -79,7 +79,7 @@ public sealed class GitInfoProvider : IGitInfoProvider
     private Commit? GetTargetCommit()
     {
         var sinceTarget = _options.SinceTarget ?? string.Empty;
-        _logger.LogDebug("Looking for branch matching {GitDiffTarget}", sinceTarget);
+        LogLookingForBranch(_logger, sinceTarget);
         if (Repository is null)
         {
             return null;
@@ -90,17 +90,17 @@ public sealed class GitInfoProvider : IGitInfoProvider
             {
                 if (branch.UpstreamBranchCanonicalName?.Contains(sinceTarget) ?? false)
                 {
-                    _logger.LogDebug("Matched with upstream canonical name {UpstreamCanonicalName}", branch.UpstreamBranchCanonicalName);
+                    LogMatchedUpstreamCanonical(_logger, branch.UpstreamBranchCanonicalName);
                     return branch.Tip;
                 }
                 if (branch.CanonicalName?.Contains(sinceTarget) ?? false)
                 {
-                    _logger.LogDebug("Matched with canonical name {CanonicalName}", branch.CanonicalName);
+                    LogMatchedCanonical(_logger, branch.CanonicalName);
                     return branch.Tip;
                 }
                 if (branch.FriendlyName?.Contains(sinceTarget) ?? false)
                 {
-                    _logger.LogDebug("Matched with friendly name {FriendlyName}", branch.FriendlyName);
+                    LogMatchedFriendly(_logger, branch.FriendlyName);
                     return branch.Tip;
                 }
             }
@@ -110,12 +110,12 @@ public sealed class GitInfoProvider : IGitInfoProvider
             }
         }
 
-        _logger.LogDebug("Looking for tag matching {GitDiffTarget}", sinceTarget);
+        LogLookingForTag(_logger, sinceTarget);
         var tag = Repository.Tags.FirstOrDefault(t => t.Target is Commit && (t.CanonicalName?.Contains(sinceTarget) ?? false));
         var tagCommit = tag?.Target as Commit;
         if (tagCommit != null)
         {
-            _logger.LogDebug("Found tag {Tag} for diff target {GitDiffTarget}", tag!.CanonicalName, sinceTarget);
+            LogFoundTag(_logger, tag!.CanonicalName, sinceTarget);
             return tagCommit;
         }
 
@@ -126,11 +126,38 @@ public sealed class GitInfoProvider : IGitInfoProvider
 
             if (commit != null)
             {
-                _logger.LogDebug("Found commit {Commit} for diff target {GitDiffTarget}", commit.Sha, sinceTarget);
+                LogFoundCommit(_logger, commit.Sha, sinceTarget);
                 return commit;
             }
         }
 
         return null;
     }
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{BranchName} identified as current branch")]
+    private static partial void LogBranchIdentified(ILogger logger, string branchName);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Could not locate the current branch name, using project version instead: {ProjectVersion}")]
+    private static partial void LogUsingProjectVersion(ILogger logger, string projectVersion);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Looking for branch matching {GitDiffTarget}")]
+    private static partial void LogLookingForBranch(ILogger logger, string gitDiffTarget);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Matched with upstream canonical name {UpstreamCanonicalName}")]
+    private static partial void LogMatchedUpstreamCanonical(ILogger logger, string upstreamCanonicalName);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Matched with canonical name {CanonicalName}")]
+    private static partial void LogMatchedCanonical(ILogger logger, string canonicalName);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Matched with friendly name {FriendlyName}")]
+    private static partial void LogMatchedFriendly(ILogger logger, string friendlyName);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Looking for tag matching {GitDiffTarget}")]
+    private static partial void LogLookingForTag(ILogger logger, string gitDiffTarget);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Found tag {Tag} for diff target {GitDiffTarget}")]
+    private static partial void LogFoundTag(ILogger logger, string tag, string gitDiffTarget);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Found commit {Commit} for diff target {GitDiffTarget}")]
+    private static partial void LogFoundCommit(ILogger logger, string commit, string gitDiffTarget);
 }

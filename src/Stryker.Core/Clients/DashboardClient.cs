@@ -12,7 +12,7 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.Clients;
 
-public class DashboardClient : IDashboardClient, IDisposable
+public partial class DashboardClient : IDashboardClient, IDisposable
 {
     private const int MutantBatchSize = 10;
 
@@ -63,7 +63,7 @@ public class DashboardClient : IDashboardClient, IDisposable
     {
         var url = GetUrl(version, realTime);
 
-        _logger.LogDebug("Sending PUT to {DashboardUrl}", url);
+        LogSendingPut(_logger, url);
 
         try
         {
@@ -75,7 +75,7 @@ public class DashboardClient : IDashboardClient, IDisposable
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to upload report to the dashboard at {DashboardUrl}", url);
+            LogReportUploadFailed(_logger, exception, url);
             return null;
         }
     }
@@ -97,7 +97,7 @@ public class DashboardClient : IDashboardClient, IDisposable
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to upload mutant to the dashboard at {DashboardUrl}", url);
+            LogMutantUploadFailed(_logger, exception, url);
         }
     }
 
@@ -119,7 +119,7 @@ public class DashboardClient : IDashboardClient, IDisposable
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed send finished event to the dashboard at {DashboardUrl}", url);
+            LogFinishedEventFailed(_logger, exception, url);
         }
     }
 
@@ -127,7 +127,7 @@ public class DashboardClient : IDashboardClient, IDisposable
     {
         var url = GetUrl(version, false);
 
-        _logger.LogDebug("Sending GET to {DashboardUrl}", url);
+        LogSendingGet(_logger, url);
         try
         {
             var report = await _httpClient.GetFromJsonAsync<JsonReport>(url, JsonReportSerialization.Options).ConfigureAwait(false);
@@ -135,7 +135,7 @@ public class DashboardClient : IDashboardClient, IDisposable
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to retrieve the report at {DashboardUrl}", url);
+            LogReportRetrievalFailed(_logger, exception, url);
             return null;
         }
     }
@@ -153,4 +153,22 @@ public class DashboardClient : IDashboardClient, IDisposable
     }
 
     private sealed record DashboardResult(string? Href);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Sending PUT to {DashboardUrl}")]
+    private static partial void LogSendingPut(ILogger logger, Uri dashboardUrl);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to upload report to the dashboard at {DashboardUrl}")]
+    private static partial void LogReportUploadFailed(ILogger logger, Exception ex, Uri dashboardUrl);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to upload mutant to the dashboard at {DashboardUrl}")]
+    private static partial void LogMutantUploadFailed(ILogger logger, Exception ex, Uri dashboardUrl);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed send finished event to the dashboard at {DashboardUrl}")]
+    private static partial void LogFinishedEventFailed(ILogger logger, Exception ex, Uri dashboardUrl);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Sending GET to {DashboardUrl}")]
+    private static partial void LogSendingGet(ILogger logger, Uri dashboardUrl);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to retrieve the report at {DashboardUrl}")]
+    private static partial void LogReportRetrievalFailed(ILogger logger, Exception ex, Uri dashboardUrl);
 }

@@ -18,7 +18,7 @@ using Stryker.Core.Reporters;
 
 namespace Stryker.Core;
 
-public class StrykerRunner : IStrykerRunner
+public partial class StrykerRunner : IStrykerRunner
 {
     private IEnumerable<IMutationTestProcess> _mutationTestProcesses;
     private readonly ILogger _logger;
@@ -47,7 +47,7 @@ public class StrykerRunner : IStrykerRunner
         stopwatch.Start();
 
         var options = inputs.ValidateAll();
-        _logger.LogDebug("Stryker started with options: {@Options}", options);
+        LogStrykerStartedWithOptions(_logger, options);
 
         var reporters = _reporterFactory.Create(options);
 
@@ -59,7 +59,7 @@ public class StrykerRunner : IStrykerRunner
             var rootComponent = AddRootFolderIfMultiProject(_mutationTestProcesses.Select(x => x.Input.SourceProjectInfo.ProjectContents).ToList(), options);
             var combinedTestProjectsInfo = _mutationTestProcesses.Select(mtp => mtp.Input.TestProjectsInfo).Aggregate((a, b) => (TestProjectsInfo)a + (TestProjectsInfo)b);
 
-            _logger.LogInformation("{MutantsCount} mutants created", rootComponent.Mutants.Count());
+            LogMutantsCountIfEnabled(rootComponent);
 
             AnalyzeCoverage(options);
 
@@ -89,7 +89,7 @@ public class StrykerRunner : IStrykerRunner
 #pragma warning disable S2139
         catch (Exception ex) when (!(ex is InputException))
         {
-            _logger.LogError(ex, "An error occurred during the mutation test run ");
+            LogMutationTestError(_logger, ex);
             throw;
         }
 #pragma warning restore S2139
@@ -99,7 +99,7 @@ public class StrykerRunner : IStrykerRunner
         {
             // log duration
             stopwatch.Stop();
-            _logger.LogInformation("Time Elapsed {Duration}", stopwatch.Elapsed);
+            LogTimeElapsed(_logger, stopwatch.Elapsed);
         }
     }
 
@@ -108,19 +108,19 @@ public class StrykerRunner : IStrykerRunner
         var allMutants = rootComponent.Mutants.ToList();
         if (allMutants.Any(x => x.ResultStatus == MutantStatus.Ignored))
         {
-            _logger.LogWarning("It looks like all mutants with tests were ignored. Try a re-run with less ignoring!");
+            LogAllIgnored(_logger);
         }
         if (allMutants.Any(x => x.ResultStatus == MutantStatus.NoCoverage))
         {
-            _logger.LogWarning("It looks like all non-ignored mutants are not covered by a test. Go add some tests!");
+            LogAllNoCoverage(_logger);
         }
         if (allMutants.Any(x => x.ResultStatus == MutantStatus.CompileError))
         {
-            _logger.LogWarning("It looks like all mutants resulted in compile errors. Mutants sure are strange!");
+            LogAllCompileErrors(_logger);
         }
         if (allMutants.Count == 0)
         {
-            _logger.LogWarning("It\'s a mutant-free world, nothing to test.");
+            LogNothingToTest(_logger);
         }
 
         reporters.OnAllMutantsTested(rootComponent, combinedTestProjectsInfo);
@@ -156,7 +156,7 @@ public class StrykerRunner : IStrykerRunner
     {
         if (options.OptimizationMode.HasFlag(OptimizationModes.SkipUncoveredMutants) || options.OptimizationMode.HasFlag(OptimizationModes.CoverageBasedTest))
         {
-            _logger.LogInformation("Capture mutant coverage using '{OptimizationMode}' mode.", options.OptimizationMode);
+            LogCaptureCoverage(_logger, options.OptimizationMode);
 
             foreach (var project in _mutationTestProcesses)
             {
@@ -190,4 +190,41 @@ public class StrykerRunner : IStrykerRunner
 
         return projectComponents.FirstOrDefault() ?? throw new InvalidOperationException("No project component found.");
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Stryker started with options: {Options}")]
+    private static partial void LogStrykerStartedWithOptions(ILogger logger, IStrykerOptions options);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "{MutantsCount} mutants created")]
+    private static partial void LogMutantsCount(ILogger logger, int mutantsCount);
+
+    private void LogMutantsCountIfEnabled(IReadOnlyProjectComponent rootComponent)
+    {
+        if (!_logger.IsEnabled(LogLevel.Information))
+        {
+            return;
+        }
+        var mutantsCount = rootComponent.Mutants.Count();
+        LogMutantsCount(_logger, mutantsCount);
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "An error occurred during the mutation test run ")]
+    private static partial void LogMutationTestError(ILogger logger, Exception ex);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Time Elapsed {Duration}")]
+    private static partial void LogTimeElapsed(ILogger logger, TimeSpan duration);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "It looks like all mutants with tests were ignored. Try a re-run with less ignoring!")]
+    private static partial void LogAllIgnored(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "It looks like all non-ignored mutants are not covered by a test. Go add some tests!")]
+    private static partial void LogAllNoCoverage(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "It looks like all mutants resulted in compile errors. Mutants sure are strange!")]
+    private static partial void LogAllCompileErrors(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "It's a mutant-free world, nothing to test.")]
+    private static partial void LogNothingToTest(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Capture mutant coverage using '{OptimizationMode}' mode.")]
+    private static partial void LogCaptureCoverage(ILogger logger, OptimizationModes optimizationMode);
 }

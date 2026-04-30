@@ -16,7 +16,7 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.MutantFilters;
 
-public class BaselineMutantFilter : IMutantFilter
+public partial class BaselineMutantFilter : IMutantFilter
 {
     private readonly IBaselineProvider _baselineProvider;
     private readonly IGitInfoProvider _gitInfoProvider;
@@ -53,9 +53,7 @@ public class BaselineMutantFilter : IMutantFilter
         {
             if (_baseline == null)
             {
-                _logger.LogDebug(
-                    "Returning all mutants on {RelativeFilePath} because there is no baseline available",
-                    file.RelativePath);
+                LogReturningAllMutants(_logger, file.RelativePath);
             }
             else
             {
@@ -87,8 +85,7 @@ public class BaselineMutantFilter : IMutantFilter
 
                 if (string.IsNullOrEmpty(baselineMutantSourceCode))
                 {
-                    _logger.LogWarning(
-                        "Unable to find mutant span in original baseline source code. This indicates a bug in stryker. Please report this on github.");
+                    LogMutantSpanNotFound(_logger);
                     continue;
                 }
 
@@ -130,14 +127,12 @@ public class BaselineMutantFilter : IMutantFilter
 
         if (report == null)
         {
-            _logger.LogInformation(
-                "We could not locate a baseline for branch {BranchName}, now trying fallback version {FallbackVersion}",
-                branchName, _options.FallbackVersion);
+            LogNoBaselineForBranch(_logger, branchName, _options.FallbackVersion ?? string.Empty);
 
             return await GetFallbackBaselineAsync().ConfigureAwait(false);
         }
 
-        _logger.LogInformation("Found baseline report for current branch {BranchName}", branchName);
+        LogFoundBaselineForBranch(_logger, branchName);
 
         return report;
     }
@@ -150,18 +145,37 @@ public class BaselineMutantFilter : IMutantFilter
         {
             if (baseline)
             {
-                _logger.LogDebug(
-                    "We could not locate a baseline report for the fallback version. Now trying regular fallback version.");
+                LogNoBaselineFallback(_logger);
                 return await GetFallbackBaselineAsync(false).ConfigureAwait(false);
             }
 
-            _logger.LogInformation(
-                "We could not locate a baseline report for the current branch, version or fallback version. Now running a complete test to establish a fresh baseline.");
+            LogNoBaselineFresh(_logger);
             return null;
         }
 
-        _logger.LogInformation("Found fallback report using version {FallbackVersion}", _options.FallbackVersion);
+        LogFoundFallbackReport(_logger, _options.FallbackVersion ?? string.Empty);
 
         return report;
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Returning all mutants on {RelativeFilePath} because there is no baseline available")]
+    private static partial void LogReturningAllMutants(ILogger logger, string relativeFilePath);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Unable to find mutant span in original baseline source code. This indicates a bug in stryker. Please report this on github.")]
+    private static partial void LogMutantSpanNotFound(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "We could not locate a baseline for branch {BranchName}, now trying fallback version {FallbackVersion}")]
+    private static partial void LogNoBaselineForBranch(ILogger logger, string branchName, string fallbackVersion);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Found baseline report for current branch {BranchName}")]
+    private static partial void LogFoundBaselineForBranch(ILogger logger, string branchName);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "We could not locate a baseline report for the fallback version. Now trying regular fallback version.")]
+    private static partial void LogNoBaselineFallback(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "We could not locate a baseline report for the current branch, version or fallback version. Now running a complete test to establish a fresh baseline.")]
+    private static partial void LogNoBaselineFresh(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Found fallback report using version {FallbackVersion}")]
+    private static partial void LogFoundFallbackReport(ILogger logger, string fallbackVersion);
 }

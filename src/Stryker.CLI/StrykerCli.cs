@@ -17,7 +17,7 @@ using Stryker.Core;
 
 namespace Stryker.CLI;
 
-public class StrykerCli
+public partial class StrykerCli
 {
     private readonly IStrykerRunner _stryker;
     private readonly IConfigBuilder _configReader;
@@ -115,17 +115,17 @@ public class StrykerCli
 
         if (double.IsNaN(result.MutationScore))
         {
-            logger.LogInformation("Stryker was unable to calculate a mutation score");
+            LogUnableToCalculateScore(logger);
         }
         else
         {
-            logger.LogInformation("The final mutation score is {MutationScore:P2}", result.MutationScore);
+            LogFinalMutationScore(logger, result.MutationScore);
         }
 
         if (result.ScoreIsLowerThanThresholdBreak())
         {
             var thresholdBreak = (double)result.Options.Thresholds.Break / 100;
-            logger.LogWarning("Final mutation score is below threshold break. Crashing...");
+            LogScoreBelowThresholdBreak(logger);
 
             _console.WriteLine();
             _console.MarkupLine($"[Red]The mutation score is lower than the configured break threshold of {thresholdBreak:P0}.[/]");
@@ -162,17 +162,17 @@ public class StrykerCli
         {
             if (string.IsNullOrEmpty(version))
             {
-                logger.LogWarning("{Attribute} is missing in {Assembly} at {AssemblyLocation}", nameof(AssemblyInformationalVersionAttribute), assembly, assembly.Location);
+                LogMissingAttribute(logger, nameof(AssemblyInformationalVersionAttribute), assembly, assembly.Location);
             }
             else
             {
-                logger.LogWarning("Failed to parse version {Version} as a semantic version", version);
+                LogFailedToParseVersion(logger, version);
             }
             return;
         }
 
         _console.MarkupLine(string.Create(CultureInfo.InvariantCulture, $"Version: [Green]{currentVersion}[/]"));
-        logger.LogDebug("Stryker starting, version: {Version}", currentVersion);
+        LogStrykerStarting(logger, currentVersion);
         _console.WriteLine();
 
         if (skipVersionCheck)
@@ -198,4 +198,22 @@ Since this is a preview feature things might not work as expected! Please report
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Stryker was unable to calculate a mutation score")]
+    private static partial void LogUnableToCalculateScore(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The final mutation score is {MutationScore:P2}")]
+    private static partial void LogFinalMutationScore(ILogger logger, double mutationScore);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Final mutation score is below threshold break. Crashing...")]
+    private static partial void LogScoreBelowThresholdBreak(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Attribute} is missing in {Assembly} at {AssemblyLocation}")]
+    private static partial void LogMissingAttribute(ILogger logger, string attribute, Assembly assembly, string assemblyLocation);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to parse version {Version} as a semantic version")]
+    private static partial void LogFailedToParseVersion(ILogger logger, string version);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Stryker starting, version: {Version}")]
+    private static partial void LogStrykerStarting(ILogger logger, SemanticVersion version);
 }

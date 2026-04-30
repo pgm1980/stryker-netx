@@ -13,7 +13,7 @@ namespace Stryker.Core.Initialisation;
 /// <summary>
 /// Restores nuget packages for a given solution file
 /// </summary>
-public class NugetRestoreProcess : INugetRestoreProcess
+public partial class NugetRestoreProcess : INugetRestoreProcess
 {
     private IProcessExecutor ProcessExecutor { get; set; }
     private readonly ILogger _logger;
@@ -26,7 +26,7 @@ public class NugetRestoreProcess : INugetRestoreProcess
 
     public void RestorePackages(string solutionPath, string? msbuildPath = null)
     {
-        _logger.LogInformation("Restoring nuget packages using nuget.exe");
+        LogRestoringNugetPackages(_logger);
         if (string.IsNullOrWhiteSpace(solutionPath))
         {
             throw new InputException(
@@ -71,8 +71,7 @@ public class NugetRestoreProcess : INugetRestoreProcess
             nugetRestoreCommand += $" -MsBuildVersion \"{msBuildVersion}\"";
         }
 
-        _logger.LogDebug("Restoring packages using command: {NugetPath} {NugetRestoreCommand}", nugetPath,
-            nugetRestoreCommand);
+        LogRestoringWithCommand(_logger, nugetPath, nugetRestoreCommand);
 
         const int NugetRestoreTimeoutMs = 120000;
         try
@@ -81,15 +80,15 @@ public class NugetRestoreProcess : INugetRestoreProcess
                 nugetRestoreCommand, timeoutMs: NugetRestoreTimeoutMs);
             if (nugetRestoreResult.ExitCode == ExitCodes.Success)
             {
-                _logger.LogDebug("Restored packages using nuget.exe, output: {Error}", nugetRestoreResult.Output);
+                LogRestoredPackages(_logger, nugetRestoreResult.Output);
                 return true;
             }
 
-            _logger.LogError("Failed to restore nuget packages. Nuget error: {Error}", nugetRestoreResult.Error);
+            LogFailedNugetRestore(_logger, nugetRestoreResult.Error);
         }
         catch (OperationCanceledException e)
         {
-            _logger.LogError(e, "Failed to restore nuget packages in less than {Time} seconds.", NugetRestoreTimeoutMs / 1000);
+            LogNugetRestoreTimeout(_logger, e, NugetRestoreTimeoutMs / 1000);
         }
         return false;
     }
@@ -101,15 +100,43 @@ public class NugetRestoreProcess : INugetRestoreProcess
         if (string.IsNullOrWhiteSpace(msBuildVersionOutput))
         {
             msBuildVersion = string.Empty;
-            _logger.LogInformation("Auto detected msbuild at: {MsBuildPath}, but failed to get version.", helper.GetMsBuildPath());
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                var msBuildPath = helper.GetMsBuildPath() ?? string.Empty;
+                LogMsBuildNoVersion(_logger, msBuildPath);
+            }
         }
         else
         {
             msBuildVersion = msBuildVersionOutput.Trim();
-            _logger.LogDebug("Auto detected msbuild version {MsBuildVersion} at: {MsBuildPath}", msBuildVersion,
-                 helper.GetMsBuildPath());
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                var msBuildPath = helper.GetMsBuildPath() ?? string.Empty;
+                LogMsBuildVersion(_logger, msBuildVersion, msBuildPath);
+            }
         }
 
         return msBuildVersion;
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Restoring nuget packages using nuget.exe")]
+    private static partial void LogRestoringNugetPackages(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Restoring packages using command: {NugetPath} {NugetRestoreCommand}")]
+    private static partial void LogRestoringWithCommand(ILogger logger, string nugetPath, string nugetRestoreCommand);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Restored packages using nuget.exe, output: {Error}")]
+    private static partial void LogRestoredPackages(ILogger logger, string error);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to restore nuget packages. Nuget error: {Error}")]
+    private static partial void LogFailedNugetRestore(ILogger logger, string error);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to restore nuget packages in less than {Time} seconds.")]
+    private static partial void LogNugetRestoreTimeout(ILogger logger, Exception ex, int time);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Auto detected msbuild at: {MsBuildPath}, but failed to get version.")]
+    private static partial void LogMsBuildNoVersion(ILogger logger, string msBuildPath);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Auto detected msbuild version {MsBuildVersion} at: {MsBuildPath}")]
+    private static partial void LogMsBuildVersion(ILogger logger, string msBuildVersion, string msBuildPath);
 }

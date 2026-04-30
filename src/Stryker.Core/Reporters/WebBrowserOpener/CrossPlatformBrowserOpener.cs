@@ -8,7 +8,7 @@ using Stryker.Utilities.Logging;
 namespace Stryker.Core.Reporters.WebBrowserOpener;
 
 [ExcludeFromCodeCoverage]
-public class CrossPlatformBrowserOpener : IWebbrowserOpener
+public partial class CrossPlatformBrowserOpener : IWebbrowserOpener
 {
     private static bool IsWsl => RuntimeInformation.OSDescription.Contains("linux", StringComparison.InvariantCultureIgnoreCase) &&
         RuntimeInformation.OSDescription.Contains("microsoft", StringComparison.InvariantCultureIgnoreCase);
@@ -42,7 +42,7 @@ public class CrossPlatformBrowserOpener : IWebbrowserOpener
             }
             else
             {
-                ApplicationLogging.LoggerFactory.CreateLogger<CrossPlatformBrowserOpener>().LogError("Failed to auto-open browser. Please report your runtime and OS info.");
+                LogFailedToOpenBrowser(ApplicationLogging.LoggerFactory.CreateLogger<CrossPlatformBrowserOpener>());
                 return null;
             }
         }
@@ -57,4 +57,7 @@ public class CrossPlatformBrowserOpener : IWebbrowserOpener
 
         return Process.Start(processInfo);
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to auto-open browser. Please report your runtime and OS info.")]
+    private static partial void LogFailedToOpenBrowser(ILogger logger);
 }

@@ -16,7 +16,7 @@ using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.MutationTest;
 
-public class CsharpMutationProcess : IMutationProcess
+public partial class CsharpMutationProcess : IMutationProcess
 {
     private IStrykerOptions _options = null!; // initialized in Mutate() before any other call
     private IMutantFilter _mutantFilter = null!; // initialized in FilterMutants() before any other call
@@ -42,21 +42,25 @@ public class CsharpMutationProcess : IMutationProcess
         // Mutate source files
         foreach (var file in projectInfo.GetAllFiles().Cast<CsharpFileLeaf>())
         {
-            _logger.LogDebug("Mutating {FilePath}", file.FullPath);
+            LogMutating(_logger, file.FullPath);
             // Mutate the syntax tree
             var mutatedSyntaxTree = orchestrator.Mutate(file.SyntaxTree, semanticModels.First(x => x.SyntaxTree == file.SyntaxTree));
             // Add the mutated syntax tree for compilation
             file.MutatedSyntaxTree = mutatedSyntaxTree;
-            if (_options.DiagMode)
+            if (_options.DiagMode && _logger.IsEnabled(LogLevel.Trace))
             {
-                _logger.LogTrace("Mutated {FullPath}:{NewLine}{MutatedSyntaxTree}",
-                    file.FullPath, Environment.NewLine, mutatedSyntaxTree.GetText());
+                var text = mutatedSyntaxTree.GetText();
+                LogMutatedTree(_logger, file.FullPath, Environment.NewLine, text);
             }
             // Filter the mutants
             file.Mutants = orchestrator.GetLatestMutantBatch();
         }
 
-        _logger.LogDebug("{MutantsCount} mutants created", projectInfo.Mutants.Count());
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            var count = projectInfo.Mutants.Count();
+            LogMutantsCount(_logger, count);
+        }
 
         CompileMutations(input, compilingProcess);
     }
@@ -91,7 +95,7 @@ public class CsharpMutationProcess : IMutationProcess
                 msForSymbols.CopyTo(symbolDestination);
             }
 
-            _logger.LogDebug("Injected the mutated assembly file into {InjectionPath}", injectionPath);
+            LogInjectedAssembly(_logger, injectionPath);
         }
 
         // if a rollback took place, mark the rolled back mutants as status:BuildError
@@ -122,4 +126,16 @@ public class CsharpMutationProcess : IMutationProcess
             _mutantFilter.FilterMutants(mutantsToFilter, file, _options);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Mutating {FilePath}")]
+    private static partial void LogMutating(ILogger logger, string filePath);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "Mutated {FullPath}:{NewLine}{MutatedSyntaxTree}")]
+    private static partial void LogMutatedTree(ILogger logger, string fullPath, string newLine, Microsoft.CodeAnalysis.Text.SourceText mutatedSyntaxTree);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{MutantsCount} mutants created")]
+    private static partial void LogMutantsCount(ILogger logger, int mutantsCount);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Injected the mutated assembly file into {InjectionPath}")]
+    private static partial void LogInjectedAssembly(ILogger logger, string injectionPath);
 }

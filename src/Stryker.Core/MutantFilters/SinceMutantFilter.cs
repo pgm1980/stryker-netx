@@ -13,7 +13,7 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.MutantFilters;
 
-public class SinceMutantFilter : IMutantFilter
+public partial class SinceMutantFilter : IMutantFilter
 {
     private readonly DiffResult _diffResult = new();
     private readonly ITestSet? _tests;
@@ -31,20 +31,20 @@ public class SinceMutantFilter : IMutantFilter
 
         if (_diffResult != null)
         {
-            _logger.LogInformation("{ChangedFilesCount} files changed", (_diffResult.ChangedSourceFiles?.Count ?? 0) + (_diffResult.ChangedTestFiles?.Count ?? 0));
+            LogChangedFilesCount(_logger, (_diffResult.ChangedSourceFiles?.Count ?? 0) + (_diffResult.ChangedTestFiles?.Count ?? 0));
 
             if (_diffResult.ChangedSourceFiles != null)
             {
                 foreach (var changedFile in _diffResult.ChangedSourceFiles)
                 {
-                    _logger.LogInformation("Changed file {ChangedFile}", changedFile);
+                    LogChangedFile(_logger, changedFile);
                 }
             }
             if (_diffResult.ChangedTestFiles != null)
             {
                 foreach (var changedFile in _diffResult.ChangedTestFiles)
                 {
-                    _logger.LogInformation("Changed test file {ChangedFile}", changedFile);
+                    LogChangedTestFile(_logger, changedFile);
                 }
             }
         }
@@ -58,14 +58,14 @@ public class SinceMutantFilter : IMutantFilter
         // A non-csharp file is flagged by the diff result as modified. We cannot determine which mutants will be affected by this, thus all mutants have to be tested.
         if (_diffResult.ChangedTestFiles is { } && _diffResult.ChangedTestFiles.Any(x => !x.EndsWith(".cs", StringComparison.Ordinal)))
         {
-            _logger.LogDebug("Returning all mutants in {RelativePath} because a non-source file is modified", file.RelativePath);
+            LogReturningAllMutantsNonSource(_logger, file.RelativePath);
             return SetMutantStatusForNonCSharpFileChanged(mutants);
         }
 
         // If the diff result flags this file as modified, we want to run all mutants again
         if (_diffResult.ChangedSourceFiles != null && _diffResult.ChangedSourceFiles.Contains(file.FullPath, StringComparer.Ordinal))
         {
-            _logger.LogDebug("Returning all mutants in {RelativePath} because the file is modified", file.RelativePath);
+            LogReturningAllMutantsModified(_logger, file.RelativePath);
             return SetMutantStatusForFileChanged(mutants);
         }
         else
@@ -141,4 +141,19 @@ public class SinceMutantFilter : IMutantFilter
 
         return filteredMutants;
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "{ChangedFilesCount} files changed")]
+    private static partial void LogChangedFilesCount(ILogger logger, int changedFilesCount);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Changed file {ChangedFile}")]
+    private static partial void LogChangedFile(ILogger logger, string changedFile);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Changed test file {ChangedFile}")]
+    private static partial void LogChangedTestFile(ILogger logger, string changedFile);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Returning all mutants in {RelativePath} because a non-source file is modified")]
+    private static partial void LogReturningAllMutantsNonSource(ILogger logger, string relativePath);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Returning all mutants in {RelativePath} because the file is modified")]
+    private static partial void LogReturningAllMutantsModified(ILogger logger, string relativePath);
 }

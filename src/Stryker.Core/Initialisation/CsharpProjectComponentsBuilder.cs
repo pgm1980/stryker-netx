@@ -19,7 +19,7 @@ using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.Initialisation;
 
-public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
+public partial class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
 {
     private readonly SourceProjectInfo _projectInfo;
     private readonly IStrykerOptions _options;
@@ -43,7 +43,7 @@ public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
         }
         else
         {
-            _logger.LogWarning("Project analysis could not find sourcefiles. This should not happen. We fallback to filesystem scan. Please report an issue at github.");
+            LogProjectAnalysisFallback(_logger);
             inputFiles = FindProjectFilesScanningProjectFolders(_projectInfo.Analysis);
         }
         return inputFiles;
@@ -58,7 +58,7 @@ public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
         foreach (var dir in ExtractProjectFolders(analysis))
         {
             var folder = FileSystem.Path.Combine(Path.GetDirectoryName(sourceProjectDir) ?? string.Empty, dir);
-            _logger.LogDebug("Scanning {Folder}", folder);
+            LogScanningFolder(_logger, folder);
             inputFiles.Add(FindInputFiles(folder, sourceProjectDir, analysis, cSharpParseOptions));
         }
 
@@ -106,7 +106,7 @@ public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
                     // add the mutated text
                     syntaxTree = InjectMutationLabel(syntaxTree);
                 }
-                _logger.LogDebug("Skipping auto-generated code file: {FileName}", file.FullPath);
+                LogSkippingGenerated(_logger, file.FullPath);
                 folderComposite.AddCompilationSyntaxTree(syntaxTree); // Add the syntaxTree to the list of compilationSyntaxTrees
                 continue; // Don't add the file to the folderComposite as we're not reporting on the file
             }
@@ -217,7 +217,7 @@ public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
             // don't mutate auto generated code
             if (syntaxTree.IsGenerated() || !mutate)
             {
-                _logger.LogDebug("Skipping auto-generated code file: {FileName}", fileLeaf.FullPath);
+                LogSkippingGenerated(_logger, fileLeaf.FullPath);
                 folderComposite.AddCompilationSyntaxTree(syntaxTree); // Add the syntaxTree to the list of compilationSyntaxTrees
                 continue; // Don't add the file to the folderComposite as we're not reporting on the file
             }
@@ -290,4 +290,13 @@ public class CsharpProjectComponentsBuilder : ProjectComponentsBuilder
 
         return composite!;
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Project analysis could not find sourcefiles. This should not happen. We fallback to filesystem scan. Please report an issue at github.")]
+    private static partial void LogProjectAnalysisFallback(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Scanning {Folder}")]
+    private static partial void LogScanningFolder(ILogger logger, string folder);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Skipping auto-generated code file: {FileName}")]
+    private static partial void LogSkippingGenerated(ILogger logger, string fileName);
 }

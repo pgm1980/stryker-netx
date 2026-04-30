@@ -14,7 +14,7 @@ using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.Initialisation;
 
-public class InitialisationProcess : IInitialisationProcess
+public partial class InitialisationProcess : IInitialisationProcess
 {
     private readonly IInputFileResolver _inputFileResolver;
     private readonly IInitialBuildProcess _initialBuildProcess;
@@ -36,7 +36,7 @@ public class InitialisationProcess : IInitialisationProcess
     /// <inheritdoc/>
     public IReadOnlyCollection<SourceProjectInfo> GetMutableProjectsInfo(IStrykerOptions options)
     {
-        _logger.LogInformation("Analysis starting.");
+        LogAnalysisStarting(_logger);
         try
         {
             // project mode
@@ -44,7 +44,7 @@ public class InitialisationProcess : IInitialisationProcess
         }
         finally
         {
-            _logger.LogInformation("Analysis complete.");
+            LogAnalysisComplete(_logger);
         }
     }
 
@@ -61,7 +61,11 @@ public class InitialisationProcess : IInitialisationProcess
         {
             var framework = projects.Any(p => p.IsFullFramework);
             // Build the complete solution
-            _logger.LogInformation("Building solution {SolutionPathName}.", FileSystem.Path.GetRelativePath(options.WorkingDirectory ?? string.Empty, solutionFilePath));
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                var relPath = FileSystem.Path.GetRelativePath(options.WorkingDirectory ?? string.Empty, solutionFilePath);
+                LogBuildingSolution(_logger, relPath);
+            }
 
             _initialBuildProcess.InitialBuild(
                 framework,
@@ -75,10 +79,7 @@ public class InitialisationProcess : IInitialisationProcess
             var testProjects = projects.SelectMany(p => p.TestProjectsInfo.Analyses).Distinct().ToList();
             for (var i = 0; i < testProjects.Count; i++)
             {
-                _logger.LogInformation(
-                    "Building test project {ProjectFilePath} ({CurrentTestProject}/{OfTotalTestProjects})",
-                    testProjects[i].ProjectFilePath, i + 1,
-                    testProjects.Count);
+                LogBuildingTestProject(_logger, testProjects[i].ProjectFilePath, i + 1, testProjects.Count);
 
                 _initialBuildProcess.InitialBuild(
                     testProjects[i].TargetsFullFramework(),
@@ -118,10 +119,11 @@ public class InitialisationProcess : IInitialisationProcess
         DiscoverTests(projectInfo, testRunner);
 
         // initial test
-        _logger.LogInformation(
-            "Number of tests found: {TestCount} for project {ProjectFilePath}. Initial test run started.",
-        testRunner.GetTests(projectInfo).Count,
-        projectInfo.Analysis.ProjectFilePath);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            var testCount = testRunner.GetTests(projectInfo).Count;
+            LogTestsFound(_logger, testCount, projectInfo.Analysis.ProjectFilePath);
+        }
 
         var result = await _initialTestProcess.InitialTestAsync(options, projectInfo, testRunner).ConfigureAwait(false);
 
@@ -139,9 +141,7 @@ public class InitialisationProcess : IInitialisationProcess
                         result.Result.ResultMessage);
             }
 
-            _logger.LogWarning(
-                "{FailingTestsCount} tests are failing. Stryker will continue but outcome will be impacted.",
-                failingTestsCount);
+            LogFailingTests(_logger, failingTestsCount);
         }
 
         if (!result.Result.ExecutedTests.IsEmpty || !throwIfFails)
@@ -195,7 +195,7 @@ public class InitialisationProcess : IInitialisationProcess
                 }
 
                 projectInfo.LogError(message);
-                _logger.LogWarning("{Message}", message);
+                LogWarningMessage(_logger, message);
             }
 
             if (!causeFound && testProject.References.Any(r => r.Contains("Microsoft.Testing.Platform")))
@@ -204,7 +204,7 @@ public class InitialisationProcess : IInitialisationProcess
                 var message = $"Project '{testProject.ProjectFilePath}' is using Microsoft.Testing.Platform which is not yet supported by Stryker, " +
                               $"see https://github.com/stryker-mutator/stryker-net/issues/3094";
                 projectInfo.LogError(message);
-                _logger.LogWarning("{Message}", message);
+                LogWarningMessage(_logger, message);
             }
 
             if (causeFound)
@@ -214,9 +214,30 @@ public class InitialisationProcess : IInitialisationProcess
 
             var messageForNoReason = $"No test detected for project '{testProject.ProjectFilePath}'. No cause identified.";
             projectInfo.LogError(messageForNoReason);
-            _logger.LogWarning("{Message}", messageForNoReason);
+            LogWarningMessage(_logger, messageForNoReason);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Analysis starting.")]
+    private static partial void LogAnalysisStarting(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Analysis complete.")]
+    private static partial void LogAnalysisComplete(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Building solution {SolutionPathName}.")]
+    private static partial void LogBuildingSolution(ILogger logger, string solutionPathName);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Building test project {ProjectFilePath} ({CurrentTestProject}/{OfTotalTestProjects})")]
+    private static partial void LogBuildingTestProject(ILogger logger, string projectFilePath, int currentTestProject, int ofTotalTestProjects);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Number of tests found: {TestCount} for project {ProjectFilePath}. Initial test run started.")]
+    private static partial void LogTestsFound(ILogger logger, int testCount, string projectFilePath);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{FailingTestsCount} tests are failing. Stryker will continue but outcome will be impacted.")]
+    private static partial void LogFailingTests(ILogger logger, int failingTestsCount);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Message}")]
+    private static partial void LogWarningMessage(ILogger logger, string message);
 
     /// <summary>
     /// Checks whether the project pulls in the given NuGet package, by inspecting either the

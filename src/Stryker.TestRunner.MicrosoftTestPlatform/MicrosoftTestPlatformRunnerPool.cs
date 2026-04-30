@@ -15,7 +15,7 @@ namespace Stryker.TestRunner.MicrosoftTestPlatform;
 /// Manages a pool of MicrosoftTestPlatformRunner instances to enable parallel mutation testing
 /// with isolated environment variables per runner.
 /// </summary>
-public sealed class MicrosoftTestPlatformRunnerPool : ITestRunner
+public sealed partial class MicrosoftTestPlatformRunnerPool : ITestRunner
 {
     private readonly AutoResetEvent _runnerAvailableHandler = new(false);
     private readonly ConcurrentBag<SingleMicrosoftTestPlatformRunner> _availableRunners = [];
@@ -36,17 +36,17 @@ public sealed class MicrosoftTestPlatformRunnerPool : ITestRunner
         _options = options;
         _countOfRunners = Math.Max(1, options.Concurrency);
         _runnerFactory = runnerFactory ?? new DefaultRunnerFactory();
-        _logger.LogWarning("The Microsoft Test Platform testrunner is currently in preview. Results should be verified since this feature is still being tested.");
+        LogPreviewWarning(_logger);
 
         Initialize();
     }
 
     public void ResetTestProcesses()
     {
-        _logger.LogDebug("Resetting all test server processes in the pool");
+        LogResettingPool(_logger);
         var tasks = _availableRunners.Select(runner => runner.ResetServerAsync());
         Task.WhenAll(tasks).Wait();
-        _logger.LogDebug("All test server processes have been reset");
+        LogPoolResetComplete(_logger);
     }
 
     private void Initialize()
@@ -98,7 +98,7 @@ public sealed class MicrosoftTestPlatformRunnerPool : ITestRunner
     /// <inheritdoc />
     public IEnumerable<ICoverageRunResult> CaptureCoverage(IProjectAndTests project)
     {
-        _logger.LogInformation("Starting coverage capture for MTP runner");
+        LogCoverageCaptureStarting(_logger);
 
         SetCoverageModeAll(enabled: true);
 
@@ -107,7 +107,7 @@ public sealed class MicrosoftTestPlatformRunnerPool : ITestRunner
             var testResult = RunThisAsync(runner => runner.InitialTestAsync(project)).GetAwaiter().GetResult();
             if (testResult.FailingTests.IsEveryTest)
             {
-                _logger.LogWarning("Coverage test run failed: {Message}", testResult.ResultMessage);
+                LogCoverageTestRunFailed(_logger, testResult.ResultMessage);
             }
 
             // Reset test processes to trigger coverage file flush (process exit writes coverage)
@@ -115,8 +115,7 @@ public sealed class MicrosoftTestPlatformRunnerPool : ITestRunner
 
             var (allCoveredMutants, allStaticMutants) = AggregateCoverage();
 
-            _logger.LogInformation("Coverage capture complete: {CoveredCount} mutations covered, {StaticCount} static mutations",
-                allCoveredMutants.Count, allStaticMutants.Count);
+            LogCoverageCaptureComplete(_logger, allCoveredMutants.Count, allStaticMutants.Count);
 
             // For cumulative coverage, we return a single coverage result that applies to all tests
             // Each test is assumed to cover all the mutations that were covered during the full test run
@@ -201,8 +200,7 @@ public sealed class MicrosoftTestPlatformRunnerPool : ITestRunner
 
                 if (attempts % 30 == 0) // Log every 30 seconds
                 {
-                    _logger.LogWarning("Waiting for available test runner... ({Attempts}s elapsed, {Available}/{Total} runners available)",
-                        attempts, _availableRunners.Count, _countOfRunners);
+                    LogWaitingForRunner(_logger, attempts, _availableRunners.Count, _countOfRunners);
                 }
             }
         }
@@ -226,5 +224,26 @@ public sealed class MicrosoftTestPlatformRunnerPool : ITestRunner
         }
         _runnerAvailableHandler.Dispose();
     }
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "The Microsoft Test Platform testrunner is currently in preview. Results should be verified since this feature is still being tested.")]
+    private static partial void LogPreviewWarning(ILogger logger);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Resetting all test server processes in the pool")]
+    private static partial void LogResettingPool(ILogger logger);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "All test server processes have been reset")]
+    private static partial void LogPoolResetComplete(ILogger logger);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Information, Message = "Starting coverage capture for MTP runner")]
+    private static partial void LogCoverageCaptureStarting(ILogger logger);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Coverage test run failed: {Message}")]
+    private static partial void LogCoverageTestRunFailed(ILogger logger, string message);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Information, Message = "Coverage capture complete: {CoveredCount} mutations covered, {StaticCount} static mutations")]
+    private static partial void LogCoverageCaptureComplete(ILogger logger, int coveredCount, int staticCount);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Waiting for available test runner... ({Attempts}s elapsed, {Available}/{Total} runners available)")]
+    private static partial void LogWaitingForRunner(ILogger logger, int attempts, int available, int total);
 }
 

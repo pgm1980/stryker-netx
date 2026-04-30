@@ -18,7 +18,7 @@ namespace Stryker.Core.Compiling;
 /// <summary>
 /// Responsible for rolling back all mutations that prevent compiling the mutated assembly
 /// </summary>
-public class CSharpRollbackProcess : ICSharpRollbackProcess
+public partial class CSharpRollbackProcess : ICSharpRollbackProcess
 {
     private List<int> RollBackedIds { get; }
     private ILogger Logger { get; }
@@ -41,7 +41,7 @@ public class CSharpRollbackProcess : ICSharpRollbackProcess
         {
             if (diagnostic.Location.SourceTree == null)
             {
-                Logger.LogWarning("General compilation error: {Message}", diagnostic.GetMessage(CultureInfo.InvariantCulture));
+                LogGeneralCompilationError(Logger, diagnostic.GetMessage(CultureInfo.InvariantCulture));
                 continue;
             }
 
@@ -52,23 +52,22 @@ public class CSharpRollbackProcess : ICSharpRollbackProcess
         foreach (var syntaxTreeMap in syntaxTreeMapping.Where(x => x.Value.Count > 0))
         {
             var originalTree = syntaxTreeMap.Key;
-            Logger.LogDebug("RollBacking mutations from {FilePath}.", originalTree.FilePath);
+            LogRollbackingMutations(Logger, originalTree.FilePath);
             if (devMode)
             {
                 DumpBuildErrors(syntaxTreeMap);
-                Logger.LogTrace("source {OriginalTree}", originalTree);
+                LogOriginalSource(Logger, originalTree);
             }
 
             var updatedSyntaxTree = RemoveCompileErrorMutations(originalTree, syntaxTreeMap.Value);
 
             if (updatedSyntaxTree == originalTree || lastAttempt)
             {
-                Logger.LogCritical(
-                    "Stryker.NET could not compile the project after mutation. This is probably an error for Stryker.NET and not your project. Please report this issue on github with the previous error message.");
+                LogCannotCompileAfterMutation(Logger);
                 throw new CompilationException("Internal error due to compile error.");
             }
 
-            Logger.LogTrace("RolledBack to {UpdatedSyntaxTree}", updatedSyntaxTree.ToString());
+            LogRolledBackTo(Logger, updatedSyntaxTree);
 
             // update the compiler object with the new syntax tree
             compiler = compiler.ReplaceSyntaxTree(originalTree, updatedSyntaxTree);
@@ -135,8 +134,7 @@ public class CSharpRollbackProcess : ICSharpRollbackProcess
             return new MutantInfo();
         }
 
-        Logger.LogDebug("Found mutant {Id} of type '{Type}' controlled by '{Engine}'.", info.Id, info.Type,
-            info.Engine);
+        LogFoundMutant(Logger, info.Id ?? -1, info.Type ?? string.Empty, info.Engine!);
 
         return info;
     }
@@ -177,22 +175,26 @@ public class CSharpRollbackProcess : ICSharpRollbackProcess
 
     private void DumpBuildErrors(KeyValuePair<SyntaxTree, ICollection<Diagnostic>> syntaxTreeMap)
     {
-        Logger.LogDebug("Dumping build error in file");
+        if (!Logger.IsEnabled(LogLevel.Debug))
+        {
+            return;
+        }
+        LogDumpingBuildError(Logger);
         var sourceLines = syntaxTreeMap.Key.ToString().Split("\n");
         foreach (var diagnostic in syntaxTreeMap.Value)
         {
             var fileLinePositionSpan = diagnostic.Location.GetMappedLineSpan();
-            Logger.LogDebug("Error :{Message}, {FileLinePositionSpan}",
-                diagnostic.GetMessage(CultureInfo.InvariantCulture), fileLinePositionSpan);
+            var diagnosticMessage = diagnostic.GetMessage(CultureInfo.InvariantCulture);
+            LogErrorWithSpan(Logger, diagnosticMessage, fileLinePositionSpan);
             for (var i = Math.Max(0, fileLinePositionSpan.StartLinePosition.Line - 1);
                  i <= Math.Min(fileLinePositionSpan.EndLinePosition.Line + 1, sourceLines.Length - 1);
                  i++)
             {
-                Logger.LogDebug("{Index}: {SourceLine}", i + 1, sourceLines[i]);
+                LogSourceLineIndex(Logger, i + 1, sourceLines[i]);
             }
         }
 
-        Logger.LogDebug("{NewLine}", Environment.NewLine);
+        LogNewLine(Logger, Environment.NewLine);
     }
 
     private SyntaxTree RemoveCompileErrorMutations(SyntaxTree originalTree, IEnumerable<Diagnostic> diagnosticInfo)
@@ -251,15 +253,20 @@ public class CSharpRollbackProcess : ICSharpRollbackProcess
             {
                 // we have to remove every mutation
                 var errorLocation = diagnostic.Location.GetMappedLineSpan();
-                Logger.LogWarning(
-                    "An unidentified mutation in {Path} resulted in a compile error (at {Line}:{StartCharacter}) with id: {DiagnosticId}, message: {Message} (Source code: {BrokenMutation})",
-                    errorLocation.Path, errorLocation.StartLinePosition.Line,
-                    errorLocation.StartLinePosition.Character, diagnostic.Id,
-                    diagnostic.GetMessage(CultureInfo.InvariantCulture), brokenMutation);
+                if (Logger.IsEnabled(LogLevel.Warning))
+                {
+                    var msg = diagnostic.GetMessage(CultureInfo.InvariantCulture);
+                    LogUnidentifiedMutation(Logger,
+                        errorLocation.Path, errorLocation.StartLinePosition.Line,
+                        errorLocation.StartLinePosition.Character, diagnostic.Id,
+                        msg, brokenMutation);
+                }
 
-                Logger.LogInformation(
-                    "Safe Mode! Stryker will remove all mutations in {DisplayName} and mark them as 'compile error'.",
-                    DisplayName(initNode));
+                if (Logger.IsEnabled(LogLevel.Information))
+                {
+                    var dispName = DisplayName(initNode);
+                    LogSafeMode(Logger, dispName);
+                }
                 // backup, remove all mutations in the node
                 foreach (var mutant in scan.Where(mutant => mutant.Node is not null && !suspiciousMutations.Contains(mutant.Node)))
                 {
@@ -361,4 +368,40 @@ public class CSharpRollbackProcess : ICSharpRollbackProcess
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "General compilation error: {Message}")]
+    private static partial void LogGeneralCompilationError(ILogger logger, string message);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "RollBacking mutations from {FilePath}.")]
+    private static partial void LogRollbackingMutations(ILogger logger, string filePath);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "source {OriginalTree}")]
+    private static partial void LogOriginalSource(ILogger logger, SyntaxTree originalTree);
+
+    [LoggerMessage(Level = LogLevel.Critical, Message = "Stryker.NET could not compile the project after mutation. This is probably an error for Stryker.NET and not your project. Please report this issue on github with the previous error message.")]
+    private static partial void LogCannotCompileAfterMutation(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "RolledBack to {UpdatedSyntaxTree}")]
+    private static partial void LogRolledBackTo(ILogger logger, SyntaxTree updatedSyntaxTree);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Found mutant {Id} of type '{Type}' controlled by '{Engine}'.")]
+    private static partial void LogFoundMutant(ILogger logger, int id, string type, string engine);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Dumping build error in file")]
+    private static partial void LogDumpingBuildError(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Error :{Message}, {FileLinePositionSpan}")]
+    private static partial void LogErrorWithSpan(ILogger logger, string message, FileLinePositionSpan fileLinePositionSpan);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{Index}: {SourceLine}")]
+    private static partial void LogSourceLineIndex(ILogger logger, int index, string sourceLine);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{NewLine}")]
+    private static partial void LogNewLine(ILogger logger, string newLine);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "An unidentified mutation in {Path} resulted in a compile error (at {Line}:{StartCharacter}) with id: {DiagnosticId}, message: {Message} (Source code: {BrokenMutation})")]
+    private static partial void LogUnidentifiedMutation(ILogger logger, string path, int line, int startCharacter, string diagnosticId, string message, SyntaxNode brokenMutation);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Safe Mode! Stryker will remove all mutations in {DisplayName} and mark them as 'compile error'.")]
+    private static partial void LogSafeMode(ILogger logger, string displayName);
 }

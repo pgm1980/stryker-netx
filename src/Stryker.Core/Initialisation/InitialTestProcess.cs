@@ -8,7 +8,7 @@ using Stryker.Abstractions.Testing;
 
 namespace Stryker.Core.Initialisation;
 
-public class InitialTestProcess : IInitialTestProcess
+public partial class InitialTestProcess : IInitialTestProcess
 {
     private readonly ILogger _logger;
 
@@ -37,7 +37,7 @@ public class InitialTestProcess : IInitialTestProcess
         stopwatch.Stop();
 
         // timings
-        _logger.LogDebug("Initial test run output: {ResultMessage}.", initTestRunResult.ResultMessage);
+        LogInitialTestRunOutput(_logger, initTestRunResult.ResultMessage);
 
         TimeoutValueCalculator = new TimeoutValueCalculator(options.AdditionalTimeout,
             (int)stopwatch.ElapsedMilliseconds,
@@ -45,4 +45,7 @@ public class InitialTestProcess : IInitialTestProcess
 
         return new InitialTestRun(initTestRunResult, TimeoutValueCalculator);
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Initial test run output: {ResultMessage}.")]
+    private static partial void LogInitialTestRunOutput(ILogger logger, string resultMessage);
 }

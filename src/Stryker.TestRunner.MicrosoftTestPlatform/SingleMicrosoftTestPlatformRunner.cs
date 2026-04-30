@@ -17,7 +17,7 @@ namespace Stryker.TestRunner.MicrosoftTestPlatform;
 /// Maintains persistent test server connections per assembly to reduce process startup overhead.
 /// Uses file-based mutant control to allow changing the active mutant without restarting processes.
 /// </summary>
-public class SingleMicrosoftTestPlatformRunner : IDisposable
+public partial class SingleMicrosoftTestPlatformRunner : IDisposable
 {
     private readonly int _id;
     private readonly IDictionary<string, List<TestNode>> _testsByAssembly;
@@ -89,8 +89,8 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
 
         if (_logger.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Debug))
         {
-            _logger.LogDebug("{RunnerId}: Testing mutant(s) [{Mutants}] with active mutation ID: {MutantId}",
-                RunnerId, string.Join(",", mutants.Select(m => m.Id)), mutantId);
+            var mutantList = string.Join(",", mutants.Select(m => m.Id));
+            LogTestingMutants(_logger, RunnerId, mutantList, mutantId);
         }
 
         return RunAllTestsAsync(assemblies, mutantId, mutants, update, timeoutCalc);
@@ -99,7 +99,7 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
     /// <summary>Resets the test servers, allowing assemblies to be reloaded for a fresh test run.</summary>
     public Task ResetServerAsync()
     {
-        _logger.LogDebug("{RunnerId}: Resetting test servers to reload assemblies", RunnerId);
+        LogResettingServers(_logger, RunnerId);
 
         lock (_serverLock)
         {
@@ -110,7 +110,7 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
             _assemblyServers.Clear();
         }
 
-        _logger.LogDebug("{RunnerId}: Test servers reset complete", RunnerId);
+        LogServersResetComplete(_logger, RunnerId);
         return Task.CompletedTask;
     }
 
@@ -119,13 +119,11 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
         try
         {
             File.WriteAllText(_mutantFilePath, mutantId.ToString(CultureInfo.InvariantCulture));
-            _logger.LogDebug("{RunnerId}: Wrote mutant ID {MutantId} to file {FilePath}",
-                RunnerId, mutantId, _mutantFilePath);
+            LogWroteMutantId(_logger, RunnerId, mutantId, _mutantFilePath);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "{RunnerId}: Failed to write mutant ID to file {FilePath}",
-                RunnerId, _mutantFilePath);
+            LogFailedToWriteMutantId(_logger, ex, RunnerId, _mutantFilePath);
         }
     }
 
@@ -160,7 +158,7 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
             }
 
             _coverageMode = enabled;
-            _logger.LogDebug("{RunnerId}: Coverage mode {Status}", RunnerId, enabled ? "enabled" : "disabled");
+            LogCoverageMode(_logger, RunnerId, enabled ? "enabled" : "disabled");
 
             // Reset servers to apply the new environment variables
             foreach (var server in _assemblyServers.Values)
@@ -182,14 +180,14 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
     {
         if (!File.Exists(_coverageFilePath))
         {
-            _logger.LogDebug("{RunnerId}: Coverage file not found at {Path}", RunnerId, _coverageFilePath);
+            LogCoverageFileNotFound(_logger, RunnerId, _coverageFilePath);
             return (Array.Empty<int>(), Array.Empty<int>());
         }
 
         try
         {
             var content = File.ReadAllText(_coverageFilePath).Trim();
-            _logger.LogDebug("{RunnerId}: Read coverage data: {Content}", RunnerId, content);
+            LogReadCoverageData(_logger, RunnerId, content);
 
             if (string.IsNullOrEmpty(content))
             {
@@ -204,7 +202,7 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "{RunnerId}: Failed to read coverage file at {Path}", RunnerId, _coverageFilePath);
+            LogFailedToReadCoverage(_logger, ex, RunnerId, _coverageFilePath);
             return (Array.Empty<int>(), Array.Empty<int>());
         }
     }
@@ -235,7 +233,7 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "{RunnerId}: Failed to delete coverage file at {Path}", RunnerId, _coverageFilePath);
+            LogFailedToDeleteCoverage(_logger, ex, RunnerId, _coverageFilePath);
         }
     }
 
@@ -286,12 +284,12 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
                 }
             }
 
-            _logger.LogDebug("{RunnerId}: Discovered {TestCount} tests in {Assembly}", RunnerId, tests.Count, assembly);
+            LogDiscoveredTests(_logger, RunnerId, tests.Count, assembly);
             return tests.Count > 0;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogDebug(ex, "{RunnerId}: Failed to discover tests in {Assembly}", RunnerId, assembly);
+            LogFailedToDiscover(_logger, ex, RunnerId, assembly);
             return false;
         }
     }
@@ -319,15 +317,19 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
             });
 
         var timeoutMs = timeoutCalc.CalculateTimeoutValue(estimatedTimeMs);
-        _logger.LogDebug("{RunnerId}: Using {TimeoutMs} ms as test run timeout for {Assembly}",
-            RunnerId, timeoutMs, Path.GetFileName(assembly));
+        if (_logger.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Debug))
+        {
+            var assemblyName = Path.GetFileName(assembly);
+            LogUsingTimeout(_logger, RunnerId, timeoutMs, assemblyName);
+        }
 
         return TimeSpan.FromMilliseconds(timeoutMs);
     }
 
     internal async Task HandleAssemblyTimeoutAsync(string assembly, List<TestNode> discoveredTests, List<string> allTimedOutTests)
     {
-        _logger.LogDebug("{RunnerId}: Test run timed out for {Assembly}", RunnerId, Path.GetFileName(assembly));
+        var assemblyFileName = Path.GetFileName(assembly);
+        LogTestRunTimedOut(_logger, RunnerId, assemblyFileName);
 
         allTimedOutTests.AddRange(discoveredTests.Select(t => t.Uid));
 
@@ -339,14 +341,14 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
 
         if (server is not null)
         {
-            _logger.LogDebug("{RunnerId}: Restarting test server for {Assembly} after timeout", RunnerId, Path.GetFileName(assembly));
+            LogRestartingServer(_logger, RunnerId, assemblyFileName);
             try
             {
                 await server.RestartAsync(force: true).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogDebug(ex, "{RunnerId}: Failed to restart test server for {Assembly} after timeout. Creating a new server on next use.", RunnerId, Path.GetFileName(assembly));
+                LogFailedRestartServer(_logger, ex, RunnerId, assemblyFileName);
                 lock (_serverLock)
                 {
                     _assemblyServers.Remove(assembly);
@@ -423,7 +425,7 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogDebug(ex, "{RunnerId}: Failed to run tests for mutant ID {MutantId}", RunnerId, mutantId);
+            LogFailedToRunTests(_logger, ex, RunnerId, mutantId);
             return new TestRunResult(false, ex.Message);
         }
     }
@@ -644,9 +646,63 @@ public class SingleMicrosoftTestPlatformRunner : IDisposable
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // Ignore cleanup errors
-                _logger.LogWarning(ex, "{RunnerId}: Failed to clean up temp files", RunnerId);
+                LogFailedToCleanUp(_logger, ex, RunnerId);
             }
         }
         _disposed = true;
     }
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Testing mutant(s) [{Mutants}] with active mutation ID: {MutantId}")]
+    private static partial void LogTestingMutants(ILogger logger, string runnerId, string mutants, int mutantId);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Resetting test servers to reload assemblies")]
+    private static partial void LogResettingServers(ILogger logger, string runnerId);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Test servers reset complete")]
+    private static partial void LogServersResetComplete(ILogger logger, string runnerId);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Wrote mutant ID {MutantId} to file {FilePath}")]
+    private static partial void LogWroteMutantId(ILogger logger, string runnerId, int mutantId, string filePath);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "{RunnerId}: Failed to write mutant ID to file {FilePath}")]
+    private static partial void LogFailedToWriteMutantId(ILogger logger, Exception ex, string runnerId, string filePath);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Coverage mode {Status}")]
+    private static partial void LogCoverageMode(ILogger logger, string runnerId, string status);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Coverage file not found at {Path}")]
+    private static partial void LogCoverageFileNotFound(ILogger logger, string runnerId, string path);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Read coverage data: {Content}")]
+    private static partial void LogReadCoverageData(ILogger logger, string runnerId, string content);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "{RunnerId}: Failed to read coverage file at {Path}")]
+    private static partial void LogFailedToReadCoverage(ILogger logger, Exception ex, string runnerId, string path);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "{RunnerId}: Failed to delete coverage file at {Path}")]
+    private static partial void LogFailedToDeleteCoverage(ILogger logger, Exception ex, string runnerId, string path);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Discovered {TestCount} tests in {Assembly}")]
+    private static partial void LogDiscoveredTests(ILogger logger, string runnerId, int testCount, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Failed to discover tests in {Assembly}")]
+    private static partial void LogFailedToDiscover(ILogger logger, Exception ex, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Using {TimeoutMs} ms as test run timeout for {Assembly}")]
+    private static partial void LogUsingTimeout(ILogger logger, string runnerId, int timeoutMs, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Test run timed out for {Assembly}")]
+    private static partial void LogTestRunTimedOut(ILogger logger, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Restarting test server for {Assembly} after timeout")]
+    private static partial void LogRestartingServer(ILogger logger, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Failed to restart test server for {Assembly} after timeout. Creating a new server on next use.")]
+    private static partial void LogFailedRestartServer(ILogger logger, Exception ex, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Failed to run tests for mutant ID {MutantId}")]
+    private static partial void LogFailedToRunTests(ILogger logger, Exception ex, string runnerId, int mutantId);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "{RunnerId}: Failed to clean up temp files")]
+    private static partial void LogFailedToCleanUp(ILogger logger, Exception ex, string runnerId);
 }

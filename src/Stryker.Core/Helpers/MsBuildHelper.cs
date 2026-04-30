@@ -19,7 +19,7 @@ namespace Stryker.Core.Helpers;
 /// be passed via the constructor (DI override), and the legacy MSBuild.exe code path is
 /// kept for that case so users on locked-down build agents can still inject a path.
 /// </remarks>
-public sealed class MsBuildHelper
+public sealed partial class MsBuildHelper
 {
     private readonly IFileSystem _fileSystem;
     private readonly ILogger _logger;
@@ -66,7 +66,7 @@ public sealed class MsBuildHelper
 
         if (!string.IsNullOrWhiteSpace(_msBuildPath))
         {
-            _logger.LogWarning("Configured MSBuild path '{MsBuildPath}' was not found on disk. Falling back to 'dotnet msbuild'.", _msBuildPath);
+            LogMsBuildPathNotFound(_logger, _msBuildPath);
             _msBuildPath = null;
         }
 
@@ -99,9 +99,15 @@ public sealed class MsBuildHelper
         }
 
         var arguments = string.Join(' ', fullOptions);
-        _logger.LogInformation("Building project {Project} using {MsBuildPath} {Options} (directory {Path}.)", projectFile, exe, arguments, path);
+        LogBuildingProject(_logger, projectFile, exe, arguments, path);
         return (_executor.Start(path, exe, arguments), exe, arguments);
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Configured MSBuild path '{MsBuildPath}' was not found on disk. Falling back to 'dotnet msbuild'.")]
+    private static partial void LogMsBuildPathNotFound(ILogger logger, string msBuildPath);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Building project {Project} using {MsBuildPath} {Options} (directory {Path}.)")]
+    private static partial void LogBuildingProject(ILogger logger, string project, string msBuildPath, string options, string path);
 
     private static string QuotesIfNeeded(string parameter)
     {

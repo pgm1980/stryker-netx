@@ -27,7 +27,7 @@ namespace Stryker.Core.Compiling;
 /// This process is in control of compiling the assembly and rolling back mutations that cannot compile
 /// Compiles the given input onto the memory stream
 /// </summary>
-public class CsharpCompilingProcess : ICSharpCompilingProcess
+public partial class CsharpCompilingProcess : ICSharpCompilingProcess
 {
     private const int MaxAttempt = 50;
     private readonly MutationTestInput _input;
@@ -66,7 +66,7 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
         // If compiling failed and the error has no location, log and throw exception.
         if (!emitResult.Success && emitResult.Diagnostics.Any(diagnostic => diagnostic.Location == Location.None && diagnostic.Severity == DiagnosticSeverity.Error))
         {
-            _logger.LogError("Failed to build the mutated assembly due to unrecoverable error: {Error}",
+            LogUnrecoverableError(_logger,
                 emitResult.Diagnostics.First(diagnostic => diagnostic.Location == Location.None && diagnostic.Severity == DiagnosticSeverity.Error));
             DumpErrorDetails(emitResult.Diagnostics);
             throw new CompilationException("General Build Failure detected.");
@@ -85,7 +85,7 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
                 rollbackProcessResult?.RollbackedIds ?? Enumerable.Empty<int>());
         }
         // compiling failed
-        _logger.LogError("Failed to restore the project to a buildable state. Please report the issue. Stryker can not proceed further");
+        LogFailedToRestore(_logger);
         DumpErrorDetails(emitResult.Diagnostics);
         throw new CompilationException("Failed to restore build able state.");
     }
@@ -130,11 +130,11 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
         {
             if (IgnoredErrors.Contains(diagnostic.Id))
             {
-                _logger.LogWarning("Stryker encountered a known error from a coe generator but it will keep on. Compilation may still fail later on: {Diagnostic}", diagnostic);
+                LogKnownGeneratorError(_logger, diagnostic);
             }
             else
             {
-                _logger.LogError("Failed to generate source code for mutated assembly: {Diagnostics}", diagnostic);
+                LogGeneratorFailure(_logger, diagnostic);
                 fail = true;
             }
         }
@@ -168,7 +168,11 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
     {
         CSharpRollbackProcessResult? rollbackProcessResult = null;
 
-        _logger.LogDebug("Trying compilation for the {RetryCount} time.", ReadableNumber(retryCount));
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            var readable = ReadableNumber(retryCount);
+            LogTryingCompilation(_logger, readable);
+        }
 
         var emitOptions = symbolStream == null ? null : new EmitOptions(false, DebugInformationFormat.PortablePdb,
             _input.SourceProjectInfo.Analysis.GetSymbolFileName());
@@ -202,9 +206,9 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
 #pragma warning disable S1696 // this catches an exception raised by the C# compiler
             catch (NullReferenceException e)
             {
-                _logger.LogError("Roslyn C# compiler raised an NullReferenceException. This is a known Roslyn's issue that may be triggered by invalid usage of conditional access expression.");
-                _logger.LogInformation(e, "Exception");
-                _logger.LogError("Stryker will attempt to skip problematic files.");
+                LogRoslynNullReference(_logger);
+                LogException(_logger, e);
+                LogSkippingProblematicFiles(_logger);
                 compilation = ScanForCauseOfException(compilation);
                 EmbeddedResourcesGenerator.ResetCache();
             }
@@ -232,12 +236,16 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Failed to compile {FilePath}", st.FilePath);
-                _logger.LogTrace("source code:\n {Source}", st.GetText());
+                LogFailedToCompile(_logger, e, st.FilePath);
+                if (_logger.IsEnabled(LogLevel.Trace))
+                {
+                    var text = st.GetText();
+                    LogSourceCode(_logger, text);
+                }
                 syntaxTrees = syntaxTrees.Where(x => x != st).Append(_rollbackProcess.CleanUpFile(st)).ToImmutableArray();
             }
         }
-        _logger.LogError("Please report an issue and provide the source code of the file that caused the exception for analysis.");
+        LogReportIssue(_logger);
         return compilation.RemoveAllSyntaxTrees().AddSyntaxTrees(syntaxTrees);
     }
 
@@ -245,16 +253,21 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
     {
         if (!result.Success)
         {
-            _logger.LogDebug("Compilation failed");
+            LogCompilationFailed(_logger);
 
-            foreach (var err in result.Diagnostics.Where(x => x.Severity is DiagnosticSeverity.Error))
+            if (_logger.IsEnabled(LogLevel.Debug))
             {
-                _logger.LogDebug("{ErrorMessage}, {ErrorLocation}", err?.GetMessage(CultureInfo.InvariantCulture) ?? "No message", err?.Location.ToString() ?? "Unknown filepath");
+                foreach (var err in result.Diagnostics.Where(x => x.Severity is DiagnosticSeverity.Error))
+                {
+                    var msg = err?.GetMessage(CultureInfo.InvariantCulture) ?? "No message";
+                    var loc = err?.Location.ToString() ?? "Unknown filepath";
+                    LogCompilationDiagnostic(_logger, msg, loc);
+                }
             }
         }
         else
         {
-            _logger.LogDebug("Compilation successful");
+            LogCompilationSuccess(_logger);
         }
     }
 
@@ -270,8 +283,57 @@ public class CsharpCompilingProcess : ICSharpCompilingProcess
                 .Append(diagnostic.Id).Append(": ").AppendLine(diagnostic.ToString());
         }
 
-        _logger.LogTrace("Compilation errors: {Diagnostics}", messageBuilder.ToString());
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            var diagsString = messageBuilder.ToString();
+            LogCompilationErrors(_logger, diagsString);
+        }
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to build the mutated assembly due to unrecoverable error: {Error}")]
+    private static partial void LogUnrecoverableError(ILogger logger, Diagnostic error);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to restore the project to a buildable state. Please report the issue. Stryker can not proceed further")]
+    private static partial void LogFailedToRestore(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Stryker encountered a known error from a coe generator but it will keep on. Compilation may still fail later on: {Diagnostic}")]
+    private static partial void LogKnownGeneratorError(ILogger logger, Diagnostic diagnostic);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to generate source code for mutated assembly: {Diagnostics}")]
+    private static partial void LogGeneratorFailure(ILogger logger, Diagnostic diagnostics);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Trying compilation for the {RetryCount} time.")]
+    private static partial void LogTryingCompilation(ILogger logger, string retryCount);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Roslyn C# compiler raised an NullReferenceException. This is a known Roslyn's issue that may be triggered by invalid usage of conditional access expression.")]
+    private static partial void LogRoslynNullReference(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Exception")]
+    private static partial void LogException(ILogger logger, Exception ex);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Stryker will attempt to skip problematic files.")]
+    private static partial void LogSkippingProblematicFiles(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to compile {FilePath}")]
+    private static partial void LogFailedToCompile(ILogger logger, Exception ex, string filePath);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "source code:\n {Source}")]
+    private static partial void LogSourceCode(ILogger logger, Microsoft.CodeAnalysis.Text.SourceText source);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Please report an issue and provide the source code of the file that caused the exception for analysis.")]
+    private static partial void LogReportIssue(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Compilation failed")]
+    private static partial void LogCompilationFailed(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{ErrorMessage}, {ErrorLocation}")]
+    private static partial void LogCompilationDiagnostic(ILogger logger, string errorMessage, string errorLocation);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Compilation successful")]
+    private static partial void LogCompilationSuccess(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "Compilation errors: {Diagnostics}")]
+    private static partial void LogCompilationErrors(ILogger logger, string diagnostics);
 
     private static string ReadableNumber(int number) => number switch
     {

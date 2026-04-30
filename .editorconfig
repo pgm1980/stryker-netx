@@ -172,18 +172,13 @@ dotnet_diagnostic.CA1716.severity = none  # Identifier matches reserved keyword 
 # Renaming would be a breaking change for library consumers (1:1-Portierung-Spirit per ADR-001/ADR-003).
 dotnet_diagnostic.CA1711.severity = none  # Identifier suffix — Stryker public-API matches VsTest event-handler conventions
 
-# CA1848 — Use LoggerMessage delegates: PERFORMANCE-Optimierung, aber substantieller Refactor pro
-# Logger-Aufruf (~50+ in Stryker.Core/Stryker.Utilities). Wird in einem dedizierten Logger-
-# Modernization-Sprint nach Sprint 1 angegangen (parallel zu Sprint-1.5 XML-Doc-Sprint), um
-# Sprint-1-Mega-Scope nicht weiter aufzublähen. Re-Eval bei Logger-Modernization-Sprint-Abschluss.
-dotnet_diagnostic.CA1848.severity = suggestion  # LoggerMessage delegates — phased per Logger-Modernization-Sprint
-
-# CA1873 — Avoid potentially expensive logging arguments: zwillings-Regel zu CA1848. Die kanonische
-# Lösung für CA1873 ist genau LoggerMessage-Delegates (CA1848). Solange CA1848 phasen-weise
-# auf suggestion gesetzt ist (Logger-Modernization-Sprint pending), ist es widersprüchlich CA1873
-# als Error zu erzwingen — beide adressieren dieselbe Performance-Concern. Re-Eval gemeinsam
-# mit CA1848 nach Logger-Modernization-Sprint-Abschluss.
-dotnet_diagnostic.CA1873.severity = suggestion  # Potentially expensive logging args — same phasing as CA1848
+# CA1848 + CA1873 — Phase 10.2 (Sprint 1 Modernization-Sweep): re-enabled as warning/error.
+# Phase 10.2 ports all 233 logger calls in src/ from direct ILogger.LogX(...) invocations to
+# the C# 12+ source-generator pattern via partial methods with [LoggerMessage] attributes.
+# This eliminates the boxing + format-string-parse cost per call and makes log templates
+# Roslyn-validated at compile-time.
+dotnet_diagnostic.CA1848.severity = error  # Use LoggerMessage delegates — Phase 10.2 source-generator refactor
+dotnet_diagnostic.CA1873.severity = error  # Avoid potentially expensive logging args — Phase 10.2 (twin of CA1848)
 
 # ============================================================================
 # Test-project specific overrides (Phase 7 onwards)

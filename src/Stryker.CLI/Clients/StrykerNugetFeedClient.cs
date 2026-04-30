@@ -12,7 +12,7 @@ using Stryker.CLI.Logging;
 
 namespace Stryker.CLI.Clients;
 
-public sealed class StrykerNugetFeedClient : IStrykerNugetFeedClient, IDisposable
+public sealed partial class StrykerNugetFeedClient : IStrykerNugetFeedClient, IDisposable
 {
     private readonly Lazy<NuGet.Common.ILogger> _logger;
     private readonly SourceRepository _sourceRepository;
@@ -45,18 +45,21 @@ public sealed class StrykerNugetFeedClient : IStrykerNugetFeedClient, IDisposabl
         }
     }
 
-    private sealed class NuGetLogger : LoggerBase
+    private sealed partial class NuGetLogger : LoggerBase
     {
         private readonly Microsoft.Extensions.Logging.ILogger _logger;
 
         public NuGetLogger(Microsoft.Extensions.Logging.ILogger logger) => _logger = logger;
 
-        public override void Log(ILogMessage message) => _logger.LogTrace("{Message}", message.Message);
+        public override void Log(ILogMessage message) => LogNuGetMessage(message.Message);
 
         public override Task LogAsync(ILogMessage message)
         {
             Log(message);
             return Task.CompletedTask;
         }
+
+        [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Trace, Message = "{Message}")]
+        private partial void LogNuGetMessage(string message);
     }
 }

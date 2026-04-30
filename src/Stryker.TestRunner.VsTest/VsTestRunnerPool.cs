@@ -23,7 +23,7 @@ namespace Stryker.TestRunner.VsTest;
 /// <summary>
 /// Pool of <see cref="VsTestRunner"/> workers used to run mutation tests in parallel.
 /// </summary>
-public sealed class VsTestRunnerPool : ITestRunner
+public sealed partial class VsTestRunnerPool : ITestRunner
 {
     private readonly AutoResetEvent _runnerAvailableHandler = new(false);
     private readonly ConcurrentBag<VsTestRunner> _availableRunners = [];
@@ -174,14 +174,12 @@ public sealed class VsTestRunnerPool : ITestRunner
         var log = testResult.GetProperties().FirstOrDefault(x => string.Equals(x.Key.Id, CoverageCollector.CoverageLog, StringComparison.Ordinal)).Value?.ToString();
         if (!string.IsNullOrEmpty(log))
         {
-            _logger.LogDebug("VsTestRunner: Coverage collector log: {Log}.", log);
+            LogCoverageCollectorLog(_logger, log);
         }
 
         if (!Context.VsTests.TryGetValue(testCaseId, out var testDescription))
         {
-            _logger.LogWarning(
-                "VsTestRunner: Coverage analysis run encountered a unexpected test case ({TestCase}), mutation tests may be inaccurate. Disable coverage analysis if you have doubts.",
-                testResult.TestCase.DisplayName);
+            LogUnexpectedCoverageTestCase(_logger, testResult.TestCase.DisplayName);
             // add the test description to the referential
             testDescription = new VsTestDescription(new VsTestCase(testResult.TestCase));
             Context.VsTests.Add(testCaseId, testDescription);
@@ -194,15 +192,14 @@ public sealed class VsTestRunnerPool : ITestRunner
             if (seenTestCases.Contains(testCaseId))
             {
                 // this is an extra result. Coverage data is already present in the already parsed result
-                _logger.LogDebug(
-                    "VsTestRunner: Extra result for test {TestCase}, so no coverage data for it.", testResult.TestCase.DisplayName);
+                LogExtraResult(_logger, testResult.TestCase.DisplayName);
                 coverageRunResult = null;
                 return true;
             }
 
             // the coverage collector was not able to report anything ==> it has not been tracked by it, so we do not have coverage data
             // ==> we need it to use this test against every mutation
-            _logger.LogDebug("VsTestRunner: No coverage data for {TestCase}.", testResult.TestCase.DisplayName);
+            LogNoCoverageData(_logger, testResult.TestCase.DisplayName);
 
             seenTestCases.Add(Guid.Parse(testDescription.Id));
             coverageRunResult = CoverageRunResult.Create(testDescription.Id.ToString(CultureInfo.InvariantCulture), CoverageConfidence.Dubious, [], [], []);
@@ -230,7 +227,7 @@ public sealed class VsTestRunnerPool : ITestRunner
         if (string.IsNullOrWhiteSpace(propertyPairValue))
         {
             // do not attempt to parse empty strings
-            _logger.LogDebug("VsTestRunner: Test {TestCase} does not cover any mutation.", testResult.TestCase.DisplayName);
+            LogTestNoCoverMutation(_logger, testResult.TestCase.DisplayName);
             coveredMutants = [];
             staticMutants = [];
         }
@@ -257,8 +254,7 @@ public sealed class VsTestRunnerPool : ITestRunner
             leakedMutants = string.IsNullOrEmpty(propertyPairValue)
                 ? []
                 : propertyPairValue.Split(',').Select(s => int.Parse(s, CultureInfo.InvariantCulture));
-            _logger.LogDebug(
-                "VsTestRunner: Some mutations were executed outside any test (mutation ids: {MutationIds}).", propertyPairValue);
+            LogMutationsOutsideTest(_logger, propertyPairValue ?? string.Empty);
         }
         else
         {
@@ -267,4 +263,22 @@ public sealed class VsTestRunnerPool : ITestRunner
 
         return CoverageRunResult.Create(testCaseId.ToString(), level, coveredMutants, staticMutants, leakedMutants);
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "VsTestRunner: Coverage collector log: {Log}.")]
+    private static partial void LogCoverageCollectorLog(ILogger logger, string log);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "VsTestRunner: Coverage analysis run encountered a unexpected test case ({TestCase}), mutation tests may be inaccurate. Disable coverage analysis if you have doubts.")]
+    private static partial void LogUnexpectedCoverageTestCase(ILogger logger, string testCase);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "VsTestRunner: Extra result for test {TestCase}, so no coverage data for it.")]
+    private static partial void LogExtraResult(ILogger logger, string testCase);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "VsTestRunner: No coverage data for {TestCase}.")]
+    private static partial void LogNoCoverageData(ILogger logger, string testCase);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "VsTestRunner: Test {TestCase} does not cover any mutation.")]
+    private static partial void LogTestNoCoverMutation(ILogger logger, string testCase);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "VsTestRunner: Some mutations were executed outside any test (mutation ids: {MutationIds}).")]
+    private static partial void LogMutationsOutsideTest(ILogger logger, string mutationIds);
 }

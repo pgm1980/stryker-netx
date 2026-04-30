@@ -9,7 +9,7 @@ using Stryker.Core.Helpers.ProcessUtil;
 
 namespace Stryker.Core.Initialisation;
 
-public class InitialBuildProcess : IInitialBuildProcess
+public partial class InitialBuildProcess : IInitialBuildProcess
 {
     private readonly IProcessExecutor _processExecutor;
     private readonly IFileSystem _fileSystem;
@@ -44,7 +44,7 @@ public class InitialBuildProcess : IInitialBuildProcess
 
         var msBuildHelper = new MsBuildHelper(fileSystem: _fileSystem, executor: _processExecutor, msBuildPath: msbuildPath);
 
-        _logger.LogDebug("Started initial build using dotnet build");
+        LogStartedInitialBuild(_logger);
 
         var target = !string.IsNullOrEmpty(solutionPath) ? solutionPath : projectPath;
         var buildPath = _fileSystem.Path.GetFileName(target);
@@ -59,8 +59,8 @@ public class InitialBuildProcess : IInitialBuildProcess
         if (OperatingSystem.IsWindows() && result.ExitCode != ExitCodes.Success && !string.IsNullOrEmpty(solutionPath))
         {
             // dump previous build result
-            _logger.LogTrace("Initial build output: {Output}", result.Output);
-            _logger.LogWarning("Dotnet build failed, trying with MsBuild and forcing package restore.");
+            LogInitialBuildOutput(_logger, result.Output);
+            LogDotnetBuildFailed(_logger);
             (result, _, _) = msBuildHelper.BuildProject(directoryName,
                 buildPath,
                 true,
@@ -69,9 +69,9 @@ public class InitialBuildProcess : IInitialBuildProcess
 
             if (result.ExitCode != ExitCodes.Success)
             {
-                _logger.LogWarning("Package restore failed: {Result}", result.Output);
+                LogPackageRestoreFailed(_logger, result.Output);
             }
-            _logger.LogTrace("Last attempt to build.");
+            LogLastAttempt(_logger);
             (result, exe, args) = msBuildHelper.BuildProject(directoryName,
                 buildPath,
                 true,
@@ -86,13 +86,37 @@ public class InitialBuildProcess : IInitialBuildProcess
     {
         if (result.ExitCode != ExitCodes.Success)
         {
-            _logger.LogError("Initial build failed. Command was [{Exe} {Args}] (in folder '{Folder}'). Result: {Result}", buildCommand, options, path, result.Output);
+            LogInitialBuildFailed(_logger, buildCommand, options, path, result.Output);
             // Initial build failed
             throw new InputException(result.Output, FormatBuildResultErrorString(buildCommand, options));
         }
-        _logger.LogTrace("Initial build output {Result}", result.Output);
-        _logger.LogDebug("Initial build successful");
+        LogBuildOutput(_logger, result.Output);
+        LogBuildSuccessful(_logger);
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Started initial build using dotnet build")]
+    private static partial void LogStartedInitialBuild(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "Initial build output: {Output}")]
+    private static partial void LogInitialBuildOutput(ILogger logger, string output);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Dotnet build failed, trying with MsBuild and forcing package restore.")]
+    private static partial void LogDotnetBuildFailed(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Package restore failed: {Result}")]
+    private static partial void LogPackageRestoreFailed(ILogger logger, string result);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "Last attempt to build.")]
+    private static partial void LogLastAttempt(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Initial build failed. Command was [{Exe} {Args}] (in folder '{Folder}'). Result: {Result}")]
+    private static partial void LogInitialBuildFailed(ILogger logger, string exe, string args, string folder, string result);
+
+    [LoggerMessage(Level = LogLevel.Trace, Message = "Initial build output {Result}")]
+    private static partial void LogBuildOutput(ILogger logger, string result);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Initial build successful")]
+    private static partial void LogBuildSuccessful(ILogger logger);
 
     private static string FormatBuildResultErrorString(string buildCommand, string options) =>
         "Initial build of targeted project failed. Please make sure the targeted project is buildable." +

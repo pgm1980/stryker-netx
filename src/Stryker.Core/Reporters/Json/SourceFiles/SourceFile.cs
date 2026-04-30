@@ -8,7 +8,7 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.Reporters.Json.SourceFiles;
 
-public class SourceFile : ISourceFile
+public partial class SourceFile : ISourceFile
 {
     public string Language { get; init; } = "cs";
     public string Source { get; init; } = string.Empty;
@@ -28,14 +28,14 @@ public class SourceFile : ISourceFile
                      .Select(m => new JsonMutant(m))
                      .Where(jsonMutant => !Mutants.Add(jsonMutant)))
         {
-            logger.LogWarning(
-                "Mutant {Id} was generated twice in file {RelativePath}. \n" +
-                "This should not have happened. Please create an issue at https://github.com/stryker-mutator/stryker-net/issues",
-                duplicateMutant.Id, file.RelativePath);
+            LogDuplicateMutant(logger, duplicateMutant.Id, file.RelativePath);
         }
     }
 
     public static SourceFile Ignored => new() { Source = "File ignored by mutate filter", Language = "none", Mutants = new HashSet<IJsonMutant>() };
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Mutant {Id} was generated twice in file {RelativePath}. \nThis should not have happened. Please create an issue at https://github.com/stryker-mutator/stryker-net/issues")]
+    private static partial void LogDuplicateMutant(ILogger logger, string id, string relativePath);
 
     private sealed class UniqueJsonMutantComparer : EqualityComparer<IJsonMutant>
     {

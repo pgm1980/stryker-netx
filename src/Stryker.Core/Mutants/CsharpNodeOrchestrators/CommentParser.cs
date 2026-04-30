@@ -12,7 +12,7 @@ using Stryker.Utilities.Logging;
 
 namespace Stryker.Core.Mutants.CsharpNodeOrchestrators;
 
-internal static class CommentParser
+internal static partial class CommentParser
 {
     private static readonly Regex Pattern = new("^\\s*(?<single>\\/\\/\\s*Stryker(?<singleCmd>.*))|(?<multi>\\/\\*\\s*Stryker(?<multiCmd>.*[^\\*][^\\\\])\\*\\/\\s*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromMilliseconds(200));
     private static readonly Regex Parser = new("^\\s*(?<mode>disable|restore)\\s*(?<once>once|)\\s*(?<mutators>[^:]*)\\s*:?(?<comment>.*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, TimeSpan.FromMilliseconds(200));
@@ -50,12 +50,7 @@ internal static class CommentParser
                 }
                 else
                 {
-                    Logger.LogError(
-                        "{Label} not recognized as a mutator at {Location}, {FilePath}. Legal values are {LegalValues}.",
-                        labels[i],
-                        node.GetLocation().GetMappedLineSpan().StartLinePosition,
-                        node.SyntaxTree.FilePath,
-                        string.Join(',', Enum.GetValues<Mutator>()));
+                    LogLabelNotRecognized(Logger, labels[i], node.GetLocation().GetMappedLineSpan().StartLinePosition, node.SyntaxTree.FilePath, string.Join(',', Enum.GetValues<Mutator>()));
                 }
             }
         }
@@ -82,10 +77,7 @@ internal static class CommentParser
         }
         catch (RegexMatchTimeoutException exception)
         {
-            Logger.LogWarning(exception,
-                "Parsing Stryker comments at {StartLinePosition}, {FilePath} took too long to parse and was ignored. Comment: {Comment}",
-                node.GetLocation().GetMappedLineSpan().StartLinePosition,
-                node.SyntaxTree.FilePath, commentTrivia);
+            LogParseTimeout(Logger, exception, node.GetLocation().GetMappedLineSpan().StartLinePosition, node.SyntaxTree.FilePath, commentTrivia);
             return context;
         }
     }
@@ -110,10 +102,16 @@ internal static class CommentParser
             return ParseStrykerComment(context, match, node);
         }
 
-        Logger.LogWarning(
-            "Invalid Stryker comments at {Position}, {FilePath}.",
-            node.GetLocation().GetMappedLineSpan().StartLinePosition,
-            node.SyntaxTree.FilePath);
+        LogInvalidStrykerComment(Logger, node.GetLocation().GetMappedLineSpan().StartLinePosition, node.SyntaxTree.FilePath);
         return context;
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "{Label} not recognized as a mutator at {Location}, {FilePath}. Legal values are {LegalValues}.")]
+    private static partial void LogLabelNotRecognized(ILogger logger, string label, Microsoft.CodeAnalysis.Text.LinePosition location, string filePath, string legalValues);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Parsing Stryker comments at {StartLinePosition}, {FilePath} took too long to parse and was ignored. Comment: {Comment}")]
+    private static partial void LogParseTimeout(ILogger logger, Exception ex, Microsoft.CodeAnalysis.Text.LinePosition startLinePosition, string filePath, string comment);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Invalid Stryker comments at {Position}, {FilePath}.")]
+    private static partial void LogInvalidStrykerComment(ILogger logger, Microsoft.CodeAnalysis.Text.LinePosition position, string filePath);
 }

@@ -8,7 +8,7 @@ namespace Stryker.TestRunner.MicrosoftTestPlatform;
 /// Manages a persistent test server connection for a single assembly.
 /// The server process is started once and reused across multiple test runs.
 /// </summary>
-internal sealed class AssemblyTestServer : IDisposable
+internal sealed partial class AssemblyTestServer : IDisposable
 {
     private readonly string _assembly;
     private readonly Dictionary<string, string?> _environmentVariables;
@@ -62,14 +62,14 @@ internal sealed class AssemblyTestServer : IDisposable
 
             if (completedTask == connectionTimeout)
             {
-                _logger.LogDebug("{RunnerId}: Timeout waiting for test server connection for {Assembly}", _runnerId, _assembly);
+                LogTimeoutWaitingForConnection(_logger, _runnerId, _assembly);
                 await StopAsync().ConfigureAwait(false);
                 return false;
             }
 
             if (_process.HasExited)
             {
-                _logger.LogDebug("{RunnerId}: Test process exited prematurely for {Assembly}", _runnerId, _assembly);
+                LogProcessExitedPrematurely(_logger, _runnerId, _assembly);
                 await StopAsync().ConfigureAwait(false);
                 return false;
             }
@@ -82,12 +82,12 @@ internal sealed class AssemblyTestServer : IDisposable
             await _client.InitializeAsync().ConfigureAwait(false);
             _isInitialized = true;
 
-            _logger.LogDebug("{RunnerId}: Test server started successfully for {Assembly}", _runnerId, _assembly);
+            LogServerStartedSuccessfully(_logger, _runnerId, _assembly);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "{RunnerId}: Failed to start test server for {Assembly}", _runnerId, _assembly);
+            LogFailedToStartServer(_logger, ex, _runnerId, _assembly);
             await StopAsync().ConfigureAwait(false);
             return false;
         }
@@ -153,7 +153,7 @@ internal sealed class AssemblyTestServer : IDisposable
             }
             catch (TimeoutException ex)
             {
-                _logger.LogDebug(ex, "{RunnerId}: Test run RPC call timed out for {Assembly}", _runnerId, _assembly);
+                LogRpcTimeout(_logger, ex, _runnerId, _assembly);
                 return (testResults.ToList(), true);
             }
 
@@ -176,7 +176,7 @@ internal sealed class AssemblyTestServer : IDisposable
     {
         if (force)
         {
-            _logger.LogDebug("{RunnerId}: Force-killing test server process for {Assembly}", _runnerId, _assembly);
+            LogForceKilling(_logger, _runnerId, _assembly);
             _process?.ProcessHandle.Kill();
         }
         else if (_client is not null)
@@ -190,12 +190,12 @@ internal sealed class AssemblyTestServer : IDisposable
             }
             catch (TimeoutException exception)
             {
-                _logger.LogWarning(exception, "{RunnerId}: Test server process for {Assembly} did not exit within the expected time. Killing forcefully.", _runnerId, _assembly);
+                LogServerExitTimeout(_logger, exception, _runnerId, _assembly);
                 _process?.ProcessHandle.Kill();
             }
             catch (Exception exception)
             {
-                _logger.LogWarning(exception, "{RunnerId}: Test server process for {Assembly} could not be stopped gracefully.", _runnerId, _assembly);
+                LogServerStopFailed(_logger, exception, _runnerId, _assembly);
             }
         }
 
@@ -218,7 +218,7 @@ internal sealed class AssemblyTestServer : IDisposable
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Process disposal can fail if kill/cleanup didn't complete in time — log to logger and proceed.
-            _logger.LogDebug(ex, "{RunnerId}: Process disposal failed for {Assembly} during stop; ignoring.", _runnerId, _assembly);
+            LogProcessDisposalFailed(_logger, ex, _runnerId, _assembly);
         }
         _process = null;
         _isInitialized = false;
@@ -249,6 +249,33 @@ internal sealed class AssemblyTestServer : IDisposable
         _disposed = true;
         StopAsync().GetAwaiter().GetResult();
     }
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Timeout waiting for test server connection for {Assembly}")]
+    private static partial void LogTimeoutWaitingForConnection(ILogger logger, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Test process exited prematurely for {Assembly}")]
+    private static partial void LogProcessExitedPrematurely(ILogger logger, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Test server started successfully for {Assembly}")]
+    private static partial void LogServerStartedSuccessfully(ILogger logger, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Failed to start test server for {Assembly}")]
+    private static partial void LogFailedToStartServer(ILogger logger, Exception ex, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Test run RPC call timed out for {Assembly}")]
+    private static partial void LogRpcTimeout(ILogger logger, Exception ex, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Force-killing test server process for {Assembly}")]
+    private static partial void LogForceKilling(ILogger logger, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "{RunnerId}: Test server process for {Assembly} did not exit within the expected time. Killing forcefully.")]
+    private static partial void LogServerExitTimeout(ILogger logger, Exception ex, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "{RunnerId}: Test server process for {Assembly} could not be stopped gracefully.")]
+    private static partial void LogServerStopFailed(ILogger logger, Exception ex, string runnerId, string assembly);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{RunnerId}: Process disposal failed for {Assembly} during stop; ignoring.")]
+    private static partial void LogProcessDisposalFailed(ILogger logger, Exception ex, string runnerId, string assembly);
 }
 
 
