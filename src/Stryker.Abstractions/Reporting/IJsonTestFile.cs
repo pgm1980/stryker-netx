@@ -6,8 +6,8 @@ namespace Stryker.Abstractions.Reporting;
 public interface IJsonTestFile
 {
     string Language { get; init; }
-    string Source { get; init; }
+    string? Source { get; init; }
     ISet<IJsonTest> Tests { get; set; }
 
-    void AddTestFile(ITestFile testFile);
+    void AddTestFile(ITestFile? testFile);
 }

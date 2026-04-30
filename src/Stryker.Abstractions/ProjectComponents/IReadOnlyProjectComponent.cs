@@ -7,7 +7,7 @@ public interface IReadOnlyProjectComponent
 {
     string FullPath { get; }
     IEnumerable<IMutant> Mutants { get; }
-    IFolderComposite Parent { get; }
+    IFolderComposite? Parent { get; }
     string RelativePath { get; set; }
     public Display DisplayFile { get; set; }
     public Display DisplayFolder { get; set; }

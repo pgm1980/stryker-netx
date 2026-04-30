@@ -20,12 +20,12 @@ documentation_updated: false
 
 ## Aktueller Phase-Stand
 
-- [ ] **Phase 0** — Repo-Bootstrap (in progress)
-- [ ] Phase 1 — PILOT Stryker.Abstractions
-- [ ] Phase 2 — DAG Layer 0 parallel (Subagents)
-- [ ] Phase 3 — DAG Layer 1 parallel (Subagents)
-- [ ] Phase 4 — DAG Layer 2 parallel (Subagents)
-- [ ] Phase 5 — Stryker.Core (Buildalyzer 9 + MsBuildHelper-Fix)
+- [x] Phase 0 — Repo-Bootstrap
+- [x] Phase 1 — PILOT Stryker.Abstractions
+- [x] Phase 2 — DAG Layer 0 parallel (Subagents)
+- [x] Phase 3 — DAG Layer 1 parallel (Subagents)
+- [x] Phase 4 — DAG Layer 2 parallel (Subagents)
+- [x] **Phase 5** — Stryker.Core (Buildalyzer 9 + ADR-010 MsBuildHelper-Fix angewendet)
 - [ ] Phase 6 — Stryker.CLI + Identitäts-Migration
 - [ ] Phase 7 — Integration & DoD
 
@@ -49,3 +49,50 @@ documentation_updated: false
 ## Verweis
 
 Detaillierte ADR-011-Roadmap und Subagent-Prompt-Schablone in [`_docs/architecture spec/architecture_specification.md`](../_docs/architecture%20spec/architecture_specification.md).
+
+## Sprint Context (auto-saved before compaction at 2026-04-30T09:24:51Z)
+
+### Current Branch
+feature/1-bootstrap-and-cleanup
+
+### Last 10 Commits
+```
+5563136 feat(layer2): Sprint 1 Phase 4 — port TestRunner.MicrosoftTestPlatform + TestRunner.VsTest
+39da138 feat(layer1): Sprint 1 Phase 3 — port Configuration + RegexMutators + Solutions + TestRunner
+fe9707c feat(layer0): Sprint 1 Phase 2 — port Stryker.Utilities + Stryker.DataCollector
+56feed1 feat(abstractions): Sprint 1 Phase 1 — PILOT Stryker.Abstractions migrated to net10.0
+0ae8020 chore(bootstrap): Sprint 1 Phase 0 — repo bootstrap (TFM net10.0, CPM, analyzers)
+e6801a1 feat(sprint-0): close Sprint 0 with architecture spec, design spec, license stack
+ec5e2bc docs: baseline MEMORY/DEEP_MEMORY, start Sprint 0, drop obsolete fs_mcp_server doc
+ff9f14c chore: bootstrap project structure and Claude Code conventions
+f1a8de6 chore: import Stryker.NET 4.14.1 source as porting baseline
+```
+
+### Recently Changed Files
+```
+.editorconfig
+.gitignore
+.serena/.gitignore
+.serena/memories/code_style_and_conventions.md
+.serena/memories/codebase_structure.md
+.serena/memories/project_overview.md
+.serena/memories/suggested_commands.md
+.serena/memories/task_completion_checklist.md
+.serena/memories/tech_stack.md
+.serena/memories/user_feedback/serena_first.md
+.sprint/state.md
+Directory.Build.props
+Directory.Packages.props
+_docs/architecture spec/architecture_specification.md
+_docs/sprint_1_lessons.md
+global.json
+src/Stryker.Abstractions/Baseline/BaselineProvider.cs
+src/Stryker.Abstractions/Baseline/IBaselineProvider.cs
+src/Stryker.Abstractions/Exceptions/CompilationException.cs
+src/Stryker.Abstractions/Exceptions/GeneralStrykerException.cs
+```
+
+### Uncommitted Changes
+```
+?? src/Stryker.Core/
+```

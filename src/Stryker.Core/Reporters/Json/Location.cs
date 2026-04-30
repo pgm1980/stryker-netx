@@ -1,0 +1,28 @@
+using Microsoft.CodeAnalysis;
+using Stryker.Abstractions.Reporting;
+
+namespace Stryker.Core.Reporters.Json;
+
+public class Location : ILocation
+{
+    public IPosition Start { get; init; } = null!; // initialized in constructor or by deserializer
+    public IPosition End { get; init; } = null!; // initialized in constructor or by deserializer
+
+    public Location()
+    {
+    }
+
+    public Location(FileLinePositionSpan location)
+    {
+        Start = new Position
+        {
+            Line = location.StartLinePosition.Line + 1,
+            Column = location.StartLinePosition.Character + 1
+        };
+        End = new Position
+        {
+            Line = location.EndLinePosition.Line + 1,
+            Column = location.EndLinePosition.Character + 1
+        };
+    }
+}

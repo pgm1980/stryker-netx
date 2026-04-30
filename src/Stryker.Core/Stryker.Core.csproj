@@ -1,0 +1,101 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.Core — Layer 3 (Core Orchestration).
+    The mutation-engine itself: Roslyn-based mutator pipeline, reporter system, diff/baseline,
+    initial-build orchestration, coverage analysis, mutation-test orchestrator.
+    Embedded resources for runtime injection: MutantControl.cs + MutantContext.cs (compiled into
+    user's test project) and mutation-test-elements.js + mutation-report.html (HTML report).
+    1:1 namespace-compatibility with upstream Stryker.NET 4.14.1 (ADR-003).
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.Core</AssemblyName>
+    <RootNamespace>Stryker.Core</RootNamespace>
+    <OutputType>Library</OutputType>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>stryker-netx</PackageId>
+    <Description>All stryker-netx mutation test logic. This package does not include a runner. Use this package if you want to extend stryker-netx with your own runner. 1:1 port of Stryker.NET 4.14.1 to C# 14 / .NET 10.</Description>
+    <PackageTags>mutation-testing;stryker;dotnet;netx;core</PackageTags>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Work around https://github.com/microsoft/msbuild/issues/4740 -->
+    <EmbeddedResourceUseDependentUponConvention>false</EmbeddedResourceUseDependentUponConvention>
+  </PropertyGroup>
+
+  <ItemGroup Label="Embedded resources for runtime injection / HTML report">
+    <EmbeddedResource Include="InjectedHelpers\MutantControl.cs" />
+    <EmbeddedResource Include="InjectedHelpers\Coverage\MutantContext.cs" />
+    <EmbeddedResource Include="Reporters\Html\Files\dist\mutation-test-elements.js" />
+    <EmbeddedResource Include="Reporters\Html\Files\mutation-report.html" />
+  </ItemGroup>
+
+  <ItemGroup Label="External dependencies (versions in Directory.Packages.props)">
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="Azure.Storage.Files.Shares" />
+    <PackageReference Include="Grynwald.MarkdownGenerator" />
+    <PackageReference Include="LibGit2Sharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" />
+    <PackageReference Include="DotNet.Glob" />
+    <PackageReference Include="Buildalyzer" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <!--
+      VisualBasic reference: NU1608 mitigation (Buildalyzer 9.0 transitively pulls in
+      Microsoft.CodeAnalysis.VisualBasic 4.0.0 which clashes with Common 5.3.0).
+      See _docs/sprint_1_lessons.md Sektion 2.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.TestPlatform" />
+    <PackageReference Include="Microsoft.TestPlatform.ObjectModel" />
+    <PackageReference Include="Microsoft.TestPlatform.Portable" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.TestPlatform.TranslationLayer" />
+    <PackageReference Include="Microsoft.Web.LibraryManager.Build" />
+    <PackageReference Include="Mono.Cecil" />
+    <PackageReference Include="NuGet.Frameworks" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Logging" />
+    <PackageReference Include="Serilog.Extensions.Logging.File" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="ShellProgressBar" />
+    <PackageReference Include="Spectre.Console" />
+    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
+  </ItemGroup>
+
+  <ItemGroup Label="Stryker.Regex.Parser with alias to avoid conflict with System.Text.RegularExpressions">
+    <PackageReference Include="Stryker.Regex.Parser" Aliases="StrykerRegexParser" />
+  </ItemGroup>
+
+  <ItemGroup Label="Inline analyzers (Stryker-original)">
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Spectre.Console.Analyzer">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup Label="Compile Remove — embedded-only files (injected at runtime into user test project)">
+    <Compile Remove="InjectedHelpers\Coverage\MutantContext.cs" />
+    <Compile Remove="InjectedHelpers\MutantControl.cs" />
+  </ItemGroup>
+
+  <ItemGroup Label="Project references — Layer 0+1+2 modules">
+    <ProjectReference Include="..\Stryker.Abstractions\Stryker.Abstractions.csproj" />
+    <ProjectReference Include="..\Stryker.Configuration\Stryker.Configuration.csproj" />
+    <ProjectReference Include="..\Stryker.RegexMutators\Stryker.RegexMutators.csproj" />
+    <ProjectReference Include="..\Stryker.Solutions\Stryker.Solutions.csproj" />
+    <ProjectReference Include="..\Stryker.TestRunner.VsTest\Stryker.TestRunner.VsTest.csproj" />
+    <ProjectReference Include="..\Stryker.TestRunner.MicrosoftTestPlatform\Stryker.TestRunner.MicrosoftTestPlatform.csproj" />
+    <ProjectReference Include="..\Stryker.Utilities\Stryker.Utilities.csproj" />
+  </ItemGroup>
+
+</Project>

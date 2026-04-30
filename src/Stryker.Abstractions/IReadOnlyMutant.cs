@@ -10,7 +10,7 @@ public interface IReadOnlyMutant
     int Id { get; }
     Mutation Mutation { get; }
     MutantStatus ResultStatus { get; }
-    string ResultStatusReason { get; }
+    string? ResultStatusReason { get; }
     ITestIdentifiers CoveringTests { get; }
     ITestIdentifiers KillingTests { get; }
     ITestIdentifiers AssessingTests { get; }

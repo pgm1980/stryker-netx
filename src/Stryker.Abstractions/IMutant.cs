@@ -7,7 +7,7 @@ public interface IMutant : IReadOnlyMutant
     new int Id { get; set; }
     new Mutation Mutation { get; set; }
     new MutantStatus ResultStatus { get; set; }
-    new string ResultStatusReason { get; set; }
+    new string? ResultStatusReason { get; set; }
     new ITestIdentifiers CoveringTests { get; set; }
     new ITestIdentifiers KillingTests { get; set; }
     new ITestIdentifiers AssessingTests { get; set; }

@@ -12,6 +12,7 @@
   -->
   <Project Path="src/Stryker.Abstractions/Stryker.Abstractions.csproj" />
   <Project Path="src/Stryker.Configuration/Stryker.Configuration.csproj" />
+  <Project Path="src/Stryker.Core/Stryker.Core.csproj" />
   <Project Path="src/Stryker.DataCollector/Stryker.DataCollector.csproj" />
   <Project Path="src/Stryker.RegexMutators/Stryker.RegexMutators.csproj" />
   <Project Path="src/Stryker.Solutions/Stryker.Solutions.csproj" />
