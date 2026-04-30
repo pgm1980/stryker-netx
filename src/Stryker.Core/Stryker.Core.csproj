@@ -58,7 +58,7 @@
     <PackageReference Include="Microsoft.TestPlatform.TranslationLayer" />
     <PackageReference Include="Microsoft.Web.LibraryManager.Build" />
     <PackageReference Include="Mono.Cecil" />
-    <PackageReference Include="NuGet.Frameworks" />
+    <!-- NuGet.Frameworks added globally via Directory.Build.props (MSBuildLocator transitive guard). -->
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Logging" />
     <PackageReference Include="Serilog.Extensions.Logging.File" />

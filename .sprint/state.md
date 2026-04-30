@@ -29,7 +29,8 @@ documentation_updated: true
 - [x] Phase 6 — Stryker.CLI + Identitäts-Migration `dotnet-stryker-netx`
 - [x] Phase 7 — Integration & DoD-Setup (ArchUnit + FsCheck + BenchmarkDotNet + Sample; CLI smoke-test blocked durch Buildalyzer-9 → Phase 8)
 - [x] Phase 8 — Buildalyzer-9 silent-failure Fix + End-to-End Mutation-Run (17 tests, 5/5 mutants killed, 100% score)
-- [ ] **Phase 9** — TBD (originally-planned Phase-8-Inhalt; User detailliert nach Phase 8)
+- [ ] **Phase 9** — Buildalyzer-Replacement durch Microsoft.CodeAnalysis.Workspaces.MSBuild (Roslyn-first-party MSBuild-Integration)
+- [ ] Phase 10 — TBD (originally-planned Phase-9-Inhalt; User detailliert nach Phase 9)
 
 ## Sprint-1-DoD
 

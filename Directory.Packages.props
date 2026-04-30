@@ -25,6 +25,31 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.VisualBasic" Version="5.3.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.3.0" />
+    <!--
+      Phase 9: Microsoft.CodeAnalysis.Workspaces.MSBuild replaces Buildalyzer for project
+      analysis (first-party Roslyn integration with the local .NET SDK MSBuild). Pinned
+      to 5.3.0 to match the rest of Microsoft.CodeAnalysis.* and avoid strong-name drift.
+      Microsoft.Build.Locator is required for MSBuildWorkspace to find the SDK MSBuild
+      at runtime — invoked once via MSBuildLocator.RegisterDefaults() at CLI startup.
+    -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.3.0" />
+    <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
+    <!--
+      Microsoft.Build* packages are pulled in transitively by Workspaces.MSBuild but must
+      be referenced with PrivateAssets="all" + ExcludeAssets="runtime" so MSBuildLocator
+      resolves them from the SDK at runtime instead of the app's bin/. Pinned at 17.14.28
+      to match the SDK 10.0.107 MSBuild version we shell out to.
+    -->
+    <PackageVersion Include="Microsoft.Build" Version="17.14.28" />
+    <PackageVersion Include="Microsoft.Build.Framework" Version="17.14.28" />
+    <PackageVersion Include="Microsoft.Build.Tasks.Core" Version="17.14.28" />
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.14.28" />
+    <!--
+      Microsoft.NET.StringTools bumped to 18.0.2 to satisfy Nerdbank.MessagePack 1.0.2's
+      transitive minimum (NU1605 downgrade from 18.0.2 to 17.14.28 otherwise). 18.0.2 is
+      the .NET 10 SDK MSBuild's StringTools version (matches dotnet info MSBuild 18.0.11).
+    -->
+    <PackageVersion Include="Microsoft.NET.StringTools" Version="18.0.2" />
 
     <!-- Microsoft.Extensions on .NET 10 -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />

@@ -30,6 +30,26 @@
     -->
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <!--
+      Phase 9 (Buildalyzer-Replacement): Microsoft.CodeAnalysis.Workspaces.MSBuild gives us a
+      first-party Roslyn workspace backed by the local .NET SDK MSBuild. Microsoft.Build.Locator
+      is required at runtime to point Workspaces.MSBuild at the SDK MSBuild before the workspace
+      is created (see Stryker.CLI.Program). Both are added during 9a so the new MSBuild adapter
+      can compile alongside the existing Buildalyzer code; Buildalyzer itself is removed in 9b.
+      PrivateAssets="all" stops these and their transitive Microsoft.Build* dependencies from
+      flowing into consumer projects (Stryker.Core, Stryker.CLI, Tests, Benchmarks); the
+      MSBuildLocator import target only fires inside Stryker.Utilities. Consumers of the new
+      adapter pull in Microsoft.Build.Locator directly when they need MSBuildLocator.RegisterDefaults
+      (currently only Stryker.CLI in Phase 9b).
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Build.Locator" PrivateAssets="all" />
+    <!--
+      Microsoft.Build* + Microsoft.NET.StringTools + NuGet.Frameworks are added globally by
+      Directory.Build.props with PrivateAssets="all" ExcludeAssets="runtime" so the MSBuildLocator
+      buildTransitive target stops emitting MSBL001 in every downstream consumer. See the
+      "MSBuildLocator transitive guard" comment in Directory.Build.props for the rationale.
+    -->
   </ItemGroup>
 
   <ItemGroup>

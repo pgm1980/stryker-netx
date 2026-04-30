@@ -75,6 +75,33 @@
     <PackageReference Include="System.Security.Cryptography.Xml" />
   </ItemGroup>
 
+  <ItemGroup Label="MSBuildLocator transitive guard (Phase 9 Buildalyzer-Replacement)" Condition="'$(TargetFramework)' != 'netstandard2.0'">
+    <!--
+      Microsoft.Build.Locator's buildTransitive/Microsoft.Build.Locator.targets emits MSBL001
+      in every project that transitively references Microsoft.Build* without
+      PrivateAssets="all" + ExcludeAssets="runtime". Stryker.Utilities pulls these in via
+      Microsoft.CodeAnalysis.Workspaces.MSBuild + Microsoft.Build.Locator, so any project that
+      references Stryker.Utilities (Stryker.Core, Stryker.CLI, Tests, Benchmarks) inherits the
+      flow. Setting the flags here applies them globally to all .NET-10-targeting projects;
+      Stryker.DataCollector (netstandard2.0) is excluded because it does not pull in MSBuild.
+      The MSBuild assemblies still load at runtime — but from the resolved SDK installation
+      via MSBuildLocator.RegisterDefaults(), not from this project's bin/ output.
+
+      For Microsoft.Build*: no project references these explicitly, so Include adds them with
+      the right flags. For NuGet.Frameworks: Stryker.Core / Stryker.Utilities already include
+      it explicitly (they use NuGetFramework at compile-time), so Update modifies the existing
+      reference; for projects that don't reference NuGet.Frameworks directly we don't need to
+      add it (the transitive flow from Stryker.Utilities, which has Update applied to itself,
+      already carries the right flags).
+    -->
+    <PackageReference Include="Microsoft.Build" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.Build.Framework" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.Build.Tasks.Core" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.NET.StringTools" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="NuGet.Frameworks" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+
   <ItemGroup Label="Package metadata files (PackageReadme)">
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="" Visible="false" Condition="Exists('$(MSBuildThisFileDirectory)README.md')" />
     <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="" Visible="false" Condition="Exists('$(MSBuildThisFileDirectory)LICENSE')" />
