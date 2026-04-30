@@ -88,3 +88,8 @@ packages/
 # Existing tracked .lock.json files in _reference/ stay tracked (gitignore is for untracked only).
 _reference/**/packages.lock.json
 !_reference/stryker-4.14.1/src/**/packages.lock.json
+
+# _references/ holds local depth-1 clones of OTHER mutation frameworks
+# (PIT, cargo-mutants, mutmut) for design-pattern consultation only.
+# They are NOT shipped — kept local only — and contain their own .git/.
+_references/
