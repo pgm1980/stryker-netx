@@ -52,7 +52,7 @@ public sealed partial class RunEventHandler : ITestRunEventsHandler
 
     private void CaptureTestResults(IEnumerable<TestResult> results)
     {
-        var testResults = results as TestResult[] ?? results.ToArray();
+        var testResults = results as TestResult[] ?? [.. results];
         _rawResults.AddRange(testResults);
         AnalyzeRawTestResults(testResults);
     }
@@ -148,8 +148,8 @@ public sealed partial class RunEventHandler : ITestRunEventsHandler
         if (!testRunCompleteArgs.IsCanceled && (_inProgress.Count != 0 || _runs.Values.Any(t => !t.IsComplete())))
         {
             // report ongoing tests and test case with missing results as timeouts.
-            _currentResults.SetTestsInTimeOut(_inProgress.Values
-                .Union(_runs.Values.Where(t => !t.IsComplete()).Select(t => t.Result()!.TestCase)).ToList());
+            _currentResults.SetTestsInTimeOut([.. _inProgress.Values
+                .Union(_runs.Values.Where(t => !t.IsComplete()).Select(t => t.Result()!.TestCase))]);
         }
 
         ResultsUpdated?.Invoke(this, EventArgs.Empty);

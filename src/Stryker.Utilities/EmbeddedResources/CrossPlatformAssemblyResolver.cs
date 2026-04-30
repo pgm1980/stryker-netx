@@ -23,7 +23,7 @@ namespace Stryker.Utilities.EmbeddedResources;
 public class CrossPlatformAssemblyResolver : IAssemblyResolver
 {
     private static readonly bool _onMono = Type.GetType("Mono.Runtime") != null;
-    private static readonly List<string> _directories = new(2) { ".", "bin" };
+    private static readonly List<string> _directories = [".", "bin"];
 
     // Maps file names of available trusted platform assemblies to their full paths.
     private static readonly Lazy<Dictionary<string, string>> TrustedPlatformAssemblies = new(CreateTrustedPlatformAssemblyMap);
@@ -55,7 +55,7 @@ public class CrossPlatformAssemblyResolver : IAssemblyResolver
             // if the reference is retargetable, zero it
             name = new AssemblyNameReference(name.Name, new Version(0, 0, 0, 0))
             {
-                PublicKeyToken = Array.Empty<byte>(),
+                PublicKeyToken = [],
             };
         }
 
@@ -93,9 +93,9 @@ public class CrossPlatformAssemblyResolver : IAssemblyResolver
             return null;
         }
 
-        var frameworkDirs = _onMono
-            ? new[] { frameworkDir, Path.Combine(frameworkDir, "Facades") }
-            : new[] { frameworkDir };
+        string[] frameworkDirs = _onMono
+            ? [frameworkDir, Path.Combine(frameworkDir, "Facades")]
+            : [frameworkDir];
 
         if (IsZero(name.Version))
         {
@@ -172,7 +172,7 @@ public class CrossPlatformAssemblyResolver : IAssemblyResolver
     protected virtual AssemblyDefinition? SearchDirectory(AssemblyNameReference name,
         IEnumerable<string> directories, ReaderParameters parameters)
     {
-        var extensions = name.IsWindowsRuntime ? new[] { ".winmd", ".dll" } : new[] { ".exe", ".dll" };
+        string[] extensions = name.IsWindowsRuntime ? [".winmd", ".dll"] : [".exe", ".dll"];
         foreach (var directory in directories)
         {
             foreach (var extension in extensions)

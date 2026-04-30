@@ -34,7 +34,7 @@ public static class EmbeddedResourcesGenerator
             using var module = LoadModule(assemblyPath);
             if (module is not null)
             {
-                _resourceDescriptions.TryAdd(projectFilePath, ReadResourceDescriptionsFromModule(module).ToList());
+                _resourceDescriptions.TryAdd(projectFilePath, [.. ReadResourceDescriptionsFromModule(module)]);
             }
 
             // Failed to load some or all resources from module, generate missing resources from disk
@@ -43,13 +43,13 @@ public static class EmbeddedResourcesGenerator
                 var existing = _resourceDescriptions[projectFilePath];
                 var missingEmbeddedResources = embeddedResources.Where(r =>
                     existing.Any(fr => string.Equals(GetResourceDescriptionInternalName(fr.description), GenerateResourceName(r), StringComparison.Ordinal)));
-                _resourceDescriptions[projectFilePath] = existing.Concat(GenerateManifestResources(projectFilePath, rootNamespace, missingEmbeddedResources)).ToList();
+                _resourceDescriptions[projectFilePath] = [.. existing.Concat(GenerateManifestResources(projectFilePath, rootNamespace, missingEmbeddedResources))];
             }
 
             // Failed to load module, generate all resources from disk
             if (module is null)
             {
-                _resourceDescriptions.TryAdd(projectFilePath, GenerateManifestResources(projectFilePath, rootNamespace, embeddedResources).ToList());
+                _resourceDescriptions.TryAdd(projectFilePath, [.. GenerateManifestResources(projectFilePath, rootNamespace, embeddedResources)]);
             }
         }
 

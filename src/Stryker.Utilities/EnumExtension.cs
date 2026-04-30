@@ -12,7 +12,7 @@ public static class EnumExtension
     public static IEnumerable<string> GetDescriptions<T>(this T e) where T : IConvertible
     {
         if (e is not Enum)
-            return Array.Empty<string>();
+            return [];
         var type = e.GetType();
         var values = Enum.GetValues(type);
 
@@ -33,6 +33,6 @@ public static class EnumExtension
             return descriptions;
         }
 
-        return Array.Empty<string>();
+        return [];
     }
 }

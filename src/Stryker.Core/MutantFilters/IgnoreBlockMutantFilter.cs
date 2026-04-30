@@ -17,11 +17,11 @@ public class IgnoreBlockMutantFilter : IMutantFilter
 
     public IgnoreBlockMutantFilter()
     {
-        _inactiveStatuses = new HashSet<MutantStatus>
-        {
+        _inactiveStatuses =
+        [
             MutantStatus.Ignored,
             MutantStatus.CompileError,
-        };
+        ];
     }
 
     public IEnumerable<IMutant> FilterMutants(IEnumerable<IMutant> mutants, IReadOnlyFileLeaf file, IStrykerOptions options)

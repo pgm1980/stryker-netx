@@ -52,14 +52,13 @@ public sealed class FilePattern : IEquatable<IFilePattern>, IFilePattern
         if (!s.MutantSpans.Any())
         {
             // If there are no spans specified, we add one that will cover the whole file.
-            textSpans = new[] { _textSpanMaxValue };
+            textSpans = [_textSpanMaxValue];
         }
         else
         {
-            textSpans = s.MutantSpans
+            textSpans = [.. s.MutantSpans
                 .Select(x => TextSpan.FromBounds(x.Start, x.End))
-                .Reduce()
-                .ToList();
+                .Reduce()];
         }
 
         return new FilePattern(s.Glob, s.IsExcluded, textSpans);

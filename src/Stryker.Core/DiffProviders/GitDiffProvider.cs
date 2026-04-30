@@ -28,8 +28,8 @@ public class GitDiffProvider : IDiffProvider
     {
         var diffResult = new DiffResult()
         {
-            ChangedSourceFiles = new Collection<string>(),
-            ChangedTestFiles = new Collection<string>()
+            ChangedSourceFiles = [],
+            ChangedTestFiles = []
         };
 
         // A git repository has been detected, calculate the diff to filter
@@ -86,8 +86,8 @@ public class GitDiffProvider : IDiffProvider
     {
         foreach (var glob in _options.DiffIgnoreChanges.Select(d => d.Glob))
         {
-            diffResult.ChangedSourceFiles = diffResult.ChangedSourceFiles.Where(diffResultFile => !glob.IsMatch(diffResultFile)).ToList();
-            diffResult.ChangedTestFiles = diffResult.ChangedTestFiles.Where(diffResultFile => !glob.IsMatch(diffResultFile)).ToList();
+            diffResult.ChangedSourceFiles = [.. diffResult.ChangedSourceFiles.Where(diffResultFile => !glob.IsMatch(diffResultFile))];
+            diffResult.ChangedTestFiles = [.. diffResult.ChangedTestFiles.Where(diffResultFile => !glob.IsMatch(diffResultFile))];
         }
     }
 }

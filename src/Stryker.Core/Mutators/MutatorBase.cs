@@ -31,6 +31,6 @@ public abstract class MutatorBase<T> : IMutator where T : SyntaxNode
             return ApplyMutations(tNode, semanticModel);
         }
 
-        return Enumerable.Empty<Mutation>();
+        return [];
     }
 }

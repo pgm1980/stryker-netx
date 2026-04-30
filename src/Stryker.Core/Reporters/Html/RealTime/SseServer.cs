@@ -24,7 +24,7 @@ public class SseServer : ISseServer, IDisposable
 
         _listener = new HttpListener();
         _listener.Prefixes.Add($"http://localhost:{Port}/");
-        _writers = new List<StreamWriter>();
+        _writers = [];
     }
 
     public int ConnectedClients => _writers.Count;
@@ -120,7 +120,7 @@ public class SseServer : ISseServer, IDisposable
 
     public void CloseSseEndpoint()
     {
-        Task.WaitAll(_writers.Select(writer => writer.BaseStream.FlushAsync()).ToArray());
+        Task.WaitAll([.. _writers.Select(writer => writer.BaseStream.FlushAsync())]);
 
         _listener.Close();
     }

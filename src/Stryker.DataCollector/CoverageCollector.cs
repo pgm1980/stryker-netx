@@ -307,7 +307,7 @@ public class CoverageCollector : InProcDataCollection, IDisposable
     }
 
     public IList<int>[]? RetrieveCoverData()
-        => (IList<int>[]?)_getCoverageData?.Invoke(null, Array.Empty<object>());
+        => (IList<int>[]?)_getCoverageData?.Invoke(null, []);
 
     private void CaptureCoverageOutsideTests()
     {
@@ -315,11 +315,11 @@ public class CoverageCollector : InProcDataCollection, IDisposable
         if (covered?[0] != null)
         {
             _mutationCoveredOutsideTests =
-                covered[1] != null ? covered[0].Union(covered[1]).ToList() : covered[0].ToList();
+                covered[1] != null ? [.. covered[0].Union(covered[1])] : [.. covered[0]];
         }
         else if (covered?[1] != null)
         {
-            _mutationCoveredOutsideTests = covered[1].ToList();
+            _mutationCoveredOutsideTests = [.. covered[1]];
         }
     }
 

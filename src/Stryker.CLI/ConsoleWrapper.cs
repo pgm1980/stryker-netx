@@ -34,11 +34,9 @@ internal sealed class ConsoleWrapper : IConsole
     public event ConsoleCancelEventHandler? CancelKeyPress;
 #pragma warning restore CS0067
 
-    private sealed class OutWriter : TextWriter
+    private sealed class OutWriter(ConsoleWrapper host) : TextWriter
     {
-        private readonly ConsoleWrapper _host;
-
-        public OutWriter(ConsoleWrapper host) => _host = host;
+        private readonly ConsoleWrapper _host = host;
 
         public override Encoding Encoding => _host._console.Profile.Encoding;
 

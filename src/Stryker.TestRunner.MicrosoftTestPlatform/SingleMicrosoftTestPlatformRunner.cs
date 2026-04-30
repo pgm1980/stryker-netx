@@ -211,15 +211,14 @@ public partial class SingleMicrosoftTestPlatformRunner : IDisposable
     {
         if (string.IsNullOrWhiteSpace(idString))
         {
-            return Array.Empty<int>();
+            return [];
         }
 
-        return idString
+        return [.. idString
             .Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(s => int.TryParse(s.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : (int?)null)
             .Where(id => id.HasValue)
-            .Select(id => id!.Value)
-            .ToList();
+            .Select(id => id!.Value)];
     }
 
     private void DeleteCoverageFile()
@@ -463,7 +462,7 @@ public partial class SingleMicrosoftTestPlatformRunner : IDisposable
         IEnumerable<MtpTestDescription> testDescriptionValues;
         lock (_discoveryLock)
         {
-            testDescriptionValues = _testDescriptions.Values.ToList();
+            testDescriptionValues = [.. _testDescriptions.Values];
         }
 
         if (update is not null && mutants is not null)
@@ -590,7 +589,7 @@ public partial class SingleMicrosoftTestPlatformRunner : IDisposable
         IEnumerable<MtpTestDescription> testDescriptionValues;
         lock (_discoveryLock)
         {
-            testDescriptionValues = _testDescriptions.Values.ToList();
+            testDescriptionValues = [.. _testDescriptions.Values];
         }
 
         return new TestRunResult(

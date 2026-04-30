@@ -180,6 +180,19 @@ dotnet_diagnostic.CA1711.severity = none  # Identifier suffix — Stryker public
 dotnet_diagnostic.CA1848.severity = error  # Use LoggerMessage delegates — Phase 10.2 source-generator refactor
 dotnet_diagnostic.CA1873.severity = error  # Avoid potentially expensive logging args — Phase 10.2 (twin of CA1848)
 
+# Phase 10.3 — Modern C# idioms
+# IDE0290: Use primary constructor — applied selectively where parameters map 1:1 to fields
+#         without additional ctor logic; per-class judgment, no auto-fix.
+# IDE0028 / IDE0300 / IDE0301 / IDE0302 / IDE0305 / IDE0306: Use collection expression `[...]`
+#         instead of `new List<T>{...}` / `Array.Empty<T>()` / `new T[] {...}` — mechanical, safe.
+dotnet_diagnostic.IDE0290.severity = suggestion  # Primary constructors — manually applied where appropriate
+dotnet_diagnostic.IDE0028.severity = warning     # Collection initialization can be simplified
+dotnet_diagnostic.IDE0300.severity = warning     # Collection initialization can be simplified (array)
+dotnet_diagnostic.IDE0301.severity = warning     # Collection initialization can be simplified (empty array)
+dotnet_diagnostic.IDE0302.severity = warning     # Collection initialization can be simplified (stackalloc)
+dotnet_diagnostic.IDE0305.severity = warning     # Collection initialization can be simplified (toarray)
+dotnet_diagnostic.IDE0306.severity = warning     # Collection expression — pre-existing IEnumerable
+
 # ============================================================================
 # Test-project specific overrides (Phase 7 onwards)
 # ============================================================================

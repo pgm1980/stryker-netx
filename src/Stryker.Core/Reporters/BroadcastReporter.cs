@@ -26,7 +26,7 @@ public class BroadcastReporter : IReporter
             reporter.OnMutantsCreated(reportComponent, testProjectsInfo);
         }
         // Future enhancement: refactor to lifecycle event
-        if ((reportComponent.Mutants ?? Enumerable.Empty<IReadOnlyMutant>()).Any())
+        if ((reportComponent.Mutants ?? []).Any())
         {
             new FilteredMutantsLogger().OnMutantsCreated(reportComponent);
         }

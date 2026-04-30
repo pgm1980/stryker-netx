@@ -91,7 +91,7 @@ public partial class SinceMutantFilter : IMutantFilter
             mutant.ResultStatusReason = "Mutant not changed compared to target commit";
         }
 
-        return new List<IMutant>();
+        return [];
     }
 
     private static IEnumerable<IMutant> SetMutantStatusForFileChanged(IEnumerable<IMutant> mutants)

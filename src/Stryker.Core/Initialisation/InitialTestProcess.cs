@@ -8,14 +8,9 @@ using Stryker.Abstractions.Testing;
 
 namespace Stryker.Core.Initialisation;
 
-public partial class InitialTestProcess : IInitialTestProcess
+public partial class InitialTestProcess(ILogger<InitialTestProcess> logger) : IInitialTestProcess
 {
-    private readonly ILogger _logger;
-
-    public InitialTestProcess(ILogger<InitialTestProcess> logger)
-    {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public ITimeoutValueCalculator TimeoutValueCalculator { get; private set; } = null!; // initialized via InitialTest() before any other call
 

@@ -8,7 +8,7 @@ public class TestRunnerInput : Input<string>
 {
     public override string Default => "vstest";
     protected override string Description => "Specify the test runner to use.";
-    protected override IEnumerable<string> AllowedOptions => new[] { "vstest", "mtp" };
+    protected override IEnumerable<string> AllowedOptions => ["vstest", "mtp"];
 
     public TestRunner Validate()
     {

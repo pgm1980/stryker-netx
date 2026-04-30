@@ -8,7 +8,7 @@ public class ThresholdBreakInput : Input<int?>
     public override int? Default => 0;
 
     protected override string Description => "Anything below this mutation score will return a non-zero exit code. Must be less than or equal to threshold low.";
-    protected override IEnumerable<string> AllowedOptions => new[] { "0 - 100" };
+    protected override IEnumerable<string> AllowedOptions => ["0 - 100"];
 
     public int Validate(int? low)
     {

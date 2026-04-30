@@ -91,7 +91,7 @@ public sealed partial class VsTestRunner : IDisposable
         if (testCases?.Count == 0)
         {
             return new TestRunResult(_context.VsTests.Values, TestIdentifierList.NoTest(), TestIdentifierList.NoTest(),
-                TestIdentifierList.NoTest(), "Mutants are not covered by any test!", Enumerable.Empty<string>(),
+                TestIdentifierList.NoTest(), "Mutants are not covered by any test!", [],
                 TimeSpan.Zero);
         }
 
@@ -267,7 +267,7 @@ public sealed partial class VsTestRunner : IDisposable
         IDictionary<int, ITestIdentifiers>? mutantTestsMap = null)
     {
         var sources = projectAndTests.GetTestAssemblies();
-        var sourcesList = sources as IList<string> ?? sources.ToList();
+        var sourcesList = sources as IList<string> ?? [.. sources];
         var validSources = _context.GetValidSources(sourcesList).ToList();
         if (tests.IsEveryTest && validSources.Count == 0)
         {

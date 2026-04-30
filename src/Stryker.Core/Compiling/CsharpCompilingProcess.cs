@@ -82,7 +82,7 @@ public partial class CsharpCompilingProcess : ICSharpCompilingProcess
         {
             return new(
                 true,
-                rollbackProcessResult?.RollbackedIds ?? Enumerable.Empty<int>());
+                rollbackProcessResult?.RollbackedIds ?? []);
         }
         // compiling failed
         LogFailedToRestore(_logger);
@@ -150,7 +150,7 @@ public partial class CsharpCompilingProcess : ICSharpCompilingProcess
         var analysis = _input.SourceProjectInfo.Analysis;
 
         var compilation = CSharpCompilation.Create(AssemblyName,
-            syntaxTrees.ToList(),
+            [.. syntaxTrees],
             _input.SourceProjectInfo.Analysis.LoadReferences(),
             analysis.GetCompilationOptions());
 
@@ -242,7 +242,7 @@ public partial class CsharpCompilingProcess : ICSharpCompilingProcess
                     var text = st.GetText();
                     LogSourceCode(_logger, text);
                 }
-                syntaxTrees = syntaxTrees.Where(x => x != st).Append(_rollbackProcess.CleanUpFile(st)).ToImmutableArray();
+                syntaxTrees = [.. syntaxTrees.Where(x => x != st).Append(_rollbackProcess.CleanUpFile(st))];
             }
         }
         LogReportIssue(_logger);

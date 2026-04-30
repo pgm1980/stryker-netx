@@ -12,7 +12,7 @@ public sealed class SimpleRunResults : IRunResults
     private List<TestCase> _testsInTimeOut = [];
 
     /// <inheritdoc />
-    public IList<TestResult> TestResults { get; } = new List<TestResult>();
+    public IList<TestResult> TestResults { get; } = [];
 
     /// <inheritdoc />
     public IReadOnlyList<TestCase> TestsInTimeout => _testsInTimeOut.AsReadOnly();
@@ -29,11 +29,11 @@ public sealed class SimpleRunResults : IRunResults
         {
             TestResults.Add(r);
         }
-        _testsInTimeOut = testsInTimeout?.ToList() ?? [];
+        _testsInTimeOut = testsInTimeout is null ? [] : [.. testsInTimeout];
     }
 
     /// <summary>Replaces the internal timed-out test list.</summary>
-    public void SetTestsInTimeOut(ICollection<TestCase> tests) => _testsInTimeOut = tests.ToList();
+    public void SetTestsInTimeOut(ICollection<TestCase> tests) => _testsInTimeOut = [.. tests];
 
     /// <summary>Merges results from another <see cref="IRunResults"/> instance into this one.</summary>
     public SimpleRunResults Merge(IRunResults other)
@@ -42,7 +42,7 @@ public sealed class SimpleRunResults : IRunResults
         {
             if (_testsInTimeOut == null)
             {
-                _testsInTimeOut = other.TestsInTimeout.ToList();
+                _testsInTimeOut = [.. other.TestsInTimeout];
             }
             else
             {

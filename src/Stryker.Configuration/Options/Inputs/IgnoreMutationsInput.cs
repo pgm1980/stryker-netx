@@ -9,7 +9,7 @@ namespace Stryker.Configuration.Options.Inputs;
 
 public class IgnoreMutationsInput : Input<IEnumerable<string>>
 {
-    public override IEnumerable<string> Default => Enumerable.Empty<string>();
+    public override IEnumerable<string> Default => [];
 
     protected override string Description => @"The given mutators will be excluded for this mutation testrun.
     This argument takes a json array as value. Example: ['string', 'logical']";
@@ -41,7 +41,7 @@ public class IgnoreMutationsInput : Input<IEnumerable<string>>
 
             return excludedMutators;
         }
-        return Enumerable.Empty<TEnum>();
+        return [];
     }
 
 
@@ -76,6 +76,6 @@ public class IgnoreMutationsInput : Input<IEnumerable<string>>
 
             return excludedLinqExpressions;
         }
-        return Enumerable.Empty<LinqExpression>();
+        return [];
     }
 }

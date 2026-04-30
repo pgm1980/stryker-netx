@@ -7,7 +7,7 @@ namespace Stryker.Configuration.Options.Inputs;
 
 public class DiffIgnoreChangesInput : Input<IEnumerable<string>>
 {
-    public override IEnumerable<string> Default => Enumerable.Empty<string>();
+    public override IEnumerable<string> Default => [];
 
     protected override string Description => @"Allows to specify an array of C# files which should be ignored if present in the diff.
 Any non-excluded files will trigger all mutants to be tested because we cannot determine what mutants are affected by these files.
@@ -29,6 +29,6 @@ Example: ['**/*Assets.json','**/favicon.ico']";
 
             return diffIgnoreStrings;
         }
-        return Enumerable.Empty<IExclusionPattern>();
+        return [];
     }
 }

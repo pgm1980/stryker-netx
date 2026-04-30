@@ -21,7 +21,7 @@ public abstract class BaseMutantOrchestrator
         Options != null && Options.OptimizationMode.HasFlag(OptimizationModes.CoverageBasedTest) &&
         !Options.OptimizationMode.HasFlag(OptimizationModes.CaptureCoveragePerTest);
 
-        public ICollection<IMutant> Mutants { get; set; } = new Collection<IMutant>();
+        public ICollection<IMutant> Mutants { get; set; } = [];
 
     protected int GetNextId() => _idProvider.NextId();
 
@@ -31,7 +31,7 @@ public abstract class BaseMutantOrchestrator
     public virtual IReadOnlyCollection<IMutant> GetLatestMutantBatch()
     {
         var tempMutants = Mutants;
-        Mutants = new Collection<IMutant>();
+        Mutants = [];
         return (IReadOnlyCollection<IMutant>)tempMutants;
     }
 }

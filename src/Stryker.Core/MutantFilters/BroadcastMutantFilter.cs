@@ -17,7 +17,7 @@ public class BroadcastMutantFilter : IMutantFilter
 
     public IEnumerable<IMutant> FilterMutants(IEnumerable<IMutant> mutants, IReadOnlyFileLeaf file, IStrykerOptions options)
     {
-        IEnumerable<IMutant> mutantsToTest = mutants.Where(m => m.ResultStatus is not MutantStatus.Ignored).ToList();
+        IEnumerable<IMutant> mutantsToTest = (IMutant[])[.. mutants.Where(m => m.ResultStatus is not MutantStatus.Ignored)];
 
         foreach (var mutantFilter in MutantFilters)
         {

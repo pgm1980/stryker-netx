@@ -59,8 +59,8 @@ public class LinqMutator : MutatorBase<ExpressionSyntax>
             { LinqExpression.Append, LinqExpression.Prepend },
             { LinqExpression.Prepend, LinqExpression.Append }
         };
-        RequireArguments = new HashSet<LinqExpression>
-        {
+        RequireArguments =
+        [
             LinqExpression.All,
             LinqExpression.SkipWhile,
             LinqExpression.TakeWhile,
@@ -78,7 +78,7 @@ public class LinqMutator : MutatorBase<ExpressionSyntax>
             LinqExpression.UnionBy,
             LinqExpression.Append,
             LinqExpression.Prepend
-        };
+        ];
     }
     /// <summary> Apply mutations to an <see cref="InvocationExpressionSyntax"/> </summary>
     public override IEnumerable<Mutation> ApplyMutations(ExpressionSyntax node, SemanticModel semanticModel)

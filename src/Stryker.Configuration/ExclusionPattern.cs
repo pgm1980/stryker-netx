@@ -36,7 +36,7 @@ public readonly struct ExclusionPattern : IExclusionPattern
         {
             var normalized = FilePathUtils.NormalizePathSeparators(pattern);
             Glob = Glob.Parse(normalized);
-            MutantSpans = Enumerable.Empty<(int, int)>();
+            MutantSpans = [];
         }
     }
 

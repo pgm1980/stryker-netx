@@ -31,7 +31,7 @@ internal sealed class DefaultInitializationEngine : BaseEngine<BlockSyntax>
             throw new InvalidOperationException(
                 "Can't add default initializer(s) to expression bodied or virtual method.");
         }
-        parameters = parameters.Where(p => p.Modifiers.Any(m => m.IsKind(SyntaxKind.OutKeyword))).ToList();
+        parameters = [.. parameters.Where(p => p.Modifiers.Any(m => m.IsKind(SyntaxKind.OutKeyword)))];
         if (!parameters.Any())
         {
             return body;
@@ -49,7 +49,7 @@ internal sealed class DefaultInitializationEngine : BaseEngine<BlockSyntax>
         else
         {
             // this is the first initializer helper, no pre existing ones
-            initializers = Array.Empty<StatementSyntax>();
+            initializers = [];
             // keep all statements
             originalStatements = body.Statements;
         }
@@ -59,7 +59,7 @@ internal sealed class DefaultInitializationEngine : BaseEngine<BlockSyntax>
                 p.Type!.BuildDefaultExpression())))))
             .WithAdditionalAnnotations(BlockMarker);
 
-        return body.WithStatements(new(originalStatements.Prepend(initializersBlock))).WithAdditionalAnnotations(Marker);
+        return body.WithStatements([.. originalStatements.Prepend(initializersBlock)]).WithAdditionalAnnotations(Marker);
     }
 
     /// <summary>
@@ -75,7 +75,7 @@ internal sealed class DefaultInitializationEngine : BaseEngine<BlockSyntax>
                 "Can't find initializer block at the beginning of method.");
         }
 
-        return body.WithStatements(new SyntaxList<StatementSyntax>(body.Statements.Skip(1)))
+        return body.WithStatements([.. body.Statements.Skip(1)])
             .WithoutAnnotations(Marker);
     }
 }

@@ -42,7 +42,7 @@ public static class TextSpanHelper
             }
         }
 
-        return spans.Distinct().Where(x => !x.IsEmpty).ToList();
+        return [.. spans.Distinct().Where(x => !x.IsEmpty)];
     }
 
     /// <summary>
@@ -84,17 +84,18 @@ public static class TextSpanHelper
         {
             // The the current span is completely contained inside the other, nothing will be left.
             if (other.Contains(current))
-                return Array.Empty<TextSpan>();
+                return [];
 
             // Check if there is any overlap.
             var overlap = current.Overlap(other);
 
             if (!overlap.HasValue)
             {
-                return new[] { current };
+                return [current];
             }
 
-            return new[] { TextSpan.FromBounds(current.Start, overlap.Value.Start), TextSpan.FromBounds(overlap.Value.End, current.End) }.Where(s => !s.IsEmpty).ToList();
+            TextSpan[] candidates = [TextSpan.FromBounds(current.Start, overlap.Value.Start), TextSpan.FromBounds(overlap.Value.End, current.End)];
+            return [.. candidates.Where(s => !s.IsEmpty)];
         }
     }
 }

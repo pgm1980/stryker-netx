@@ -164,7 +164,7 @@ public static class FileConfigReader
             }
         }
         var extraData = @object.ExtraData;
-        IReadOnlyCollection<string> extraKeys = extraData != null ? (IReadOnlyCollection<string>)extraData.Keys : Array.Empty<string>();
+        IReadOnlyCollection<string> extraKeys = extraData != null ? (IReadOnlyCollection<string>)extraData.Keys : [];
         if (extraKeys.Count > 0)
         {
             var allowedKeys = properties.Select(e => e.GetCustomAttribute<JsonPropertyNameAttribute>()!.Name).OrderBy(e => e, StringComparer.Ordinal);

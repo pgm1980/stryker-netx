@@ -22,7 +22,7 @@ public partial class TestProjectsInfo : ITestProjectsInfo
     public IEnumerable<IProjectAnalysis> Analyses => TestProjects.Select(testProject => testProject.Analysis);
 
     public IReadOnlyList<string> GetTestAssemblies() =>
-        Analyses.Select(a => a.GetAssemblyPath()).ToList();
+        [.. Analyses.Select(a => a.GetAssemblyPath())];
 
     public TestProjectsInfo(IFileSystem fileSystem, ILogger<TestProjectsInfo>? logger = null)
     {

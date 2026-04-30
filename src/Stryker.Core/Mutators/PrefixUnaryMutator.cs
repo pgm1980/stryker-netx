@@ -20,11 +20,11 @@ public class PrefixUnaryMutator : MutatorBase<PrefixUnaryExpressionSyntax>
         {SyntaxKind.PreDecrementExpression, SyntaxKind.PreIncrementExpression},
     };
 
-    private static readonly HashSet<SyntaxKind> UnaryToInitial = new HashSet<SyntaxKind>
-    {
+    private static readonly HashSet<SyntaxKind> UnaryToInitial =
+    [
         SyntaxKind.BitwiseNotExpression,
         SyntaxKind.LogicalNotExpression
-    };
+    ];
 
     public override IEnumerable<Mutation> ApplyMutations(PrefixUnaryExpressionSyntax node, SemanticModel semanticModel)
     {

@@ -8,7 +8,7 @@ namespace Stryker.Core.ProjectComponents;
 
 public class Solution : ProjectComponent, IFolderComposite
 {
-    private readonly List<IReadOnlyProjectComponent> _children = new();
+    private readonly List<IReadOnlyProjectComponent> _children = [];
 
     public IEnumerable<IReadOnlyProjectComponent> Children => _children;
 

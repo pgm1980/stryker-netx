@@ -9,21 +9,14 @@ using Stryker.Core.Helpers.ProcessUtil;
 
 namespace Stryker.Core.Initialisation;
 
-public partial class InitialBuildProcess : IInitialBuildProcess
+public partial class InitialBuildProcess(
+    IProcessExecutor processExecutor,
+    IFileSystem fileSystem,
+    ILogger<InitialBuildProcess> logger) : IInitialBuildProcess
 {
-    private readonly IProcessExecutor _processExecutor;
-    private readonly IFileSystem _fileSystem;
-    private readonly ILogger _logger;
-
-    public InitialBuildProcess(
-        IProcessExecutor processExecutor,
-        IFileSystem fileSystem,
-        ILogger<InitialBuildProcess> logger)
-    {
-        _processExecutor = processExecutor ?? throw new ArgumentNullException(nameof(processExecutor));
-        _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly IProcessExecutor _processExecutor = processExecutor ?? throw new ArgumentNullException(nameof(processExecutor));
+    private readonly IFileSystem _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
+    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public void InitialBuild(bool fullFramework, string projectPath, string solutionPath, string? configuration = null,
         string? platform = null, string? targetFramework = null,

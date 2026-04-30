@@ -662,7 +662,7 @@ public partial class InputFileResolver : IInputFileResolver
         string[] projectFiles;
         try
         {
-            projectFiles = FileSystem.Directory.GetFiles(path, "*.*?sproj").Where(file => file.EndsWith("csproj", StringComparison.OrdinalIgnoreCase) || file.EndsWith("fsproj", StringComparison.OrdinalIgnoreCase)).ToArray();
+            projectFiles = [.. FileSystem.Directory.GetFiles(path, "*.*?sproj").Where(file => file.EndsWith("csproj", StringComparison.OrdinalIgnoreCase) || file.EndsWith("fsproj", StringComparison.OrdinalIgnoreCase))];
         }
         catch (DirectoryNotFoundException)
         {

@@ -18,23 +18,15 @@ using Stryker.Core.Reporters;
 
 namespace Stryker.Core;
 
-public partial class StrykerRunner : IStrykerRunner
+public partial class StrykerRunner(
+    IReporterFactory reporterFactory,
+    IProjectOrchestrator projectOrchestrator,
+    ILogger<StrykerRunner> logger) : IStrykerRunner
 {
-    private IEnumerable<IMutationTestProcess> _mutationTestProcesses;
-    private readonly ILogger _logger;
-    private readonly IReporterFactory _reporterFactory;
-    private readonly IProjectOrchestrator _projectOrchestrator;
-
-    public StrykerRunner(
-        IReporterFactory reporterFactory,
-        IProjectOrchestrator projectOrchestrator,
-        ILogger<StrykerRunner> logger)
-    {
-        _reporterFactory = reporterFactory ?? throw new ArgumentNullException(nameof(reporterFactory));
-        _projectOrchestrator = projectOrchestrator ?? throw new ArgumentNullException(nameof(projectOrchestrator));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _mutationTestProcesses = new List<IMutationTestProcess>();
-    }
+    private IEnumerable<IMutationTestProcess> _mutationTestProcesses = [];
+    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly IReporterFactory _reporterFactory = reporterFactory ?? throw new ArgumentNullException(nameof(reporterFactory));
+    private readonly IProjectOrchestrator _projectOrchestrator = projectOrchestrator ?? throw new ArgumentNullException(nameof(projectOrchestrator));
 
     /// <summary>
     /// Starts a mutation test run
@@ -54,9 +46,9 @@ public partial class StrykerRunner : IStrykerRunner
         try
         {
             // Mutate
-            _mutationTestProcesses = (await _projectOrchestrator.MutateProjectsAsync(options, reporters).ConfigureAwait(false)).ToList();
+            _mutationTestProcesses = [.. await _projectOrchestrator.MutateProjectsAsync(options, reporters).ConfigureAwait(false)];
 
-            var rootComponent = AddRootFolderIfMultiProject(_mutationTestProcesses.Select(x => x.Input.SourceProjectInfo.ProjectContents).ToList(), options);
+            var rootComponent = AddRootFolderIfMultiProject([.. _mutationTestProcesses.Select(x => x.Input.SourceProjectInfo.ProjectContents)], options);
             var combinedTestProjectsInfo = _mutationTestProcesses.Select(mtp => mtp.Input.TestProjectsInfo).Aggregate((a, b) => (TestProjectsInfo)a + (TestProjectsInfo)b);
 
             LogMutantsCountIfEnabled(rootComponent);
@@ -136,7 +128,7 @@ public partial class StrykerRunner : IStrykerRunner
         // Test
         foreach (var project in _mutationTestProcesses)
         {
-            await project.TestAsync(project.Input.SourceProjectInfo.ProjectContents.Mutants.Where(x => x.ResultStatus == MutantStatus.Pending).ToList()).ConfigureAwait(false);
+            await project.TestAsync([.. project.Input.SourceProjectInfo.ProjectContents.Mutants.Where(x => x.ResultStatus == MutantStatus.Pending)]).ConfigureAwait(false);
         }
         // dispose and stop runners
         _projectOrchestrator.Dispose();

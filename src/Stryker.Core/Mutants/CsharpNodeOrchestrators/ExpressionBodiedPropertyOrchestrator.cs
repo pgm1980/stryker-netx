@@ -25,8 +25,8 @@ internal sealed class ExpressionBodiedPropertyOrchestrator : BaseFunctionOrchest
         }
 
         return node.WithExpressionBody(null).WithAccessorList(
-                SyntaxFactory.AccessorList(SyntaxFactory.List(new[]{
-                    SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration, blockBody)}))).
+                SyntaxFactory.AccessorList(SyntaxFactory.List([
+                    SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration, blockBody)]))).
             WithSemicolonToken(SyntaxFactory.MissingToken(SyntaxKind.SemicolonToken));
     }
 

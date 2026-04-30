@@ -20,7 +20,7 @@ public partial class DashboardClient : IDashboardClient, IDisposable
     private readonly ILogger<DashboardClient> _logger;
     private readonly HttpClient _httpClient;
     private readonly bool _ownsHttpClient;
-    private readonly List<IJsonMutant> _batch = new();
+    private readonly List<IJsonMutant> _batch = [];
     private bool _disposed;
 
     public DashboardClient(IStrykerOptions options, HttpClient? httpClient = null, ILogger<DashboardClient>? logger = null)

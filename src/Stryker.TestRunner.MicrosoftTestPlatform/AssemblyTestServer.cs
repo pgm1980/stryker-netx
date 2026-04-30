@@ -111,10 +111,9 @@ internal sealed partial class AssemblyTestServer : IDisposable
 
         await discoverTestsResponse.WaitCompletionAsync().ConfigureAwait(false);
 
-        return discoveredResults
+        return [.. discoveredResults
             .Where(x => x.Node.ExecutionState is "discovered")
-            .Select(x => x.Node)
-            .ToList();
+            .Select(x => x.Node)];
     }
 
     public async Task<List<TestNodeUpdate>> RunTestsAsync(TestNode[]? testsToRun)

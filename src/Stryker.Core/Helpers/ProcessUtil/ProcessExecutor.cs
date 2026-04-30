@@ -29,7 +29,7 @@ public class ProcessExecutor(bool redirectOutput = true) : IProcessExecutor
             RedirectStandardError = RedirectOutput
         };
 
-        foreach (var (key, value) in environmentVariables ?? Enumerable.Empty<KeyValuePair<string, string>>())
+        foreach (var (key, value) in environmentVariables ?? [])
         {
             info.EnvironmentVariables[key] = value;
         }

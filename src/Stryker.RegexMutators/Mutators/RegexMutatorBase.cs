@@ -19,7 +19,7 @@ public abstract class RegexMutatorBase<T>
             return ApplyMutations(regexNode, root);
         }
 
-        return Enumerable.Empty<RegexMutation>();
+        return [];
     }
 
     /// <summary>

@@ -26,7 +26,7 @@ public partial class CSharpRollbackProcess : ICSharpRollbackProcess
     public CSharpRollbackProcess()
     {
         Logger = ApplicationLogging.LoggerFactory.CreateLogger<CSharpRollbackProcess>();
-        RollBackedIds = new List<int>();
+        RollBackedIds = [];
     }
 
     public CSharpRollbackProcessResult Start(CSharpCompilation compiler, ImmutableArray<Diagnostic> diagnostics,
@@ -35,7 +35,7 @@ public partial class CSharpRollbackProcess : ICSharpRollbackProcess
         // match the diagnostics with their syntax trees
         var syntaxTreeMapping =
             compiler.SyntaxTrees.ToDictionary<SyntaxTree, SyntaxTree, ICollection<Diagnostic>>(
-                syntaxTree => syntaxTree, _ => new Collection<Diagnostic>());
+                syntaxTree => syntaxTree, _ => []);
 
         foreach (var diagnostic in diagnostics.Where(x => x.Severity == DiagnosticSeverity.Error))
         {
@@ -328,7 +328,7 @@ public partial class CSharpRollbackProcess : ICSharpRollbackProcess
         SyntaxNode rollbackRoot, out Diagnostic[] diagnostics)
     {
         var brokenMutations = new Collection<SyntaxNode>();
-        diagnostics = diagnosticInfo as Diagnostic[] ?? diagnosticInfo.ToArray();
+        diagnostics = diagnosticInfo as Diagnostic[] ?? [.. diagnosticInfo];
         foreach (var diagnostic in diagnostics)
         {
             var brokenMutation = rollbackRoot.FindNode(diagnostic.Location.SourceSpan);

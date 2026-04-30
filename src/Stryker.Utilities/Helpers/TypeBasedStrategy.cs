@@ -8,13 +8,13 @@ namespace Stryker.Utilities.Helpers;
 // keeping a cache for faster resolution
 public class TypeBasedStrategy<T, THandler> where T : class where THandler : class, ITypeHandler<T>
 {
-    private readonly Dictionary<Type, IList<THandler>> _handlerMapping = new();
+    private readonly Dictionary<Type, IList<THandler>> _handlerMapping = [];
 
     public void RegisterHandler(THandler handler)
     {
         if (!_handlerMapping.TryGetValue(handler.ManagedType, out var list))
         {
-            list = new List<THandler>();
+            list = [];
             _handlerMapping[handler.ManagedType] = list;
         }
         list.Add(handler);

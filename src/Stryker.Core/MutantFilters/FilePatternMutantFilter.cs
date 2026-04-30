@@ -18,8 +18,8 @@ public class FilePatternMutantFilter : IMutantFilter
 
     public FilePatternMutantFilter(IStrykerOptions options)
     {
-        _includePattern = options.Mutate.Where(x => !x.IsExclude).ToList();
-        _excludePattern = options.Mutate.Where(x => x.IsExclude).ToList();
+        _includePattern = (IFilePattern[])[.. options.Mutate.Where(x => !x.IsExclude)];
+        _excludePattern = (IFilePattern[])[.. options.Mutate.Where(x => x.IsExclude)];
     }
 
     public IEnumerable<IMutant> FilterMutants(IEnumerable<IMutant> mutants, IReadOnlyFileLeaf file, IStrykerOptions options)

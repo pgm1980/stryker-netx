@@ -54,31 +54,27 @@ public sealed class RoslynProjectAnalysis : IProjectAnalysis
     {
         _roslynProject = roslynProject;
         _evaluationProject = evaluationProject;
-        _references = roslynProject.MetadataReferences
+        _references = [.. roslynProject.MetadataReferences
             .OfType<PortableExecutableReference>()
             .Where(r => r.FilePath is not null)
-            .Select(r => r.FilePath!)
-            .ToArray();
-        _sourceFiles = roslynProject.Documents
+            .Select(r => r.FilePath!)];
+        _sourceFiles = [.. roslynProject.Documents
             .Where(d => d.FilePath is not null)
-            .Select(d => d.FilePath!)
-            .ToArray();
-        _projectReferences = roslynProject.ProjectReferences
+            .Select(d => d.FilePath!)];
+        _projectReferences = [.. roslynProject.ProjectReferences
             .Select(pr => roslynProject.Solution.GetProject(pr.ProjectId)?.FilePath)
             .Where(p => p is not null)
-            .Select(p => p!)
-            .ToArray();
-        _analyzerAssemblyPaths = roslynProject.AnalyzerReferences
+            .Select(p => p!)];
+        _analyzerAssemblyPaths = [.. roslynProject.AnalyzerReferences
             .Where(a => a.FullPath is not null)
-            .Select(a => a.FullPath!)
-            .ToArray();
+            .Select(a => a.FullPath!)];
         _embeddedResourcePaths = ResolveEmbeddedResources(evaluationProject, roslynProject.FilePath);
         _referenceAliases = roslynProject.MetadataReferences
             .OfType<PortableExecutableReference>()
             .Where(r => r.FilePath is not null && !r.Properties.Aliases.IsDefaultOrEmpty)
             .ToDictionary(
                 r => r.FilePath!,
-                r => (IReadOnlyList<string>)r.Properties.Aliases.ToArray(),
+                r => (IReadOnlyList<string>)[.. r.Properties.Aliases],
                 System.StringComparer.Ordinal);
     }
 
@@ -90,11 +86,10 @@ public sealed class RoslynProjectAnalysis : IProjectAnalysis
         }
 
         var projectDir = Path.GetDirectoryName(csprojPath) ?? string.Empty;
-        return evaluationProject.GetItems("EmbeddedResource")
+        return [.. evaluationProject.GetItems("EmbeddedResource")
             .Select(item => item.EvaluatedInclude)
             .Where(include => !string.IsNullOrEmpty(include))
-            .Select(include => Path.IsPathRooted(include) ? include : Path.GetFullPath(Path.Combine(projectDir, include)))
-            .ToArray();
+            .Select(include => Path.IsPathRooted(include) ? include : Path.GetFullPath(Path.Combine(projectDir, include)))];
     }
 
     /// <inheritdoc />
@@ -167,11 +162,10 @@ public sealed class RoslynProjectAnalysis : IProjectAnalysis
         }
 
         var projectDir = Path.GetDirectoryName(ProjectFilePath) ?? string.Empty;
-        return _evaluationProject.GetItems(itemType)
+        return (IReadOnlyList<string>)[.. _evaluationProject.GetItems(itemType)
             .Select(item => item.EvaluatedInclude)
             .Where(include => !string.IsNullOrEmpty(include))
-            .Select(include => Path.IsPathRooted(include) ? include : Path.GetFullPath(Path.Combine(projectDir, include)))
-            .ToArray();
+            .Select(include => Path.IsPathRooted(include) ? include : Path.GetFullPath(Path.Combine(projectDir, include)))];
     }
 
     /// <inheritdoc />

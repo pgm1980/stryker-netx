@@ -92,7 +92,7 @@ public partial class MutationTestExecutor : IMutationTestExecutor
             foreach (var mutant in mutantsToTest)
             {
                 var localResult =
-                    await TestRunner.TestMultipleMutantsAsync(projectAndTests, timeoutMs, new[] { mutant }, updateHandler).ConfigureAwait(false);
+                    await TestRunner.TestMultipleMutantsAsync(projectAndTests, timeoutMs, [mutant], updateHandler).ConfigureAwait(false);
                 if (updateHandler == null || localResult.SessionTimedOut)
                 {
                     mutant.AnalyzeTestRun(localResult.FailingTests,
@@ -105,7 +105,7 @@ public partial class MutationTestExecutor : IMutationTestExecutor
             return new TestRunResult(true);
         }
 
-        var result = await TestRunner.TestMultipleMutantsAsync(projectAndTests, timeoutMs, mutantsToTest.ToList(), updateHandler).ConfigureAwait(false);
+        var result = await TestRunner.TestMultipleMutantsAsync(projectAndTests, timeoutMs, [.. mutantsToTest], updateHandler).ConfigureAwait(false);
         if (updateHandler != null && !result.SessionTimedOut)
         {
             return result;

@@ -8,7 +8,7 @@ public class ThresholdHighInput : Input<int?>
     public override int? Default => 80;
 
     protected override string Description => "Minimum good mutation score. Must be higher than or equal to threshold low.";
-    protected override IEnumerable<string> AllowedOptions => new[] { "0 - 100" };
+    protected override IEnumerable<string> AllowedOptions => ["0 - 100"];
 
     public int Validate(int? low)
     {

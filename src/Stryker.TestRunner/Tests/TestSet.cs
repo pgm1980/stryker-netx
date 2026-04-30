@@ -20,5 +20,5 @@ public class TestSet : ITestSet
 
     public void RegisterTest(ITestDescription test) => _tests[test.Id] = test;
 
-    public IEnumerable<ITestDescription> Extract(IEnumerable<string> ids) => ids?.Select(i => _tests[i]) ?? Enumerable.Empty<ITestDescription>();
+    public IEnumerable<ITestDescription> Extract(IEnumerable<string> ids) => ids?.Select(i => _tests[i]) ?? [];
 }

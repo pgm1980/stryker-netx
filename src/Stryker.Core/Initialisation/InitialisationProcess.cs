@@ -14,24 +14,16 @@ using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.Initialisation;
 
-public partial class InitialisationProcess : IInitialisationProcess
+public partial class InitialisationProcess(
+    IInputFileResolver inputFileResolver,
+    IInitialBuildProcess initialBuildProcess,
+    IInitialTestProcess initialTestProcess,
+    ILogger<InitialisationProcess>? logger = null) : IInitialisationProcess
 {
-    private readonly IInputFileResolver _inputFileResolver;
-    private readonly IInitialBuildProcess _initialBuildProcess;
-    private readonly IInitialTestProcess _initialTestProcess;
-    private readonly ILogger _logger;
-
-    public InitialisationProcess(
-        IInputFileResolver inputFileResolver,
-        IInitialBuildProcess initialBuildProcess,
-        IInitialTestProcess initialTestProcess,
-        ILogger<InitialisationProcess>? logger = null)
-    {
-        _inputFileResolver = inputFileResolver ?? throw new ArgumentNullException(nameof(inputFileResolver));
-        _initialBuildProcess = initialBuildProcess ?? throw new ArgumentNullException(nameof(initialBuildProcess));
-        _initialTestProcess = initialTestProcess ?? throw new ArgumentNullException(nameof(initialTestProcess));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly IInputFileResolver _inputFileResolver = inputFileResolver ?? throw new ArgumentNullException(nameof(inputFileResolver));
+    private readonly IInitialBuildProcess _initialBuildProcess = initialBuildProcess ?? throw new ArgumentNullException(nameof(initialBuildProcess));
+    private readonly IInitialTestProcess _initialTestProcess = initialTestProcess ?? throw new ArgumentNullException(nameof(initialTestProcess));
+    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc/>
     public IReadOnlyCollection<SourceProjectInfo> GetMutableProjectsInfo(IStrykerOptions options)

@@ -11,8 +11,9 @@ namespace Stryker.Core.InjectedHelpers;
 public class CodeInjection
 {
     // files to be injected into the mutated assembly
-    private static readonly string[] Files = {"Stryker.Core.InjectedHelpers.MutantControl.cs",
-        "Stryker.Core.InjectedHelpers.Coverage.MutantContext.cs"};
+    private static readonly string[] Files = [
+        "Stryker.Core.InjectedHelpers.MutantControl.cs",
+        "Stryker.Core.InjectedHelpers.Coverage.MutantContext.cs"];
     private const string PatternForCheck = "\\/\\/ *check with: *(?<selector>[^\\r\\n]+)";
     private const string MutantContextClassName = "MutantContext";
     private const string StrykerNamespace = "Stryker";

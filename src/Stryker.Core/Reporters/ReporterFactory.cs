@@ -13,7 +13,7 @@ public class ReporterFactory : IReporterFactory
 {
     public IReporter Create(IStrykerOptions options, IGitInfoProvider? branchProvider = null)
     {
-        return new BroadcastReporter(DetermineEnabledReporters(options.Reporters.ToList(), CreateReporters(options)));
+        return new BroadcastReporter(DetermineEnabledReporters([.. options.Reporters], CreateReporters(options)));
     }
 
     private static Dictionary<Reporter, IReporter> CreateReporters(IStrykerOptions options)

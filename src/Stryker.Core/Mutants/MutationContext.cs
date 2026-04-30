@@ -213,7 +213,7 @@ internal sealed class MutationContext
         }
         else if (result.FilteredMutators is not null)
         {
-            result.FilteredMutators = result.FilteredMutators.Where(t => !filteredMutators.Contains(t)).ToArray();
+            result.FilteredMutators = [.. result.FilteredMutators.Where(t => !filteredMutators.Contains(t))];
         }
 
         return result;

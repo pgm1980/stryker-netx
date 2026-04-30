@@ -9,14 +9,9 @@ using Stryker.TestRunner.Tests;
 
 namespace Stryker.Core.CoverageAnalysis;
 
-public partial class CoverageAnalyser : ICoverageAnalyser
+public partial class CoverageAnalyser(ILogger<CoverageAnalyser> logger) : ICoverageAnalyser
 {
-    private readonly ILogger<CoverageAnalyser> _logger;
-
-    public CoverageAnalyser(ILogger<CoverageAnalyser> logger)
-    {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly ILogger<CoverageAnalyser> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public void DetermineTestCoverage(IStrykerOptions options, IProjectAndTests project, ITestRunner runner, IEnumerable<IMutant> mutants,
         ITestIdentifiers resultFailingTests)
@@ -85,7 +80,7 @@ public partial class CoverageAnalyser : ICoverageAnalyser
             {
                 if (!mutationToResultMap.TryGetValue(i, out var resultList))
                 {
-                    resultList = new List<ICoverageRunResult>();
+                    resultList = [];
                     mutationToResultMap[i] = resultList;
                 }
 

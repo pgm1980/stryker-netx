@@ -26,7 +26,7 @@ public abstract class Input<TInput> : IInput<TInput>
     /// <summary>
     /// The allowed options will be displayed in the help text
     /// </summary>
-    protected virtual IEnumerable<string> AllowedOptions => Enumerable.Empty<string>();
+    protected virtual IEnumerable<string> AllowedOptions => [];
 
     /// <summary>
     /// The user supplied input value

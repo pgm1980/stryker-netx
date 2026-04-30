@@ -7,7 +7,7 @@ namespace Stryker.Configuration.Options.Inputs;
 
 public class TestProjectsInput : Input<IEnumerable<string>>
 {
-    public override IEnumerable<string> Default => Enumerable.Empty<string>();
+    public override IEnumerable<string> Default => [];
 
     protected override string Description => "Specify the test projects.";
 

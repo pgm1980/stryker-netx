@@ -203,7 +203,7 @@ public class CommandLineConfigReader
         {
             return;
         }
-        strykerInput.SuppliedInput = cliInput.Values.Where(v => v is not null).Select(v => v!).ToList();
+        strykerInput.SuppliedInput = (List<string>)[.. cliInput.Values.Where(v => v is not null).Select(v => v!)];
     }
 
     private IInput? GetStrykerInput(CommandOption cliInput) => cliInput.LongName is null ? null : _cliInputs[cliInput.LongName].Input;

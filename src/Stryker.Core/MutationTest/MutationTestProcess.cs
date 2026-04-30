@@ -16,29 +16,21 @@ using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.MutationTest;
 
-public partial class MutationTestProcess : IMutationTestProcess
+public partial class MutationTestProcess(
+    IMutationTestExecutor executor,
+    ICoverageAnalyser coverageAnalyzer,
+    IMutationProcess mutationProcess,
+    ILogger<MutationTestProcess> logger) : IMutationTestProcess
 {
     public MutationTestInput Input { get; set; } = null!; // set in Initialize() before any other call
 
     private IStrykerOptions _options = null!; // set in Initialize() before any other call
     private IReadOnlyProjectComponent _projectContents = null!; // set in Initialize() before any other call
     private IReporter _reporter = null!; // set in Initialize() before any other call
-    private readonly ILogger _logger;
-    private readonly IMutationTestExecutor _mutationTestExecutor;
-    private readonly ICoverageAnalyser _coverageAnalyser;
-    private readonly IMutationProcess _mutationProcess;
-
-    public MutationTestProcess(
-        IMutationTestExecutor executor,
-        ICoverageAnalyser coverageAnalyzer,
-        IMutationProcess mutationProcess,
-        ILogger<MutationTestProcess> logger)
-    {
-        _mutationTestExecutor = executor ?? throw new ArgumentNullException(nameof(executor));
-        _mutationProcess = mutationProcess ?? throw new ArgumentNullException(nameof(mutationProcess));
-        _coverageAnalyser = coverageAnalyzer ?? throw new ArgumentNullException(nameof(coverageAnalyzer));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly IMutationTestExecutor _mutationTestExecutor = executor ?? throw new ArgumentNullException(nameof(executor));
+    private readonly ICoverageAnalyser _coverageAnalyser = coverageAnalyzer ?? throw new ArgumentNullException(nameof(coverageAnalyzer));
+    private readonly IMutationProcess _mutationProcess = mutationProcess ?? throw new ArgumentNullException(nameof(mutationProcess));
 
     public void Initialize(MutationTestInput input, IStrykerOptions options, IReporter reporter)
     {
@@ -72,7 +64,7 @@ public partial class MutationTestProcess : IMutationTestProcess
 
     private async Task TestMutantsAsync(IEnumerable<IMutant> mutantsToTest)
     {
-        var mutantGroups = BuildMutantGroupsForTest(mutantsToTest.ToList());
+        var mutantGroups = BuildMutantGroupsForTest([.. mutantsToTest]);
 
         var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = _options.Concurrency };
 
@@ -190,10 +182,10 @@ public partial class MutationTestProcess : IMutationTestProcess
             .Select(m => new List<IMutant> { m }));
         mutantsToGroup.RemoveAll(m => m.AssessingTests.IsEveryTest);
 
-        mutantsToGroup = mutantsToGroup.Where(m => m.ResultStatus == MutantStatus.Pending).ToList();
+        mutantsToGroup = [.. mutantsToGroup.Where(m => m.ResultStatus == MutantStatus.Pending)];
 
         var testsCount = Input.InitialTestRun.Result.ExecutedTests.Count;
-        mutantsToGroup = mutantsToGroup.OrderBy(m => m.AssessingTests.Count).ToList();
+        mutantsToGroup = [.. mutantsToGroup.OrderBy(m => m.AssessingTests.Count)];
         while (mutantsToGroup.Count > 0)
         {
             // we pick the first mutant

@@ -127,12 +127,11 @@ public class SolutionFile
     {
         platform ??= DefaultPlatform;
 
-        return _configurations
+        return [.. _configurations
             .Where(entry =>
                 string.Equals(entry.Key.buildType, buildType, StringComparison.Ordinal) &&
                 string.Equals(entry.Key.platform, platform, StringComparison.Ordinal))
-            .SelectMany(entry => entry.Value.Keys)
-            .ToImmutableList();
+            .SelectMany(entry => entry.Value.Keys)];
     }
 
     private string GetEffectiveBuildType(string? buildType)

@@ -11,16 +11,10 @@ using Stryker.Abstractions.ProjectComponents;
 
 namespace Stryker.Core.Initialisation;
 
-public partial class ProjectMutator : IProjectMutator
+public partial class ProjectMutator(ILogger<ProjectMutator> logger, IServiceProvider serviceProvider) : IProjectMutator
 {
-    private readonly ILogger _logger;
-    private readonly IServiceProvider _serviceProvider;
-
-    public ProjectMutator(ILogger<ProjectMutator> logger, IServiceProvider serviceProvider)
-    {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-    }
+    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly IServiceProvider _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
     public IMutationTestProcess MutateProject(IStrykerOptions options, MutationTestInput input, IReporter reporters, IMutationTestProcess? mutationTestProcess = null)
     {

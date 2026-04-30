@@ -8,7 +8,7 @@ namespace Stryker.Configuration.Options.Inputs;
 
 public class ReportersInput : Input<IEnumerable<string>>
 {
-    public override IEnumerable<string> Default => new List<string>() { "Progress", "Html" };
+    public override IEnumerable<string> Default => ["Progress", "Html"];
 
     protected override string Description => "Reporters inform about various stages in the mutation testrun.";
     protected override IEnumerable<string> AllowedOptions => EnumToStrings(typeof(Reporter));
@@ -18,13 +18,13 @@ public class ReportersInput : Input<IEnumerable<string>>
         HashSet<Reporter> reporters;
         if (SuppliedInput is not null)
         {
-            reporters = new HashSet<Reporter>();
+            reporters = [];
 
             ValidateChosenReporters(SuppliedInput, reporters);
         }
         else
         {
-            reporters = new HashSet<Reporter> { Reporter.Progress, Reporter.Html };
+            reporters = [Reporter.Progress, Reporter.Html];
         }
 
         if (withBaseline)

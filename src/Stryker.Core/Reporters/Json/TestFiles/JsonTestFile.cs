@@ -25,7 +25,7 @@ public class JsonTestFile : IJsonTestFile
 
     public void AddTestFile(ITestFile? testFile)
     {
-        foreach (var test in testFile?.Tests ?? Enumerable.Empty<ITestCase>())
+        foreach (var test in testFile?.Tests ?? [])
         {
             Tests.Add(new JsonTest(test.Id.ToString())
             {

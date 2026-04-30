@@ -212,10 +212,10 @@ public static partial class IProjectAnalysisExtensions
         {
             if (!projectAnalysis.ReferenceAliases.TryGetValue(reference, out var aliases) || aliases is null)
             {
-                aliases = Array.Empty<string>();
+                aliases = [];
             }
 
-            yield return MetadataReference.CreateFromFile(reference).WithAliases(aliases.ToImmutableArray());
+            yield return MetadataReference.CreateFromFile(reference).WithAliases([.. aliases]);
         }
     }
 

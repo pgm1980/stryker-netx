@@ -36,7 +36,7 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
     {
         Placer = placer;
         Mutators = mutators ?? DefaultMutatorList();
-        Mutants = new Collection<IMutant>();
+        Mutants = [];
         Logger = ApplicationLogging.LoggerFactory.CreateLogger<CsharpMutantOrchestrator>();
     }
 

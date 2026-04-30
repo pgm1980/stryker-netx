@@ -90,7 +90,7 @@ public class MarkdownSummaryReporter : IReporter
         var mdSummaryDocument = new MdDocument();
         mdSummaryDocument.Root.Add(new MdHeading(1, "Mutation Testing Summary"));
 
-        var mdSummary = new MdTable(new MdTableRow(SummaryTableHeaders));
+        var mdSummary = new MdTable(new MdTableRow([.. SummaryTableHeaders]));
 
         foreach (var file in files)
         {
@@ -110,14 +110,14 @@ public class MarkdownSummaryReporter : IReporter
     private static MdTableRow GenerateFileData(IFileLeaf fileScores)
     {
         var mutationScore = fileScores.GetMutationScore();
-        var values = new List<string>
-        {
+        List<string> values =
+        [
             // Files
             fileScores.RelativePath ?? "All files",
 
             // Score
             double.IsNaN(mutationScore) ? "N/A" : $"{mutationScore * 100:N2}%"
-        };
+        ];
 
         var mutants = fileScores.Mutants.ToList();
 
@@ -152,6 +152,6 @@ public class MarkdownSummaryReporter : IReporter
 
         // Total
         values.Add(mutants.Count.ToString(CultureInfo.InvariantCulture));
-        return new MdTableRow(values);
+        return new MdTableRow([.. values]);
     }
 }
