@@ -1,0 +1,32 @@
+stryker-netx
+Copyright 2026 stryker-netx contributors
+
+This product includes software derived from Stryker.NET 4.14.1
+(https://github.com/stryker-mutator/stryker-net)
+Copyright (c) Richard Werkman, Rouke Broersma et al.
+Licensed under the Apache License, Version 2.0.
+
+The original Stryker.NET project is maintained by the
+Stryker Mutator team (Info Support BV, Netherlands) and the
+Stryker.NET community (https://stryker-mutator.io/).
+
+This fork (stryker-netx) is an independent port to C# 14 / .NET 10.
+It is NOT affiliated with, endorsed by, or sponsored by the official
+Stryker.NET project or Info Support BV. The "Stryker" name is used
+solely for descriptive purposes (Stryker Mutator-compatible tooling)
+and not as a trademark assertion.
+
+---
+
+Third-party software and licenses included in this distribution are
+subject to their respective license terms. See individual NOTICE
+files in dependency NuGet packages for details.
+
+Notable embedded resources from the original Stryker.NET project:
+- mutation-test-elements.js (Apache 2.0, https://github.com/stryker-mutator/mutation-testing-elements)
+- mutation-report.html template (Apache 2.0)
+
+---
+
+For questions about attribution or license compliance, please open
+an issue at https://github.com/pgm1980/stryker-netx/issues.

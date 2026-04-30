@@ -1,394 +1,349 @@
 # stryker-netx — DEEP MEMORY (360°)
 
-> Vollständiger Kontext für Mensch und KI. Dieses Dokument geht über die operativen Direktiven der CLAUDE.md hinaus und beschreibt **Vision, Hintergrund, Architektur, Toolchain, Roadmap, Risiken**. Wird kontinuierlich verdichtet — *umso mehr Memory, umso besser*.
+> Vollständiger Projekt-Kontext. Geht über die operativen Direktiven der CLAUDE.md hinaus und beschreibt **Vision, Hintergrund, Architektur, Toolchain, Roadmap, Risiken**. Kontinuierlich verdichtet — *umso mehr Memory, umso besser*.
 >
-> **Lese-Reihenfolge bei Session-Start:** [MEMORY.md](MEMORY.md) (Index) → DEEP_MEMORY.md (dieses Dokument) → [CLAUDE.md](CLAUDE.md) (Direktiven) → [_config/development_process.md](_config/development_process.md) (Prozess).
+> **Lese-Reihenfolge bei Session-Start:** [MEMORY.md](MEMORY.md) (Index) → DEEP_MEMORY.md (dieses Dokument) → [CLAUDE.md](CLAUDE.md) (Direktiven) → [_config/development_process.md](_config/development_process.md) (Prozess) → [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md) (12 ADRs).
 
 ---
 
 ## 1. Vision & Mission
 
 ### 1.1 Problem
-Stryker.NET ist der etablierte Mutation-Testing-Framework für die .NET-Welt — entwickelt vom Stryker-Mutator-Team (NodeJS-Stryker, Stryker4s, Stryker.NET als Geschwister-Projekte). Die aktuelle Version **4.14.1** unterstützt offiziell nur:
+[Stryker.NET](https://github.com/stryker-mutator/stryker-net) ist der etablierte Mutation-Testing-Framework für .NET. Die aktuelle Version **4.14.1** (released 2026-04-10) funktioniert nicht zuverlässig mit **.NET 9 / .NET 10**-Test-Projekten — verifiziert via GitHub-Issues:
 
-- .NET Framework 4.8
-- .NET Core 3.1
-- .NET Standard 1.3 (Mindest-Target)
+1. **Buildalyzer 8.0** (transitive Dep) parst .NET-10-MSBuild-Strukturen nicht (Buildalyzer-Issue [#318](https://github.com/Buildalyzer/Buildalyzer/issues/318))
+2. **MsBuildHelper-Fallback** sucht `MsBuild.exe` via `vswhere` → schlägt auf reinen .NET-10-SDK-Maschinen ohne Visual Studio fehl (stryker-net-Issue [#3351](https://github.com/stryker-mutator/stryker-net/issues/3351))
+3. **C# Interceptors** — bereits in 4.14.1 PR [#3471](https://github.com/stryker-mutator/stryker-net/pull/3471) (2026-03-16) gefixt ✅
+4. **DI/Logging-Init-Order** — bereits in 4.14.1 PR #3383 gefixt ✅
 
-**Konsequenz**: Projekte auf **.NET 10** können Stryker.NET nicht produktiv einsetzen. Das ist ein blocker für moderne .NET-Codebasen, die von Mutation Testing profitieren würden.
+**Buildalyzer 9.0.0 (Fix für #318) wurde am 2026-04-18 released — 8 Tage NACH Stryker 4.14.1.** Damit ist die transitive Dep der eigentliche Blocker, kein interner Stryker-Bug.
 
 ### 1.2 Ziel
-**stryker-netx** ist eine vollständige Portierung von Stryker.NET 4.14.1 auf:
+**stryker-netx** ist eine 1:1-Portierung von Stryker.NET 4.14.1 auf:
+- **C# 14** (LangVersion `latest`)
+- **.NET 10** (Runtime + BCL-APIs)
 
-- **C# 14** (Sprachfeatures: Primary Constructors, Collection Expressions, `field`-Keyword, ref struct interfaces, etc.)
-- **.NET 10** (Runtime-Features: NativeAOT, neue BCL-APIs, performance-Optimierungen)
+Die Portierung **erhält 100% der CLI-Schnittstelle, Config-Schemas und Reporter-Outputs** des Originals, **modernisiert die transitiven Dependencies** und **fixt die identifizierten .NET-10-Inkompatibilitäten**.
 
-Die Portierung ist **kein Fork mit minimalem Patch**, sondern eine **strukturierte Modernisierung**, die:
-- die ursprüngliche Funktionalität vollständig erhält (Mutator-Set, Reporters, Test-Runner-Adapter, CLI-Kompatibilität)
-- moderne C#-14- und .NET-10-Features einsetzt, wo sie Wert schaffen
-- die Code-Qualität durch strikte Analyzer-Konfiguration und umfassende Test-Pyramide erhöht
-- die Performance via BenchmarkDotNet messbar macht
-
-### 1.3 Nicht-Ziele
-- Keine Änderung der Stryker-Konventionen (Stryker-Config-Format, Reporter-Output-Schema, CLI-Flags) ohne starke Begründung — Migration für bestehende Stryker-Nutzer soll trivial bleiben
-- Keine Breaking Changes an der HTML-Report-Struktur (kompatibel mit `mutation-testing-elements`)
-- Keine Unterstützung von .NET Framework 4.8 oder .NET Core 3.1 mehr — nur .NET 10+
+### 1.3 Nicht-Ziele (Sprint 1)
+- Kein neues Mutator-Set (1:1 zu Upstream)
+- Keine CLI-Flag-Änderungen (1:1 zu Upstream)
+- Keine Config-Schema-Änderungen (1:1 zu Upstream)
+- Kein NativeAOT-Erzwingen (siehe ADR-006)
+- Keine McMaster-Replacement (siehe ADR-007 HYBRID)
+- Keine IDE-Plugins
+- Kein Visual-Basic / F# / non-C#-Source-Mutation
 
 ---
 
 ## 2. Stryker.NET — Hintergrund
 
-### 2.1 Was ist Mutation Testing?
-Mutation Testing misst die Qualität von Tests, indem es **kleine, gezielte Änderungen ("Mutationen")** in den Produktionscode einfügt und prüft, ob die existierenden Tests die Mutation entdecken (sie "töten"). Wenn die Tests trotz Mutation grün bleiben, deckt die Test-Suite den betroffenen Code nicht ausreichend ab.
+### 2.1 Mutation Testing — Kurzdefinition
+Mutation Testing misst die Test-Qualität, indem es **kleine, gezielte Änderungen ("Mutationen")** in den Produktionscode einfügt und prüft, ob die existierenden Tests die Mutation entdecken (sie "töten"). Wenn Tests trotz Mutation grün bleiben, deckt die Test-Suite den betroffenen Code nicht ausreichend ab.
 
-**Klassische Mutationen:**
-- `==` → `!=` (Comparison Mutation)
-- `+` → `-` (Arithmetic Mutation)
-- `if (x)` → `if (true)` / `if (false)` (Condition Mutation)
-- `return value` → `return null` / `return default` (Return Mutation)
-- `string.Empty` → `"Stryker was here!"` (String Literal Mutation)
-- Boolean Negation, Logical Operator Swap, etc.
+**Klassische Mutator-Kategorien:**
+- **Equality** (`==` ↔ `!=`)
+- **Arithmetic** (`+` → `-`, `*` → `/`)
+- **Boolean** (`true` ↔ `false`)
+- **Conditional** (`if (x)` → `if (true)` / `if (false)`)
+- **Block Removal** (Statements weglassen)
+- **String Literal** (`"abc"` → `""`)
+- **Boolean Negation, Logical Operator Swap**
+- **Regex-Mutation** (Stryker-spezifisch via Stryker.Regex.Parser)
 
-**Mutation Score** = (getötete Mutanten) / (alle Mutanten) — höher ist besser.
+**Mutation Score** = (killed + timeout) / (total − no-coverage) — Qualitätsmetrik.
 
 ### 2.2 Stryker.NET 4.14.1 — Architektur (aus _reference/)
-Die Solution besteht aus **17 Projekten**:
 
-| Projekt | Verantwortung |
-|---------|---------------|
-| `Stryker.Abstractions` | Interfaces, Abstrakte Modelle, geteilte Types |
-| `Stryker.CLI` | Command-Line-Interface, Entry Point (`dotnet stryker`) |
-| `Stryker.CLI.UnitTest` | Tests für CLI |
-| `Stryker.Configuration` | Config-Loader (YAML/JSON/CLI-Args), Schema-Validierung |
-| `Stryker.Core` | Hauptlogik: Orchestrator, Mutator-Engine, Diff-Logic, Reporting |
-| `Stryker.Core.UnitTest` | Tests für Core |
-| `Stryker.DataCollector` | Coverage-Datensammlung während Test-Runs (VsTest-Adapter) |
-| `Stryker.RegexMutators` | Spezialisierte Mutatoren für Regex-Pattern |
-| `Stryker.RegexMutators.UnitTest` | Tests dafür |
-| `Stryker.Solutions` | Solution-/csproj-Parsing, Projekt-Dependency-Graph |
-| `Stryker.Solutions.Test` | Tests dafür |
-| `Stryker.TestRunner` | Abstraktion über Test-Frameworks |
-| `Stryker.TestRunner.MicrosoftTestPlatform` | MTP-Adapter |
-| `Stryker.TestRunner.MicrosoftTestPlatform.UnitTest` | Tests dafür |
-| `Stryker.TestRunner.VsTest` | VsTest-Adapter (Hauptpfad in Praxis) |
-| `Stryker.TestRunner.VsTest.UnitTest` | Tests dafür |
-| `Stryker.Utilities` | Hilfsklassen (FileSystem-Wrapper, Logging-Helper, etc.) |
+**17 Projekte** in der Solution:
 
-**Schichten-Hierarchie (Annahme — in Sprint 0 zu verifizieren):**
+| Projekt | Verantwortung | TFM (Original) |
+|---------|---------------|----------------|
+| `Stryker.Abstractions` | Interfaces, Modelle, geteilte Types | net8.0 |
+| `Stryker.CLI` | Command-Line-Interface (Entry Point `dotnet stryker`) | net8.0, OutputType=Exe, PackAsTool=true |
+| `Stryker.CLI.UnitTest` | Tests für CLI | net8.0 (mit MSTest) |
+| `Stryker.Configuration` | Config-Loader (YAML/JSON/CLI-Args) | net8.0 |
+| `Stryker.Core` | Hauptlogik: Orchestrator, Mutator-Engine, Diff, Reporting | net8.0 (mit Embedded Resources: MutantControl.cs, MutantContext.cs, mutation-test-elements.js, mutation-report.html) |
+| `Stryker.Core.UnitTest` | Tests für Core | net8.0 |
+| `Stryker.DataCollector` | Coverage-Datensammlung während Test-Runs | **netstandard2.0 (HARTKODIERT)** — VsTest-Adapter-Constraint |
+| `Stryker.RegexMutators` | Spezialisierte Regex-Mutatoren | net8.0 |
+| `Stryker.RegexMutators.UnitTest` | Tests dafür | net8.0 |
+| `Stryker.Solutions` | Solution-/csproj-Parsing, Dependency-Graph | net8.0 |
+| `Stryker.Solutions.Test` | Tests dafür | net8.0 |
+| `Stryker.TestRunner` | Test-Runner-Abstraktion (`ITestRunner`) | net8.0 |
+| `Stryker.TestRunner.MicrosoftTestPlatform` | Microsoft Testing Platform Adapter | net8.0 |
+| `Stryker.TestRunner.MicrosoftTestPlatform.UnitTest` | Tests dafür | net8.0 |
+| `Stryker.TestRunner.VsTest` | VsTest-Adapter | net8.0 |
+| `Stryker.TestRunner.VsTest.UnitTest` | Tests dafür | net8.0 |
+| `Stryker.Utilities` | Hilfsklassen (FileSystem-Wrapper, Logging-Helper) | net8.0 |
+
+**Layering** (verifiziert via .csproj `ProjectReference`):
 ```
-Stryker.CLI
-    ↓
-Stryker.Core ←→ Stryker.Configuration
-    ↓                ↓
-Stryker.Solutions, Stryker.TestRunner.*, Stryker.RegexMutators, Stryker.DataCollector
-    ↓
-Stryker.Abstractions, Stryker.Utilities
+Layer 4: Stryker.CLI                                  → Layer 3
+Layer 3: Stryker.Core                                  → Layer 2 + 1 + 0
+Layer 2: Stryker.TestRunner.{MTP,VsTest}              → Layer 1 + 0
+Layer 1: Stryker.Configuration, RegexMutators,        → Layer 0
+         Solutions, TestRunner
+Layer 0: Stryker.Abstractions, Stryker.Utilities,      → externe Pakete
+         Stryker.DataCollector
 ```
 
-### 2.3 Externe Abhängigkeiten (Stryker 4.14.1 — Kernkomponenten)
-- **Microsoft.CodeAnalysis (Roslyn)** — Code-Parsing, AST-Manipulation, Mutationen-Injection
-- **Buildalyzer / MsBuild API** — Solution/Project-Analyse
-- **Spectre.Console** — CLI-Output, Progress-Bars
-- **Microsoft.TestPlatform / VsTest** — Test-Execution
-- **Newtonsoft.Json** (vermutlich) oder System.Text.Json — Config/Report-Serialization
-- **Serilog** — Strukturiertes Logging
-- **mutation-testing-elements** (npm/CDN) — HTML-Report-Frontend
+### 2.3 Stryker.NET 4.14.1 — Externe Dependencies (verifiziert via Directory.Packages.props)
 
-→ **In Sprint 0 zu verifizieren** durch Lesen der `.csproj`-Dateien unter `_reference/stryker-4.14.1/src/`. Manche Pakete brauchen .NET-10-kompatible Versionen.
+**Schon auf .NET-10-Versionen** (in 4.14.1):
+- `Microsoft.Extensions.DependencyInjection 10.0.5`
+- `Microsoft.Extensions.Logging 10.0.5` + `Logging.Abstractions 10.0.5`
+- `Microsoft.TestPlatform 18.4.0` + `ObjectModel/Portable/TranslationLayer 18.4.0`
+- `Microsoft.Testing.Platform 1.5.2`
+- `Microsoft.VisualStudio.SolutionPersistence 1.0.52` (`.slnx`-Support)
+- `System.Net.Http.Json 10.0.5`
 
-### 2.4 Was muss portiert werden? (high-level)
-- **API-Surface**: ~15 öffentliche Top-Level-Interfaces in `Stryker.Abstractions`
-- **Mutator-Klassen**: ~30 Mutator-Implementierungen (Statement-, Expression-, Regex-Level)
-- **Reporter-Klassen**: ~10 (HTML, JSON, Console, Progress, Dashboard, Baseline, ClearText, etc.)
-- **Test-Runner-Adapter**: 2 (VsTest, MicrosoftTestPlatform)
-- **Configuration-Loader**: YAML/JSON/CLI-Merging, Defaults, Validation
-- **CLI-Frontend**: Spectre.Console-basiert, ~20 Command-Line-Optionen
+**Zu aktualisieren** (für stryker-netx):
+- **`Buildalyzer 8.0.0` → 9.0.0+** ← KRITISCHER Fix
+- `Microsoft.CodeAnalysis.* 5.3.0` → C#-14-fähige Version
+- Alle anderen Pakete auf neueste stable
+
+**Bemerkenswert**:
+- `McMaster.Extensions.CommandLineUtils 5.1.0` — **deprecated** (Maintainer hat Repo archiviert), v5.1.0 ist letzte stabile Version → ADR-007 HYBRID-Strategie
+- `Stryker.Regex.Parser 1.0.0` — eigener Stryker-Fork eines Regex-Parsers
+- `LibGit2Sharp 0.31.0` — native git-Bindings für Diff-Logik
+- `AWSSDK.S3 4.0.21` + `Azure.Storage.Files.Shares 12.25.0` — für Baseline-Reporter
+- `Mono.Cecil 0.11.6` — IL-Manipulation (DataCollector)
+- `Spectre.Console 0.54.0` — CLI-Output
 
 ---
 
-## 3. Stack & Toolchain
+## 3. Stack & Toolchain (für stryker-netx)
 
 ### 3.1 Sprache und Runtime
-- **C# 14** — neue Sprachfeatures aktiv nutzen, wo sie Mehrwert bringen:
-  - Primary Constructors (Boilerplate-Reduktion)
-  - Collection Expressions (`[1, 2, 3]`)
-  - `field`-Keyword für Property-Backing-Fields
-  - `ref struct` mit Interface-Implementation
-  - `params` für `IEnumerable<T>` / `Span<T>`
-- **.NET 10** — Runtime-Features:
-  - NativeAOT-Kompatibilität anstreben (für CLI-Tool eine echte Verbesserung)
-  - Neue BCL-APIs (z.B. `System.Text.Json` Source-Generation, neue `LINQ`-APIs)
-  - Performance-Verbesserungen in Roslyn-APIs
+- **C# 14** mit `<LangVersion>latest</LangVersion>` (statt strikt `14.0` — robuster gegen SDK-Updates)
+- **.NET 10** als Target-Framework für alle Hauptprojekte
+- **netstandard2.0** für Stryker.DataCollector (VsTest-Adapter-Constraint)
 
 ### 3.2 Build & Tooling
-- **Solution-Format**: `.slnx` (XML-basiertes Solution-Format, neu in Visual Studio / dotnet CLI 17.10+)
-- **SDK-Pinning**: `global.json` (`{ "sdk": { "version": "10.0.100" } }`)
-- **Code-Style**: `.editorconfig` mit Naming-Conventions, Severity-Overrides — wird von Roslyn-Analyzern ausgewertet
-- **MSBuild Properties**: zentral in `Directory.Build.props`
+- **Solution-Format:** `.slnx` (XML, neu in VS 17.10+)
+- **SDK-Pinning:** `global.json` mit 10.0.x
+- **Code-Style:** `.editorconfig` (zentralisiert in Repo-Root)
+- **MSBuild-Properties:** `Directory.Build.props` (zentral)
+- **NuGet-Versionen:** Central Package Management via `Directory.Packages.props`
 
-### 3.3 Analyzer (im Build aktiv)
-- **Roslynator.Analyzers v4.15.0** — Code-Qualität, Vereinfachungen, Best Practices
-- **SonarAnalyzer.CSharp v10.20.0** — Security, Reliability, Maintainability (~600 Regeln)
-- **Meziantou.Analyzer v3.0.22** — .NET-spezifische Best Practices, Performance-Pitfalls
+### 3.3 Analyzer (im Build aktiv, Big-Bang Sprint 1 — ADR-004)
+- **Roslynator.Analyzers v4.15.0**
+- **SonarAnalyzer.CSharp v10.20.0**
+- **Meziantou.Analyzer v3.0.22**
+- `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` aktiv
+- `.editorconfig`-Tuning für berechtigte Stryker-Patterns (Defensive-Catch, etc.)
 
-→ `TreatWarningsAsErrors=true` ist **aktiv**. Jede Warnung blockiert den Build. Kein `#pragma warning disable` ohne dokumentierte Begründung im Code-Kommentar direkt darüber.
+### 3.4 Test-Stack (Voll-Migration in Sprint 1 — ADR-005)
 
-### 3.4 Test-Stack
-| Paket | Version | Zweck |
-|-------|---------|-------|
-| `xunit` | 2.9.3 | Test-Framework |
-| `xunit.runner.visualstudio` | 3.1.4 | VS-Runner-Adapter |
-| `Microsoft.NET.Test.Sdk` | 17.14.1 | dotnet test-Adapter |
-| `FluentAssertions` | 8.8.0 | Lesbare Assertions (PFLICHT statt `Assert.Equal`) |
-| `Moq` | 4.20.72 | Mocking (Vorsicht: keine sealed/static — sealed by default!) |
-| `coverlet.collector` | 8.0.0 | Code-Coverage (immer mit `--collect:"XPlat Code Coverage"`) |
-| `TngTech.ArchUnitNET.xUnit` | 0.11.0 | Architektur-Tests (Schichten-Regeln als Tests) |
-| `FsCheck.Xunit` | 3.1.0 | Property-Based Testing (Roundtrip, Invarianten, Edge Cases) |
-| `BenchmarkDotNet` | 0.14.0 | Performance-Benchmarks (in separatem `benchmarks/`-Projekt, nur Release-Mode) |
+**Migration MSTest+Shouldly → xUnit+FluentAssertions:**
 
-### 3.5 Logging & Konfiguration
-- **Logging**: Serilog (strukturiert, mit Sinks für File + Console)
-- **Konfiguration**: YAML- und JSON-basierte Config-Files; CLI-Args überschreiben Config-Werte (Stryker-Konvention behalten)
+| Stryker 4.14.1 | stryker-netx |
+|----------------|--------------|
+| MSTest + MSTest.TestFramework 4.1.0 | xUnit 2.9.x + xunit.runner.visualstudio 3.1.x |
+| Shouldly 4.3.0 | FluentAssertions 8.8.x |
+| Moq 4.20.72 | Moq 4.20.72 (beibehalten) |
+| Spectre.Console.Testing 0.54.0 | Spectre.Console.Testing (beibehalten) |
+| TestableIO.System.IO.Abstractions.TestingHelpers 22.1.1 | beibehalten |
+| Microsoft.NET.Test.Sdk 18.4.0 | beibehalten/aktuell |
+| (neu) | TngTech.ArchUnitNET.xUnit 0.11.x |
+| (neu) | FsCheck.Xunit 3.1.x |
+| (neu) | coverlet.collector 8.0.x |
+| (neu, separates Projekt) | BenchmarkDotNet 0.14.x |
 
-### 3.6 MCP-Tooling
+### 3.5 MCP-Tooling (Pflicht laut CLAUDE.md)
+
 | Tool | Zweck | Pflicht-Trigger |
 |------|-------|-----------------|
 | **Serena** | Symbolbasierte Code-Analyse via Roslyn (OmniSharp/C# LSP) | IMMER vor Grep für Klassen/Methoden/Properties |
 | **Semgrep** | Security-Scanning | Vor jedem Sprint-Abschluss + bei security-relevantem Code |
-| **Context7** | Aktuelle API-Doku (NuGet-Pakete, .NET-APIs) | Vor Nutzung neuer APIs / bei Versionswechseln |
-| **Sequential Thinking** (MCP-Server-Name: `maxential-cot-mcp-server`) | Branching-Reasoning für komplexe Entscheidungen | ≥10 Schritte bei Architektur, ≥8 bei Algorithmen, ≥3 bei Trade-offs |
-| **GitHub CLI (`gh`)** | Mehrstufige Git-Workflows (Branch+PR+Push, Tag+Release, Issue) | Statt manuelle Bash-Sequenzen |
+| **Context7** | Aktuelle API-Doku (NuGet, .NET-APIs) | **PFLICHT vor Buildalyzer-9-Migration**, vor Roslyn-Updates, vor jedem Major-Update |
+| **Sequential Thinking (Maxential)** | Branching-Reasoning | ≥10 Schritte bei Architektur, ≥8 bei Algorithmen, ≥3 bei Trade-offs |
+| **Tree of Thoughts (NextGen ToT)** | Multi-Option-Exploration | Bei mehreren validen Lösungen (User-Vorgabe) |
+| **GitHub CLI (`gh`)** | Mehrstufige Git-Workflows | Branch+PR+Push, Tag+Release, Issue-Erstellung |
 
-> **Ehemals geplant, entfernt:** FS MCP Server (`fs-mcp-server`) — war für das Projekt-Root falsch konfiguriert (resolved gegen `C:\WINDOWS`, registrierte nur 5 von angeblich 138 Tools). Built-In Read/Edit/Write/Glob/Grep haben übernommen.
+> **NICHT MEHR:** FS MCP Server — wurde aus Setup entfernt (war für Projekt-Root falsch konfiguriert).
 
-### 3.7 Permissions / Enforcement
+### 3.6 Permissions
 - **`.claude/settings.json` läuft im `bypassPermissions`-Modus** — keine deny/allow-Liste, alle Tool-Calls erlaubt
-- Filesystem-Direktiven (Built-In Tools statt Bash, Serena vor Grep, etc.) sind **reine Projekt-Konvention** — kein Harness-Enforcement
-- Subagenten erben dieselben Permissions; CLAUDE.md-Direktiven MÜSSEN explizit im Subagent-Prompt mitgegeben werden
+- Filesystem-Direktiven (Built-In Tools, Serena vor Grep) sind **reine Konvention**, kein Harness-Enforcement
+- Subagenten erben dieselben Permissions; CLAUDE.md-Direktiven MÜSSEN explizit im Subagent-Prompt mitgegeben werden (siehe Subagent-Prompt-Schablone in ADR-011)
 
 ---
 
 ## 4. Architektur-Vision (für stryker-netx)
 
-> Nur Vision — wird in Sprint 0 als ADRs verfeinert in `_docs/architecture_spec/architecture_specification.md`.
+> Vollständig dokumentiert in [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md) — 12 ADRs.
 
-### 4.1 Layering-Prinzip
-**Clean Architecture** mit klarer Schicht-Trennung:
+### 4.1 Layering (ADR-012)
 
 ```
-src/
-  Stryker.NetX/                   # Application Layer (CLI Entry, Composition Root)
-    Program.cs
-  Stryker.NetX.Core/              # Use Cases / Orchestration
-  Stryker.NetX.Domain/            # Domain Models, Interfaces, Pure Logic (Mutators!)
-  Stryker.NetX.Infrastructure/    # Roslyn, Buildalyzer, FileSystem, TestRunner
-  Stryker.NetX.Reporters/         # Reporter-Implementierungen
-  Stryker.NetX.TestRunners/       # Test-Runner-Adapter (VsTest, MTP)
-  Stryker.NetX.Configuration/     # Config-Loading
+Layer 4 (Composition Root)
+  └── Stryker.CLI                            net10.0, OutputType=Exe
+
+Layer 3 (Core Orchestration)
+  └── Stryker.Core                            net10.0
+
+Layer 2 (Test-Runner-Adapter)
+  ├── Stryker.TestRunner.MicrosoftTestPlatform  net10.0
+  └── Stryker.TestRunner.VsTest                 net10.0
+
+Layer 1 (Domain)
+  ├── Stryker.Configuration                  net10.0
+  ├── Stryker.RegexMutators                  net10.0
+  ├── Stryker.Solutions                      net10.0
+  └── Stryker.TestRunner                     net10.0
+
+Layer 0 (Foundations)
+  ├── Stryker.Abstractions                   net10.0
+  ├── Stryker.Utilities                      net10.0
+  └── Stryker.DataCollector                  netstandard2.0  ← HARTKODIERT
 ```
 
-→ **In Sprint 0 zu entscheiden**: Behalten wir die ursprüngliche 17-Projekte-Struktur (1:1-Portierung) oder konsolidieren wir? **Trade-off**: Konsolidierung erhöht Wartbarkeit, behindert aber Drop-In-Replacement. Sequential Thinking ≥10 Schritte!
+### 4.2 Architektur-Tests (ADR-012)
+ArchUnitNET-Tests in `tests/Stryker.Architecture.Tests/`:
+- Layer-Trennung enforced
+- Mutator-Klassen müssen `sealed` und `IMutator` implementieren
+- Reporter-Klassen müssen `sealed` und `IReporter` implementieren
+- McMaster-Reference nur in `Stryker.CLI` (Wrapper-Layer-Enforcement)
+- Statische `Architecture`-Instanz pro Testklasse (CLAUDE.md-Hinweis: nicht pro Test, teuer)
 
-### 4.2 ArchUnitNET-Regeln (Vorab-Vision)
-- `Domain` darf **nicht** auf `Infrastructure` zugreifen
-- `Domain` darf **nicht** auf `Roslyn`-Types direkt zugreifen (Adapter-Pattern via Interfaces)
-- `Application` darf **nicht** auf `Infrastructure` direkt zugreifen (nur via DI)
-- Mutator-Klassen müssen `IMutator` implementieren und `sealed` sein
-- Reporter-Klassen müssen `IReporter` implementieren und `sealed` sein
-
-### 4.3 Code-Standards (siehe CLAUDE.md)
-- `sealed` als Default für alle Klassen, die nicht zur Vererbung gedacht sind
-- XML-Doc-Kommentare auf allen öffentlichen APIs
-- `ConfigureAwait(false)` auf allen `await`-Calls
-- Exception-Pattern: `catch (Exception ex) when (ex is not OperationCanceledException) { ... }`
-- Namespace folgt Verzeichnisstruktur (Roslynator-erzwungen)
-- Primary Constructors bei Records / kleinen Service-Klassen
-- Collection Expressions statt `new List<T> { ... }` wo möglich
+### 4.3 Code-Standards (CLAUDE.md)
+- `sealed` Default für nicht-vererbbare Klassen
+- XML-Doc-Kommentare auf allen `public` APIs
+- `ConfigureAwait(false)` auf allen `await` Calls in Library-Code
+- `catch (Exception ex) when (ex is not OperationCanceledException) { ... }` Pattern
+- Namespace folgt Verzeichnisstruktur
 
 ---
 
-## 5. Entwicklungsprozess (Scrum-basiert)
+## 5. Sprint-1-Roadmap (PILOT + DAG-LAYER-PARALLEL — ADR-011)
 
-> Vollständig in [_config/development_process.md](_config/development_process.md). Kurzfassung hier.
+ToT-Best-Path-Strategie. Realdauer-Schätzung: **4–6 Wochen**.
 
-### 5.1 Sprint 0 — Architektur & Design (aktuell)
-- **Brainstorming**: Portierungsstrategie, Mutator-Auswahl, Modul-Reihenfolge, Compat-Goals — Skill: `brainstorming` + Sequential Thinking
-- **Architektur**: ADRs (Architecture Decision Records) — Skill: `architecture-designer`
-  - ADR-001: Solution-Struktur (1:1 vs konsolidiert)
-  - ADR-002: DI-Container (Microsoft.Extensions.DependencyInjection vs. anders)
-  - ADR-003: Logging-Strategie (Serilog vs. Microsoft.Extensions.Logging)
-  - ADR-004: Test-Runner-Adapter (VsTest beibehalten? MTP als Default?)
-  - ADR-005: Konfigurations-Format (YAML, JSON, beide?)
-  - ADR-006: NativeAOT-Kompatibilität (Constraints für Reflection/Dynamic-Code)
-- **Software Design**: FRs + NFRs — Skill: `write-spec`
-  - FRs: Mutator-Engine, Reporter-Pipeline, Test-Runner-Abstraktion, CLI-Frontend, Config-Loader
-  - NFRs: Performance (Mutation-Run-Time), Compat (Stryker-Config-Format), Security, Diagnostics
+| Phase | Dauer | Modul-Abdeckung | Subagent-Setup |
+|-------|-------|-----------------|----------------|
+| **0 — Repo-Bootstrap** | ~½ Tag | Hauptsession seriell | global.json, .editorconfig, .slnx, Directory.{Build,Packages}.props, License-Stack |
+| **1 — PILOT Stryker.Abstractions** | ~1–2 Tage | Hauptsession seriell | TWAE + 3 Analyzer + Cleanup, Lessons-Doku |
+| **2 — Layer 0 parallel** | ~3–5 Tage | 2 Subagents (Worktree-Isolation) | Stryker.Utilities, Stryker.DataCollector |
+| **3 — Layer 1 parallel** | ~5–7 Tage | 4 Subagents (Worktree-Isolation) | Configuration, RegexMutators, Solutions, TestRunner |
+| **4 — Layer 2 parallel** | ~3–5 Tage | 2 Subagents (Worktree-Isolation) | TestRunner.MTP, TestRunner.VsTest |
+| **5 — Stryker.Core dediziert** | ~5–7 Tage | Hauptsession (oder 1 Subagent) | **Buildalyzer 9 + MsBuildHelper-Fix** + Stryker.Core.UnitTest |
+| **6 — Stryker.CLI + Identitäts-Migration** | ~2–3 Tage | Hauptsession | `dotnet stryker-netx`, `dotnet-stryker-netx` Package-IDs, IStrykerCommandLine-Wrapper |
+| **7 — Integration & DoD** | ~2–3 Tage | Hauptsession | ArchUnit-Tests, FsCheck, BenchmarkDotNet, ExampleProjects-Smoke-Test |
 
-### 5.2 Product Backlog (Nach Sprint 0)
-- DoD (übergreifend, alle Sprints)
-- Epics → GitHub Milestones
-- Features (Sammlungen von User Stories) → GitHub Issues
-- User Stories → GitHub Issues
-- Acceptance Criteria je Story
+### Subagent-Prompt-Schablone (Pflicht — siehe ADR-011)
 
-### 5.3 Sprints 1–N
-- **Vertikal/E2E**: Jeder Sprint produziert ein lauffähiges Increment (Feature-vollständig)
-- **TDD-Pflicht**: Red → Green → Refactor, keine Ausnahmen — Skill: `test-driven-development`
-- **Branch**: `feature/[ISSUE-NR]-name` (GitHub Flow)
-- **DoD pro Sprint**:
-  - Alle Tasks implementiert
-  - Alle Tests grün (Unit + Integration + ArchUnit + Property)
-  - `verification-before-completion` ausgeführt
-  - 0 Warnings/0 Errors (TreatWarningsAsErrors)
-  - Semgrep-Scan bestanden
-  - Increment lauffähig
-  - Conventional Commits
-- **GitHub-Mapping**: Sprint Increment ↔ `feature/*`-Branch ↔ Feature-Issue-Closure
+Jeder Subagent-Prompt MUSS die 5 Sektionen aus CLAUDE.md enthalten: KONTEXT, ZIEL, CONSTRAINTS, MCP-ANWEISUNGEN, OUTPUT. Plus Worktree-Isolation und MaxTurns gemäß Aufgabentyp (40–50 für komplexe Implementierung).
 
-### 5.4 Review & Integration
-- `requesting-code-review` für schnellen Sanity-Check
-- `pr-review` für umfassendes Pre-Merge-Review (6 spezialisierte Agents)
-- `receiving-code-review` für Feedback-Verarbeitung
-- `finishing-a-development-branch` für Merge/PR/Keep/Discard
-- Bei Epic-Abschluss: GitHub Tag (SemVer, annotated)
+### Sprint-1-DoD (Phase 7 Abschluss)
+
+- [ ] `dotnet build` 0 Warnings, 0 Errors
+- [ ] `dotnet test` alle grün (Unit + ArchUnit + FsCheck-Properties)
+- [ ] `semgrep scan --config auto` ohne neue Findings
+- [ ] Mindestens 1 ExampleProject aus `_reference/.../ExampleProjects/` erfolgreich gemutet
+- [ ] CLI-Smoke-Test: `dotnet stryker-netx --version` und `--help` funktionieren
+- [ ] BenchmarkDotNet-Setup für mindestens 3 Hot Paths
+- [ ] Conventional Commits durchgängig
+- [ ] Sprint-Tag `v1.0.0-preview.1` gesetzt (optional)
 
 ---
 
-## 6. Repository-Struktur
+## 6. Risiken (Top-12, vollständig in Architecture Spec)
 
-### 6.1 Aktuell (post-Bootstrap)
-```
-stryker-netx/
-├── .claude/                       # Claude Code Config
-│   ├── hooks/                     # 7 Bash-Hooks (sprint-health, sprint-gate, etc.)
-│   ├── rules/                     # (User-defined rules)
-│   ├── settings.json              # bypassPermissions, Worktree, Hook-Triggers
-│   ├── settings.local.json        # gitignored — lokale Permissions
-│   └── skills/                    # ~30 installierte Skills
-├── .serena/
-│   └── project.yml                # Serena-Projekt-Konfiguration
-├── .sprint/
-│   └── state.md                   # YAML-Frontmatter, hook-gesteuert
-├── _config/
-│   └── development_process.md     # Scrum-Prozess
-├── _docs/
-│   ├── architecture_spec_template.md
-│   ├── product_backlog_template.md
-│   ├── software_design_spec_template.md
-│   └── sprint_backlog_template.md
-├── _misc/
-│   └── git-setup-for-claude-code.md
-├── _reference/
-│   └── stryker-4.14.1/            # Original Stryker.NET (17 Projekte) — read-only Baseline
-├── .gitignore
-├── CLAUDE.md                      # Verbindliche Direktiven
-├── DEEP_MEMORY.md                 # ← dieses Dokument
-├── Directory.Build.props          # Roslynator + Sonar + Meziantou + TreatWarningsAsErrors
-├── MEMORY.md                      # Memory-Index
-└── README.md
-```
-
-### 6.2 Geplant (Sprint 0+ ergänzt)
-```
-+ global.json                      # SDK-Pinning auf 10.0.x
-+ .editorconfig                    # Code-Style + Naming
-+ stryker-netx.slnx                # Solution-Datei
-+ src/                             # zu definieren in Sprint 0 (ADR-001)
-+ tests/
-+ benchmarks/
-+ _docs/architecture spec/architecture_specification.md
-+ _docs/design spec/software_design_specification.md
-+ _docs/product_backlog.md         # Nach Sprint 0
-```
+| # | Risiko | Impact | Mitigation |
+|---|--------|--------|------------|
+| R1 | Buildalyzer-9-API-Migration kann unerwartete Refactors erzwingen | High | Context7 vor Update; Phase 5 dediziert |
+| R2 | TWAE + 3 Analyzer können 1500+ Initial-Issues produzieren | High | .editorconfig-Tuning; Pilot-Lessons; Subagent-Parallelisierung |
+| R3 | MSTest-Edge-Cases ([ClassInitialize], [ExpectedException]) | Medium | Roslyn-Code-Mod als Tooling |
+| R4 | Roslyn-API-Updates können Breaking Changes haben | Medium | Context7-Pflicht |
+| R5 | DataCollector netstandard2.0-Pinning blockiert moderne BCL | Low | Bewusste Inkaufnahme |
+| R6 | McMaster-Deprecation kann CVE bringen | Medium | ADR-007 HYBRID + Migration-Trigger |
+| R7 | Spätere AOT-Aktivierung erfordert Refactor | Low | ADR-006 (tauglich aber nicht erzwungen) |
+| R8 | ExampleProjects als Smoke-Tests können brechen | Medium | Phase-7-Verifikation |
+| R9 | Stryker-Upstream-4.15.0 könnte Eigenarbeit obsolet machen | Low | Apache-2.0 erlaubt Re-Sync |
+| R10 | `.slnx` Tooling-Support unklar bei manchen .NET 10 SDK | Low | Phase-0-Smoke-Test, .sln-Fallback |
+| R11 | Sprint-1 4–6 Wochen übersteigt Standard-Sprint | Medium | Bewusste Mega-Sprint-Entscheidung |
+| R12 | Worktree-Subagent-Konflikte beim Merge | Medium | Hauptsession-Koordination, Konflikt-Resolution-Plan |
 
 ---
 
-## 7. Risiken & Annahmen
-
-| # | Risiko / Annahme | Mitigation |
-|---|------------------|------------|
-| R1 | **.NET 10 ist neu** — APIs/Tooling können sich noch ändern | global.json pinnen, Context7 vor jedem API-Use, NuGet-Versions explizit pinnen |
-| R2 | **`.slnx` Tooling-Support** unklar (manche IDEs / dotnet-Versionen unterstützen es noch nicht 100%) | Check in Sprint 0 ob lokales `dotnet build` mit `.slnx` funktioniert; ggf. `.sln` als Fallback |
-| R3 | **Roslyn/Microsoft.CodeAnalysis** muss .NET-10-kompatible Version haben | In Sprint 0: `dotnet list package --outdated` auf einer Test-Solution |
-| R4 | **Buildalyzer/MsBuild API** kann inkompatibel sein | Eventuell durch direkte MSBuild-API ersetzen, falls Buildalyzer hinterherhinkt |
-| R5 | **VsTest-Adapter** — VsTest ist Legacy, MTP ist die neue Generation; Stryker.NET 4.14.1 supportet beide | ADR in Sprint 0: behalten wir beide oder fokussieren auf MTP? |
-| R6 | **NativeAOT-Kompatibilität** — Reflection-Heavy Code (Mutator-Discovery via Reflection) ist AOT-feindlich | Source-Generators erwägen, oder NativeAOT als optionales Feature |
-| R7 | **Spectre.Console-Version** — Major-Updates können Breaking Changes haben | Pin Version, Context7 prüfen |
-| R8 | **HTML-Report-Kompatibilität** — `mutation-testing-elements` Schema muss passen | Schema-Tests in Integration-Suite |
-| R9 | **TreatWarningsAsErrors** kann den Sprint blockieren wenn neue Analyzer-Regeln plötzlich aufschlagen | Dependency-Updates kontrolliert (in einem dedizierten Maintenance-Sprint) |
-| R10 | **Performance-Regression** vs. Stryker.NET 4.14.1 möglich, durch Modernisierung | BenchmarkDotNet von Anfang an für Hot Paths |
-| R11 | **Stryker-Config-Format** muss kompatibel bleiben — bestehende Nutzer migrieren sonst nicht | Compat-Tests gegen reale Stryker-Configs (aus `_reference/stryker-4.14.1/ExampleProjects`) |
-
----
-
-## 8. Tooling-Setup-Status
+## 7. Tooling-Setup-Status
 
 | Komponente | Status | Notiz |
 |------------|--------|-------|
-| .NET 10 SDK | ⚠ Verifikation nötig | `dotnet --version` in Sprint 0 prüfen |
+| .NET 10 SDK | ⚠ Phase 0 verifizieren | `dotnet --version`-Check |
 | Git for Windows | ✓ Konfiguriert | sslBackend=openssl, credential.helper=store |
-| GitHub CLI (`gh`) | ✓ Auth als pgm1980 | scopes: admin:*, repo, user, workflow |
-| Repo `pgm1980/stryker-netx` | ✓ Erstellt (privat), 2 Commits gepusht | Default branch: `main` |
+| GitHub CLI (`gh`) | ✓ Auth als pgm1980 | volle Scopes inkl. admin, repo, workflow |
+| Repo `pgm1980/stryker-netx` | ✓ Erstellt (privat), Sprint 0 gepusht | Default branch `main` |
 | Serena MCP | ✓ Verfügbar | Roslyn/OmniSharp-basiert |
-| Semgrep CLI | ⚠ Verifikation nötig | `semgrep --version` in Sprint 0 prüfen |
-| Context7 MCP | ✓ Verfügbar | Naming: `mcp__context7__*` |
-| Sequential Thinking MCP | ✓ Verfügbar | Naming: `mcp__maxential-cot-mcp-server__*` (CLAUDE.md hat anderen Namen — Doku-Inkonsistenz) |
-| FS MCP Server | ✗ Entfernt | War defekt für Projekt-Root |
-| Hooks (`.claude/hooks/`) | ✓ Aktiv | sprint-health, sprint-gate, statusline, sprint-state-save, post-compact-reminder, sprint-housekeeping-reminder, verify-after-agent |
+| Semgrep CLI | ⚠ Phase 0 verifizieren | `semgrep --version`-Check |
+| Context7 MCP | ✓ Verfügbar | `mcp__context7__*` |
+| Sequential Thinking (Maxential) | ✓ Verfügbar | `mcp__maxential-cot-mcp-server__*` (CLAUDE.md-Naming `mcp__sequential-thinking-maxential__*` ist Doku-Inkonsistenz) |
+| NextGen ToT MCP | ✓ Verfügbar | `mcp__nextgen-tot-mcp-server__*` |
+| FS MCP Server | ✗ Entfernt | War für Projekt-Root falsch konfiguriert |
+| Hooks (`.claude/hooks/`) | ✓ Aktiv | sprint-health, sprint-gate, statusline, post-compact-reminder, sprint-housekeeping-reminder, sprint-state-save, verify-after-agent |
 
 ---
 
-## 9. Externe Referenzen
+## 8. Externe Referenzen
 
 - **Stryker-Mutator Hauptseite**: https://stryker-mutator.io/
 - **Stryker.NET Docs**: https://stryker-mutator.io/docs/stryker-net/
 - **Stryker.NET GitHub**: https://github.com/stryker-mutator/stryker-net
 - **Stryker.NET 4.14.1 Source (lokal)**: [_reference/stryker-4.14.1/](_reference/stryker-4.14.1/)
 - **mutation-testing-elements** (HTML-Report-Frontend): https://github.com/stryker-mutator/mutation-testing-elements
-- **Stryker.NET Slack** (Community): https://join.slack.com/t/stryker-mutator/shared_invite/...
-- **C# 14 Spec / Whats new**: https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-14
-- **.NET 10 What's New**: https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/overview
+- **C# 14**: https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-14
+- **.NET 10**: https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/overview
+- **Buildalyzer**: https://github.com/Buildalyzer/Buildalyzer
+- **Apache 2.0**: http://www.apache.org/licenses/LICENSE-2.0
+- **Developer Certificate of Origin**: https://developercertificate.org/
+- **Contributor Covenant 2.1**: https://www.contributor-covenant.org/version/2/1/code_of_conduct/
 
 ---
 
-## 10. Konventionen-Glossar
+## 9. Konventionen-Glossar
 
 | Begriff | Bedeutung |
 |---------|-----------|
 | **PFLICHT / VERBOTEN** | Nicht-verhandelbare CLAUDE.md-Direktive |
-| **Sprint 0** | Architektur- und Design-Sprint, kein Code |
-| **Sprints 1..N** | Implementation-Sprints, jeder produziert ein lauffähiges Increment |
-| **Epic** | GitHub Milestone, entspricht einem MVP |
-| **Feature** | Sammlung User Stories, GitHub Issue mit Sub-Issues |
-| **User Story** | Einzelne implementierbare Einheit, GitHub Issue mit Acceptance Criteria |
-| **Increment** | Funktionsfähiges, getestetes Ergebnis eines Sprints |
-| **DoD** | Definition of Done — pro Sprint und übergreifend |
-| **PBI** | Product Backlog Item |
-| **ADR** | Architecture Decision Record (in `architecture_specification.md`) |
-| **FR/NFR** | Functional / Non-Functional Requirement (in `software_design_specification.md`) |
+| **Sprint 0** | Architektur- und Design-Sprint, kein Code (✅ abgeschlossen 2026-04-30) |
+| **Sprint 1** | Mega-Sprint Implementation (geplant, 4–6 Wochen) |
+| **Sprints 2..N** | Refinement-Sprints |
+| **ADR** | Architecture Decision Record |
+| **FR / NFR** | Functional / Non-Functional Requirement |
+| **DoD** | Definition of Done |
+| **DCO** | Developer Certificate of Origin |
+| **TWAE** | TreatWarningsAsErrors |
+| **CPM** | Central Package Management (`<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>`) |
+| **TFM** | Target Framework Moniker (`net10.0`, `netstandard2.0`, …) |
+| **MTP** | Microsoft Testing Platform (neue Generation) |
+| **VsTest** | Visual Studio Test (klassische Generation) |
+| **ToT** | Tree of Thoughts (Reasoning-Methode) |
 
 ---
 
-## 11. Glossar Stryker-spezifisch
+## 10. Stryker-spezifisches Glossar
 
 | Begriff | Bedeutung |
 |---------|-----------|
-| **Mutator** | Klasse, die eine bestimmte Code-Mutation produziert (z.B. `EqualityMutator`, `BooleanMutator`) |
+| **Mutator** | Klasse, die eine bestimmte Code-Mutation produziert (z.B. EqualityMutator) |
 | **Mutant** | Konkrete Mutation einer Quelldatei an einer bestimmten Stelle |
 | **Killed Mutant** | Tests haben die Mutation entdeckt (gut) |
-| **Survived Mutant** | Tests haben die Mutation NICHT entdeckt (Lücke in Tests) |
-| **Timeout Mutant** | Mutation führte zu Endlosschleife / Hang (zählt meist als killed) |
+| **Survived Mutant** | Tests haben die Mutation NICHT entdeckt (Lücke) |
+| **Timeout Mutant** | Mutation führte zu Endlosschleife / Hang (zählt als killed) |
 | **No-Coverage Mutant** | Mutation in Code, der nicht durch Tests abgedeckt ist |
-| **Mutation Score** | (killed + timeout) / (total - no-coverage) — Qualitätsmaß |
-| **Reporter** | Output-Format (Console, HTML, JSON, Dashboard, Baseline, Progress, ClearText) |
+| **Mutation Score** | (killed + timeout) / (total − no-coverage) |
+| **Reporter** | Output-Format (Console, HTML, JSON, Dashboard, Baseline, Markdown, ClearText) |
 | **Test Runner** | Adapter zu Test-Framework (VsTest, MicrosoftTestPlatform/MTP) |
-| **DataCollector** | Komponente, die während Test-Runs Coverage-Daten sammelt (für VsTest-Pfad) |
-| **Baseline** | Referenz-Mutation-Run, gegen den neue Runs differential verglichen werden |
+| **DataCollector** | VsTest-Komponente die während Test-Runs Coverage sammelt |
+| **Baseline** | Referenz-Mutation-Run für differential-Vergleich |
 
 ---
 
-## 12. Update-Log
+## 11. Update-Log
 
 | Datum | Änderung |
 |-------|----------|
 | 2026-04-29 | Initial-Erstellung als Sprint-0-Baseline (Bootstrap, FS-MCP-Entfernung, Git-Setup, Repo-Init) |
+| 2026-04-30 | Sprint 0 abgeschlossen: 12 ADRs, FRs/NFRs, License-Stack, README; korrekte Stryker-4.14.1-Erkenntnisse (bereits net8.0, alle Master-PRs drin, Buildalyzer 8.0 ist eigentlicher Bug) |
