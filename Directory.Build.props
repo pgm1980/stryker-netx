@@ -65,6 +65,16 @@
     <PackageReference Include="DotNet.ReproducibleBuilds" PrivateAssets="All" />
   </ItemGroup>
 
+  <ItemGroup Label="CVE Mitigation — global transitive overrides" Condition="'$(TargetFramework)' != 'netstandard2.0'">
+    <!--
+      Global override: Microsoft.* 10.0.x packages pull in System.Security.Cryptography.Xml 9.0.0
+      transitively, which has known High-severity CVEs (NU1903: GHSA-37gx-xxp4-5rgx,
+      GHSA-w3x6-4m5h-cxqf). Direct PackageReference here forces the CPM-pinned 10.0.0 (patched).
+      Excluded for netstandard2.0 (Stryker.DataCollector) — it doesn't use Microsoft.*.10.x.
+    -->
+    <PackageReference Include="System.Security.Cryptography.Xml" />
+  </ItemGroup>
+
   <ItemGroup Label="Package metadata files (PackageReadme)">
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="" Visible="false" Condition="Exists('$(MSBuildThisFileDirectory)README.md')" />
     <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="" Visible="false" Condition="Exists('$(MSBuildThisFileDirectory)LICENSE')" />

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.Abstractions — Layer 0 (Foundation).
+    Public-API-Surface (interfaces, enums, attributes, exceptions, models)
+    used by all other Stryker modules and by external library consumers.
+    1:1 namespace-compatibility with upstream Stryker.NET 4.14.1 (ADR-003).
+    TFM, LangVersion, Nullable, TWAE, Analyzer-Suite via Directory.Build.props.
+    Versions via Directory.Packages.props (CPM).
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.Abstractions</AssemblyName>
+    <RootNamespace>Stryker.Abstractions</RootNamespace>
+    <PackageId>Stryker.Abstractions</PackageId>
+    <Description>Public abstractions (interfaces, models, enums) for stryker-netx — a 1:1 port of Stryker.NET 4.14.1 to C# 14 / .NET 10. Library consumers reference this for IMutator, IReporter, IStrykerOptions etc.</Description>
+    <PackageTags>mutation-testing;stryker;dotnet;netx;abstractions</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Buildalyzer" />
+    <PackageReference Include="DotNet.Glob" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <!--
+      VisualBasic reference: explicit override for CPM (resolves to 5.3.0 via Directory.Packages.props).
+      Buildalyzer 9.0 transitively pulls in VisualBasic 4.0.0 (with Common = 4.0.0 constraint),
+      which clashes with our pinned Common 5.3.0 (NU1608). Direct PackageReference here lets CPM
+      pin the central 5.3.0 version, overriding the transitive 4.0.0. VB is for vbproj-parsing in
+      Buildalyzer.Workspaces — not used at runtime by stryker (we only mutate C#). Re-evaluate when
+      Buildalyzer 9.x updates its VB-ref to 5.x or when we move to Roslyn 6.x.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
+    <PackageReference Include="Microsoft.TestPlatform.ObjectModel" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" />
+  </ItemGroup>
+
+</Project>

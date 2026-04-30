@@ -83,3 +83,8 @@ packages/
 !**/packages/build/
 *.nuget.props
 *.nuget.targets
+
+# _reference/ is read-only baseline; dotnet restore must not pollute it with new lock files.
+# Existing tracked .lock.json files in _reference/ stay tracked (gitignore is for untracked only).
+_reference/**/packages.lock.json
+!_reference/stryker-4.14.1/src/**/packages.lock.json

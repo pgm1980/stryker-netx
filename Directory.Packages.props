@@ -31,6 +31,13 @@
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.5" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     <PackageVersion Include="System.Net.Http.Json" Version="10.0.5" />
+    <!--
+      System.Security.Cryptography.Xml — explicit CPM pin to override transitive 9.0.0 (NU1903 CVEs:
+      GHSA-37gx-xxp4-5rgx, GHSA-w3x6-4m5h-cxqf). Microsoft.* 10.0.x packages pull in 9.0.0
+      transitively; .NET 10 BCL ships 10.0.x patched version. CVE-mitigation is Standard-Practice.
+    -->
+    <!-- 10.0.6 patches CVE-2026-33116 (GHSA-37gx-xxp4-5rgx) + CVE-2026-26171 (GHSA-w3x6-4m5h-cxqf) — both Denial-of-Service vulnerabilities. Vulnerable: 10.0.0..10.0.5. -->
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.6" />
 
     <!-- VsTest / Microsoft Testing Platform -->
     <PackageVersion Include="Microsoft.TestPlatform" Version="18.4.0" />

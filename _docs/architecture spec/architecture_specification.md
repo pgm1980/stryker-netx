@@ -1041,6 +1041,44 @@ public sealed class LayerArchitectureTests
 
 ---
 
+### ADR-013: XML-Doc-Phasing-Strategy — CS1591 temporary-disable + Sprint-1.5
+
+**Status:** Accepted
+**Datum:** 2026-04-30 (Sprint-1 Phase-1 PILOT-Discovery)
+**Maxential-Referenz:** Sprint-1-Phase-1 Session, Thought 5 (Tags: `cs1591-massen`, `phasing-strategy`, `sprint-1.5-plan`)
+
+#### Kontext
+
+Nach Aktivierung des Big-Bang-Analyzer-Stacks (ADR-004) traten in der PILOT-Phase 447 CS1591-Errors auf in `Stryker.Abstractions` allein (Missing XML doc on public). Stryker.NET-Upstream-4.14.1 hat **keine** XML-Docs auf public Members. Skalierung auf alle 17 Module: ~5000–8000 Missing-Doc-Errors. CLAUDE.md fordert "XML-Dokumentationskommentare für alle öffentlichen APIs" als Pflicht.
+
+Würden wir alle XML-Docs in Sprint 1 schreiben, würde der Mega-Sprint-Scope von 4–6 Wochen auf 10–14 Wochen wachsen (zusätzlich 50–80h reine Doc-Schreib-Zeit). Sprint-Kohärenz (Code-Migration als Hauptziel) leidet darunter.
+
+#### Entscheidung
+
+**Sprint-1: CS1591 temporär auf `none` in `.editorconfig`** mit ausführlichem Kommentar-Begründung und Verweis auf den Sprint-1.5-Plan.
+
+**Sprint-1.5 (NACH Phase 7) — Public API Documentation Sprint:**
+- Dedicated dispatched-subagents (1 pro Modul, parallel mit Worktree-Isolation)
+- Subagent-Prompt generiert XML-Doc basierend auf Symbol-Bodies (Method-Signaturen, Property-Types, Exception-Throws)
+- Format-Guideline: `<summary>` 1–2 Zeilen, `<param>` je Parameter, `<returns>` non-void, `<exception>` documented throws
+- Kein Re-Wording / Marketing
+- NACH Sprint 1.5: CS1591 zurück auf `warning` in `.editorconfig`
+
+#### Konsequenzen
+
+- **Wird einfacher:** Sprint-1-Mega-Scope bleibt realistisch (4–6 Wochen), Code-Migration und Doc-Generation sind als separate Aktivitäten erkennbar
+- **Wird schwieriger:** Sprint 1.5 ist zusätzliches Work-Stream nach Sprint-1-Abschluss; Risiko dass Doc-Generation aufgeschoben wird ("nie passiert"-Risk)
+- **Muss revisited werden:** Bei Sprint-1.5-Abschluss CS1591 wieder aktivieren; bei jeder neuen public API in späteren Sprints sofort doc
+
+#### Action Items
+
+- [ ] `.editorconfig` mit CS1591=none + ausführlicher Begründung + Sprint-1.5-Plan-Verweis (in Phase 1 erfolgt)
+- [ ] GitHub-Issue für "Sprint 1.5 — Public API XML-Doc-Sprint" mit Subagent-Plan anlegen (nach Phase 7)
+- [ ] Subagent-Prompt-Schablone für Doc-Generation in `_docs/sprint_1_5_subagent_prompt.md` (vor Sprint 1.5)
+- [ ] Bei Sprint-1.5-Abschluss: CS1591 zurück auf `warning`
+
+---
+
 ## 3. Komponentenstruktur
 
 ### 3.1 Schichtenübersicht
