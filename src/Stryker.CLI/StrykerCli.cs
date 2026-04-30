@@ -190,7 +190,7 @@ public partial class StrykerCli
         var latestVersion = await _nugetClient.GetLatestVersionAsync().ConfigureAwait(false);
         if (latestVersion > currentVersion)
         {
-            _console.MarkupLine(string.Create(CultureInfo.InvariantCulture, $@"[Yellow]A new version of Stryker.NET ({latestVersion}) is available. Please consider upgrading using `dotnet tool update -g dotnet-stryker`[/]"));
+            _console.MarkupLine(string.Create(CultureInfo.InvariantCulture, $@"[Yellow]A new version of stryker-netx ({latestVersion}) is available. Please consider upgrading using `dotnet tool update -g dotnet-stryker-netx`[/]"));
             _console.WriteLine();
         }
         else
@@ -198,8 +198,8 @@ public partial class StrykerCli
             var previewVersion = await _nugetClient.GetPreviewVersionAsync().ConfigureAwait(false);
             if (previewVersion > currentVersion)
             {
-                _console.MarkupLine(string.Create(CultureInfo.InvariantCulture, $@"[Cyan]A preview version of Stryker.NET ({previewVersion}) is available.
-If you would like to try out this preview version you can install it with `dotnet tool update -g dotnet-stryker --version {previewVersion}`
+                _console.MarkupLine(string.Create(CultureInfo.InvariantCulture, $@"[Cyan]A preview version of stryker-netx ({previewVersion}) is available.
+If you would like to try out this preview version you can install it with `dotnet tool update -g dotnet-stryker-netx --version {previewVersion}`
 Since this is a preview feature things might not work as expected! Please report any findings on GitHub![/]"));
                 _console.WriteLine();
             }

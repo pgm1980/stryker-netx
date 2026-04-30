@@ -1,0 +1,14 @@
+﻿<Project>
+
+  <PropertyGroup>
+    <RootDirectory>$(MSBuildThisFileDirectory)</RootDirectory>
+    <BuildDirectory>$(RootDirectory)BuildFiles\</BuildDirectory>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
+    <RestoreLockedMode>false</RestoreLockedMode>
+  </PropertyGroup>
+
+</Project>

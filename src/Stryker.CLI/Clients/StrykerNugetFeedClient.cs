@@ -36,7 +36,7 @@ public sealed partial class StrykerNugetFeedClient : IStrykerNugetFeedClient, ID
         try
         {
             var metadataResource = await _sourceRepository.GetResourceAsync<MetadataResource>().ConfigureAwait(false);
-            var versions = await metadataResource.GetVersions("dotnet-stryker", includePrerelease: true, includeUnlisted: false, _sourceCacheContext, _logger.Value, CancellationToken.None).ConfigureAwait(false);
+            var versions = await metadataResource.GetVersions("dotnet-stryker-netx", includePrerelease: true, includeUnlisted: false, _sourceCacheContext, _logger.Value, CancellationToken.None).ConfigureAwait(false);
             return versions.OrderBy(x => x).Last(x => prerelease ? x.IsPrerelease : !x.IsPrerelease);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
