@@ -129,6 +129,13 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         // Belongs to Stronger | All profile only — not active under default Defaults
         // profile, so v1.x behaviour is preserved at the orchestrator level too.
         new TypeDrivenReturnMutator(),
+        // v2.0.0 Sprint 10 (PIT-1 operator batch): all Stronger | All only.
+        // Inline numeric literals, AOD operator deletion, ROR full-matrix.
+        new InlineConstantsMutator(),
+        new AodMutator(),
+        new RorMatrixMutator(),
+        // UoiMutator: All only (most aggressive — every identifier × 4 mutations).
+        new UoiMutator(),
     ];
 
     private IEnumerable<IMutator> Mutators { get; }
