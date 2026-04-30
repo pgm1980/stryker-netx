@@ -86,7 +86,7 @@ Adds:
 - **DateTimeMutator** (greenfield — `DateTime.Now ↔ UtcNow`)
 - **SpanMemoryMutator** (greenfield — `span.Slice(s, l) → span.Slice(0, l)`)
 
-35 mutators total.
+36 mutators total (= 26 + 10).
 
 ### `All` (= Stronger + the noisiest experimental operators)
 
@@ -96,7 +96,7 @@ Adds:
 - **ExceptionSwapMutator** (greenfield — `throw new ArgumentNullException → throw new ArgumentException` and family swaps)
 - **GenericConstraintMutator** (greenfield — drops `where T : ...` clauses; may produce non-compiling mutants which the runner correctly classifies as killed)
 
-40 mutators total.
+40 mutators total (= 26 + 10 + 4).
 
 ---
 
@@ -146,13 +146,40 @@ No type was renamed, removed, or had a method signature change.
 
 ## Roadmap (v2.0.x → v2.1)
 
-Out of scope for v2.0.0; targeted for upcoming releases:
+The full reconciliation against `_input/mutation_framework_comparison.md` shows v2.0.0 covers ~45% of spec items exactly, ~16% with semantic-deviation, and 32% remain open. The deltas below are tracked for v2.0.x patch releases and v2.1.
+
+### Cross-cutting infrastructure (v2.0.x → v2.1)
 
 - **HotSwap engine implementation** (`MetadataUpdater.ApplyUpdate`-based — see `_docs/architecture spec/architecture_specification.md` ADR-016)
-- **CRCR full matrix** (constant-replacement composite — partial overlap with InlineConstants)
-- **Coverage-driven mutation skip** (D3 — skip mutants in lines with no test coverage)
-- **Roslyn Diagnostics filter** (D1 — feed compilation diagnostics into the equivalence-filter pipeline)
-- Additional greenfield operators: `Task.WhenAll → WhenAny`, `ConfigureAwait` swap, `AsSpan() ↔ AsMemory()`, `AddDays(n) ↔ AddDays(-n)`
+- **Coverage-driven mutation skip** (mutmut-style: skip mutants in lines with no test coverage)
+- **Roslyn Diagnostics filter** (mutmut-style: feed compilation diagnostics into the equivalence-filter pipeline as a new `IEquivalentMutantFilter`)
+
+### Open PIT operators (§4.1)
+
+- **CRCR full matrix** (constant-replacement composite — partial overlap with `InlineConstantsMutator`'s `n+1` / `n-1` axes; missing are the `0`, `1`, `-1`, `-c` substitutions)
+- **Argument Propagation** (`foo.Bar(a, b) → a` — replace a method call with one of its arguments when the type matches; type-aware, will use `TypeAwareMutatorBase`)
+- **Member Variable Mutator** (reset a field/property assignment to its default; targets `=` assignments to instance fields/properties)
+
+### Open cargo-mutants operators (§4.2)
+
+- **Function-Body-Replacement genre** (replace the entire body of a non-void method with `return default;`; for void methods, replace with empty body — coarser than the current per-statement mutators)
+- **Match-Arm-Deletion** for switch-expressions with `_`-default (delete a non-default arm; the wildcard catches the formerly-routed cases)
+
+### Open greenfield operators (§4.4)
+
+- **Async/Await — `Task.WhenAll → Task.WhenAny`**
+- **Async/Await — `ConfigureAwait(false) → ConfigureAwait(true)` swap**
+- **DateTime — `AddDays(n) ↔ AddDays(-n)` sign flip** (also `AddHours`, `AddMinutes`, `AddMonths`, `AddYears`)
+- **Span/Memory — `AsSpan() → AsMemory()` and `Span<T> ↔ ReadOnlySpan<T>`** (the current `SpanMemoryMutator` instead emits `Slice(start, length) → Slice(0, length)` — different mutation, kept as bonus)
+- **Access-Modifier-Mutation** (`private ↔ public`) — controversial; kept off the roadmap unless requested
+
+### Documented semantic deviations from the spec
+
+These are intentionally implemented differently from the spec's exact wording — they catch a closely-related bug class but with distinct semantics. Spelled out so future readers are not surprised:
+
+- **`AsyncAwaitMutator`** emits `await x → x.GetAwaiter().GetResult()` rather than the spec's `await x → x.Result`. Both are sync-over-async substitutions; `.Result` wraps exceptions in `AggregateException`, `GetAwaiter().GetResult()` unwraps. Either way, tests that fail to await the result fail the mutant.
+- **`GenericConstraintMutator`** drops the entire `where T : ...` clause set rather than performing the spec-listed *loosening* (`where T : class → where T : new()`). Closely related but more aggressive. A loosening variant may be added under a separate mutator in v2.1.
+- **`SpanMemoryMutator`** targets `span.Slice(start, length) → span.Slice(0, length)`. The spec asked for `Span<T> ↔ ReadOnlySpan<T>` and `AsSpan() → AsMemory()`, neither of which is implemented — both are roadmapped.
 
 ## Questions or issues
 
