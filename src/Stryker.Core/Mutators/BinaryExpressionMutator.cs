@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -21,27 +22,29 @@ public class BinaryExpressionMutator : MutatorBase<BinaryExpressionSyntax>
         }
     }
 
-    private static readonly Dictionary<SyntaxKind, MutationData> _kindsToMutate = new()
-    {
-        { SyntaxKind.SubtractExpression, new MutationData(Mutator.Arithmetic, SyntaxKind.AddExpression) },
-        { SyntaxKind.AddExpression, new MutationData(Mutator.Arithmetic, SyntaxKind.SubtractExpression) },
-        { SyntaxKind.MultiplyExpression, new MutationData(Mutator.Arithmetic, SyntaxKind.DivideExpression) },
-        { SyntaxKind.DivideExpression, new MutationData(Mutator.Arithmetic, SyntaxKind.MultiplyExpression) },
-        { SyntaxKind.ModuloExpression, new MutationData(Mutator.Arithmetic, SyntaxKind.MultiplyExpression) },
-        { SyntaxKind.GreaterThanExpression, new MutationData(Mutator.Equality, SyntaxKind.LessThanExpression, SyntaxKind.GreaterThanOrEqualExpression) },
-        { SyntaxKind.LessThanExpression, new MutationData(Mutator.Equality, SyntaxKind.GreaterThanExpression, SyntaxKind.LessThanOrEqualExpression) },
-        { SyntaxKind.GreaterThanOrEqualExpression, new MutationData(Mutator.Equality, SyntaxKind.LessThanExpression, SyntaxKind.GreaterThanExpression) },
-        { SyntaxKind.LessThanOrEqualExpression, new MutationData(Mutator.Equality, SyntaxKind.GreaterThanExpression, SyntaxKind.LessThanExpression) },
-        { SyntaxKind.EqualsExpression, new MutationData(Mutator.Equality, SyntaxKind.NotEqualsExpression) },
-        { SyntaxKind.NotEqualsExpression, new MutationData(Mutator.Equality, SyntaxKind.EqualsExpression) },
-        { SyntaxKind.LogicalAndExpression, new MutationData(Mutator.Logical, SyntaxKind.LogicalOrExpression) },
-        { SyntaxKind.LogicalOrExpression, new MutationData(Mutator.Logical, SyntaxKind.LogicalAndExpression) },
-        { SyntaxKind.LeftShiftExpression, new MutationData(Mutator.Bitwise, SyntaxKind.RightShiftExpression, SyntaxKind.UnsignedRightShiftExpression) },
-        { SyntaxKind.RightShiftExpression, new MutationData(Mutator.Bitwise, SyntaxKind.LeftShiftExpression, SyntaxKind.UnsignedRightShiftExpression) },
-        { SyntaxKind.BitwiseOrExpression, new MutationData(Mutator.Bitwise, SyntaxKind.BitwiseAndExpression) },
-        { SyntaxKind.BitwiseAndExpression, new MutationData(Mutator.Bitwise, SyntaxKind.BitwiseOrExpression) },
-        { SyntaxKind.UnsignedRightShiftExpression, new MutationData(Mutator.Bitwise, SyntaxKind.LeftShiftExpression, SyntaxKind.RightShiftExpression) },
-    };
+    // Phase 10.4: FrozenDictionary for hot-path SyntaxKind lookup during mutation pipeline.
+    private static readonly FrozenDictionary<SyntaxKind, MutationData> _kindsToMutate =
+        new Dictionary<SyntaxKind, MutationData>
+        {
+            [SyntaxKind.SubtractExpression] = new MutationData(Mutator.Arithmetic, SyntaxKind.AddExpression),
+            [SyntaxKind.AddExpression] = new MutationData(Mutator.Arithmetic, SyntaxKind.SubtractExpression),
+            [SyntaxKind.MultiplyExpression] = new MutationData(Mutator.Arithmetic, SyntaxKind.DivideExpression),
+            [SyntaxKind.DivideExpression] = new MutationData(Mutator.Arithmetic, SyntaxKind.MultiplyExpression),
+            [SyntaxKind.ModuloExpression] = new MutationData(Mutator.Arithmetic, SyntaxKind.MultiplyExpression),
+            [SyntaxKind.GreaterThanExpression] = new MutationData(Mutator.Equality, SyntaxKind.LessThanExpression, SyntaxKind.GreaterThanOrEqualExpression),
+            [SyntaxKind.LessThanExpression] = new MutationData(Mutator.Equality, SyntaxKind.GreaterThanExpression, SyntaxKind.LessThanOrEqualExpression),
+            [SyntaxKind.GreaterThanOrEqualExpression] = new MutationData(Mutator.Equality, SyntaxKind.LessThanExpression, SyntaxKind.GreaterThanExpression),
+            [SyntaxKind.LessThanOrEqualExpression] = new MutationData(Mutator.Equality, SyntaxKind.GreaterThanExpression, SyntaxKind.LessThanExpression),
+            [SyntaxKind.EqualsExpression] = new MutationData(Mutator.Equality, SyntaxKind.NotEqualsExpression),
+            [SyntaxKind.NotEqualsExpression] = new MutationData(Mutator.Equality, SyntaxKind.EqualsExpression),
+            [SyntaxKind.LogicalAndExpression] = new MutationData(Mutator.Logical, SyntaxKind.LogicalOrExpression),
+            [SyntaxKind.LogicalOrExpression] = new MutationData(Mutator.Logical, SyntaxKind.LogicalAndExpression),
+            [SyntaxKind.LeftShiftExpression] = new MutationData(Mutator.Bitwise, SyntaxKind.RightShiftExpression, SyntaxKind.UnsignedRightShiftExpression),
+            [SyntaxKind.RightShiftExpression] = new MutationData(Mutator.Bitwise, SyntaxKind.LeftShiftExpression, SyntaxKind.UnsignedRightShiftExpression),
+            [SyntaxKind.BitwiseOrExpression] = new MutationData(Mutator.Bitwise, SyntaxKind.BitwiseAndExpression),
+            [SyntaxKind.BitwiseAndExpression] = new MutationData(Mutator.Bitwise, SyntaxKind.BitwiseOrExpression),
+            [SyntaxKind.UnsignedRightShiftExpression] = new MutationData(Mutator.Bitwise, SyntaxKind.LeftShiftExpression, SyntaxKind.RightShiftExpression),
+        }.ToFrozenDictionary();
 
     public override MutationLevel MutationLevel => MutationLevel.Basic;
 

@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -9,21 +10,23 @@ namespace Stryker.Core.Mutators;
 
 public class AssignmentExpressionMutator : MutatorBase<AssignmentExpressionSyntax>
 {
-    private static readonly Dictionary<SyntaxKind, IEnumerable<SyntaxKind>> KindsToMutate = new()
-    {
-        { SyntaxKind.AddAssignmentExpression, new [] { SyntaxKind.SubtractAssignmentExpression } },
-        { SyntaxKind.SubtractAssignmentExpression, new [] { SyntaxKind.AddAssignmentExpression } },
-        { SyntaxKind.MultiplyAssignmentExpression, new [] { SyntaxKind.DivideAssignmentExpression } },
-        { SyntaxKind.DivideAssignmentExpression, new [] { SyntaxKind.MultiplyAssignmentExpression } },
-        { SyntaxKind.ModuloAssignmentExpression, new [] { SyntaxKind.MultiplyAssignmentExpression } },
-        { SyntaxKind.AndAssignmentExpression, new [] { SyntaxKind.OrAssignmentExpression, SyntaxKind.ExclusiveOrAssignmentExpression } },
-        { SyntaxKind.OrAssignmentExpression, new [] { SyntaxKind.AndAssignmentExpression, SyntaxKind.ExclusiveOrAssignmentExpression} },
-        { SyntaxKind.ExclusiveOrAssignmentExpression, new [] { SyntaxKind.OrAssignmentExpression, SyntaxKind.AndAssignmentExpression } },
-        { SyntaxKind.LeftShiftAssignmentExpression, new [] { SyntaxKind.RightShiftAssignmentExpression, SyntaxKind.UnsignedRightShiftAssignmentExpression } },
-        { SyntaxKind.RightShiftAssignmentExpression, new [] { SyntaxKind.LeftShiftAssignmentExpression, SyntaxKind.UnsignedRightShiftAssignmentExpression } },
-        { SyntaxKind.CoalesceAssignmentExpression, new [] { SyntaxKind.SimpleAssignmentExpression } },
-        { SyntaxKind.UnsignedRightShiftAssignmentExpression, new [] { SyntaxKind.LeftShiftAssignmentExpression, SyntaxKind.RightShiftAssignmentExpression } },
-    };
+    // Phase 10.4: FrozenDictionary for O(1) SyntaxKind lookup; mutator runs per syntax-node so this is hot.
+    private static readonly FrozenDictionary<SyntaxKind, IEnumerable<SyntaxKind>> KindsToMutate =
+        new Dictionary<SyntaxKind, IEnumerable<SyntaxKind>>
+        {
+            [SyntaxKind.AddAssignmentExpression] = [SyntaxKind.SubtractAssignmentExpression],
+            [SyntaxKind.SubtractAssignmentExpression] = [SyntaxKind.AddAssignmentExpression],
+            [SyntaxKind.MultiplyAssignmentExpression] = [SyntaxKind.DivideAssignmentExpression],
+            [SyntaxKind.DivideAssignmentExpression] = [SyntaxKind.MultiplyAssignmentExpression],
+            [SyntaxKind.ModuloAssignmentExpression] = [SyntaxKind.MultiplyAssignmentExpression],
+            [SyntaxKind.AndAssignmentExpression] = [SyntaxKind.OrAssignmentExpression, SyntaxKind.ExclusiveOrAssignmentExpression],
+            [SyntaxKind.OrAssignmentExpression] = [SyntaxKind.AndAssignmentExpression, SyntaxKind.ExclusiveOrAssignmentExpression],
+            [SyntaxKind.ExclusiveOrAssignmentExpression] = [SyntaxKind.OrAssignmentExpression, SyntaxKind.AndAssignmentExpression],
+            [SyntaxKind.LeftShiftAssignmentExpression] = [SyntaxKind.RightShiftAssignmentExpression, SyntaxKind.UnsignedRightShiftAssignmentExpression],
+            [SyntaxKind.RightShiftAssignmentExpression] = [SyntaxKind.LeftShiftAssignmentExpression, SyntaxKind.UnsignedRightShiftAssignmentExpression],
+            [SyntaxKind.CoalesceAssignmentExpression] = [SyntaxKind.SimpleAssignmentExpression],
+            [SyntaxKind.UnsignedRightShiftAssignmentExpression] = [SyntaxKind.LeftShiftAssignmentExpression, SyntaxKind.RightShiftAssignmentExpression],
+        }.ToFrozenDictionary();
 
     public override MutationLevel MutationLevel => MutationLevel.Standard;
 

@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -11,7 +12,8 @@ public class StatementMutator : MutatorBase<StatementSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Standard;
 
-    private static readonly HashSet<SyntaxKind> _allowedSyntaxes =
+    // Phase 10.4: FrozenSet for hot-path SyntaxKind membership lookup.
+    private static readonly FrozenSet<SyntaxKind> _allowedSyntaxes = FrozenSet.ToFrozenSet<SyntaxKind>(
     [
         // SyntaxKind.EmptyStatement, // useless mutation
 
@@ -45,7 +47,7 @@ public class StatementMutator : MutatorBase<StatementSyntax>
         SyntaxKind.YieldBreakStatement,
 
         SyntaxKind.ExpressionStatement,
-    ];
+    ]);
 
     public override IEnumerable<Mutation> ApplyMutations(StatementSyntax node, SemanticModel semanticModel)
     {

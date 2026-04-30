@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -29,8 +30,10 @@ public partial class InputFileResolver : IInputFileResolver
     private readonly ILogger _logger;
     private readonly IMSBuildWorkspaceProvider _workspaceProvider;
     private readonly ISolutionProvider _solutionProvider;
-    private static readonly HashSet<string> ImportantProperties =
-        ["Configuration", "Platform", "AssemblyName", "Configurations"];
+    // Phase 10.4: FrozenSet for O(1) lookup of MSBuild diagnostic-property names.
+    // Read-only after construction; never mutated.
+    private static readonly FrozenSet<string> ImportantProperties =
+        FrozenSet.ToFrozenSet(["Configuration", "Platform", "AssemblyName", "Configurations"], StringComparer.Ordinal);
 
     public InputFileResolver(IFileSystem fileSystem,
         IMSBuildWorkspaceProvider workspaceProvider,

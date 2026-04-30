@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
@@ -145,13 +146,15 @@ public partial class InitialisationProcess(
         throw new InputException(string.Join(Environment.NewLine, projectInfo.Warnings.Prepend(Message)));
     }
 
-    private static readonly Dictionary<string, (string assembly, string package)> TestFrameworks = new(StringComparer.Ordinal)
-    {
-        ["xunit.core"] = ("xunit.runner.visualstudio", "xunit.runner.visualstudio"),
-        ["nunit.framework"] = ("NUnit3.TestAdapter", "NUnit3TestAdapter"),
-        ["Microsoft.VisualStudio.TestPlatform.TestFramework"] =
-                ("Microsoft.VisualStudio.TestPlatform.MSTest.TestAdapter", "MSTest.TestAdapter")
-    };
+    // Phase 10.4: FrozenDictionary for O(1) test-framework probe; read-only after init.
+    private static readonly FrozenDictionary<string, (string assembly, string package)> TestFrameworks =
+        new Dictionary<string, (string assembly, string package)>(StringComparer.Ordinal)
+        {
+            ["xunit.core"] = ("xunit.runner.visualstudio", "xunit.runner.visualstudio"),
+            ["nunit.framework"] = ("NUnit3.TestAdapter", "NUnit3TestAdapter"),
+            ["Microsoft.VisualStudio.TestPlatform.TestFramework"] =
+                    ("Microsoft.VisualStudio.TestPlatform.MSTest.TestAdapter", "MSTest.TestAdapter")
+        }.ToFrozenDictionary(StringComparer.Ordinal);
 
     private void DiscoverTests(SourceProjectInfo projectInfo, ITestRunner testRunner)
     {

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -12,19 +13,18 @@ public class PrefixUnaryMutator : MutatorBase<PrefixUnaryExpressionSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Standard;
 
-    private static readonly Dictionary<SyntaxKind, SyntaxKind> UnaryWithOpposite = new Dictionary<SyntaxKind, SyntaxKind>
-    {
-        {SyntaxKind.UnaryMinusExpression, SyntaxKind.UnaryPlusExpression},
-        {SyntaxKind.UnaryPlusExpression, SyntaxKind.UnaryMinusExpression},
-        {SyntaxKind.PreIncrementExpression, SyntaxKind.PreDecrementExpression},
-        {SyntaxKind.PreDecrementExpression, SyntaxKind.PreIncrementExpression},
-    };
+    // Phase 10.4: FrozenDictionary + FrozenSet for hot-path SyntaxKind lookup.
+    private static readonly FrozenDictionary<SyntaxKind, SyntaxKind> UnaryWithOpposite =
+        new Dictionary<SyntaxKind, SyntaxKind>
+        {
+            [SyntaxKind.UnaryMinusExpression] = SyntaxKind.UnaryPlusExpression,
+            [SyntaxKind.UnaryPlusExpression] = SyntaxKind.UnaryMinusExpression,
+            [SyntaxKind.PreIncrementExpression] = SyntaxKind.PreDecrementExpression,
+            [SyntaxKind.PreDecrementExpression] = SyntaxKind.PreIncrementExpression,
+        }.ToFrozenDictionary();
 
-    private static readonly HashSet<SyntaxKind> UnaryToInitial =
-    [
-        SyntaxKind.BitwiseNotExpression,
-        SyntaxKind.LogicalNotExpression
-    ];
+    private static readonly FrozenSet<SyntaxKind> UnaryToInitial =
+        FrozenSet.ToFrozenSet([SyntaxKind.BitwiseNotExpression, SyntaxKind.LogicalNotExpression]);
 
     public override IEnumerable<Mutation> ApplyMutations(PrefixUnaryExpressionSyntax node, SemanticModel semanticModel)
     {
