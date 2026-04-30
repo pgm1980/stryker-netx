@@ -1,58 +1,45 @@
 ---
-current_sprint: "4"
-sprint_goal: "Bug Elimination: fix Sprint-3-deferred Bug-5 + green all Pillar-A phases → tag v1.0.0 (production)"
-branch: "feature/4-bug-elimination"
+current_sprint: "5"
+sprint_goal: "v2.0.0 Architecture Foundation: 6 ADRs (013-018) + IMutator-hierarchy interface stub + MutationProfile enum (no behavior change)"
+branch: "feature/5-v2-architecture-foundation"
 started_at: "2026-04-30"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: true
-tests_passed: true
-documentation_updated: true
+semgrep_passed: false
+tests_passed: false
+documentation_updated: false
 ---
 
-# Sprint 4 — Bug Elimination (CLOSED 2026-04-30)
+# Sprint 5 — v2.0.0 Architecture Foundation
 
-**GitHub-Issue:** [#4](https://github.com/pgm1980/stryker-netx/issues/4) — closed
-**Base-Tag:** `v1.0.0-rc.1` (Sprint 3 closed PARTIAL)
-**Final-Tag:** **`v1.0.0`** (production — no preview, no rc)
-**Lessons-Doc:** `_docs/sprint_4_lessons.md`
+**GitHub-Issue:** [#5](https://github.com/pgm1980/stryker-netx/issues/5)
+**Base-Tag:** `v1.0.0` (Sprint 4 closed)
+**Final-Tag:** none (ADR-only sprint)
+**Reference inputs:** `_input/mutation_framework_comparison.md`, `_references/{pitest,cargo-mutants,mutmut}`
 
-## Phasen-Stand (alle 11 erfüllt)
+## Aktueller Phase-Stand
 
-- [x] **4.1** — Maxential decision: Path A (surgical augmentation, 15 thoughts, 2 branches)
-- [x] **4.2** — Bug-5 ELIMINATED (RoslynProjectAnalysis._references now unions MetadataReferences + ProjectReference outputs) — commit `004b0ca`
-- [x] **4.3** — NetCore SingleTestProject runs to completion (3.40 % on stress fixture, no crash)
-- [x] **4.4** — NetCore MultipleTestProjects (2.76 %) + Solution (3.40 %) — commit `ba6bd5d`
-- [x] **4.5** — MTP MSTest (0.85 %) + XUnit (0.28 %) + NUnit (0.28 %) + TUnit (0.28 %) + MTPSolution (0.28 %) — commit `ba6bd5d`
-- [x] **4.6** — Edge cases: InitCommand (config gen works), WebApiWithOpenApi (44.44 %), Generator (skipped — netstandard source-generator project, not a fixture category) — commit `ba6bd5d`
-- [x] **4.7** — Validation framework vendored + identity-migrated; InitCommand validation test PASSES; count-based tests deferred (upstream-specific counts) — commit `ba6bd5d`
-- [~] **4.8** — Stryker-on-Stryker: deferred (no Stryker.Core.UnitTest project ported — would need own multi-day port)
-- [~] **4.9** — NetFramework: deferred (legacy packages.config requires nuget.exe which isn't available locally; CI's windows-latest ships it so matrix entry stands)
-- [x] **4.10** — `integration-test.yaml` trigger restored to `pull_request` (with `workflow_dispatch` retained) — commit pending
-- [x] **4.11** — Sprint close + Tag `v1.0.0`
+- [ ] **5.1** — ADR-013 AST/IL hybrid decision
+- [ ] **5.2** — ADR-014 Operator hierarchy (Operator → Sub-Operator → Group)
+- [ ] **5.3** — ADR-015 SemanticModel-driven mutator infrastructure
+- [ ] **5.4** — ADR-016 AssemblyLoadContext Hot-Swap (design only, impl in Sprint 8)
+- [ ] **5.5** — ADR-017 Equivalent-Mutant Filtering as first-class layer
+- [ ] **5.6** — ADR-018 Mutation Levels as Profiles
+- [ ] **5.7** — IMutator-hierarchy interfaces + MutationProfile enum (stubs)
+- [ ] **5.8** — Sprint-close + lessons (no tag)
 
-## Sprint-4-DoD (erfüllt)
+## Sprint-5-DoD
 
-- [x] Bug-5 fixed
-- [x] Alle NetCore + MTP + Edge integration-Kategorien grün auf Windows (run-to-completion)
-- [~] NetFramework category — documented als "needs nuget.exe; CI-only"
-- [x] Validation framework: builds + InitCommand validation test passes
-- [~] Stryker-on-Stryker — documented als Sprint-5+ candidate (needs Stryker.Core.UnitTest port)
-- [x] `dotnet build stryker-netx.slnx` 0 warnings, 0 errors
-- [x] `dotnet test` 27/27 pass
-- [x] Sample E2E (`--solution Sample.slnx`): 100.00 % Mutation-Score
-- [x] Public API Stryker.* Libraries unverändert
-- [x] Semgrep clean (0 findings auf 478 Files)
-- [x] Lessons-doc `_docs/sprint_4_lessons.md`
-- [x] Tag `v1.0.0` (production signal — kein "preview", kein "rc")
-- [x] memory_updated=true, documentation_updated=true, semgrep_passed=true, tests_passed=true
-- [x] GitHub-Issue #4 geschlossen
-- [x] housekeeping_done=true
-
-## Verweis
-
-- `_docs/sprint_3_lessons.md` — Bug-5 root-cause analysis (path forward documented in Sprint 3)
-- `_docs/sprint_4_lessons.md` — Sprint 4 lessons (Maxential decision, fix detail, deferred items)
-- `integrationtest/` — vendored upstream suite (Sprint 3.1) now exercised end-to-end
+- [ ] 6 ADRs appended to `_docs/architecture spec/architecture_specification.md`
+- [ ] IMutator hierarchy + MutationProfile in Stryker.Abstractions
+- [ ] dotnet build 0/0
+- [ ] dotnet test 27/27 (no behavior change)
+- [ ] Sample E2E 100 %
+- [ ] Public API: additive only, no breaking changes
+- [ ] Semgrep clean
+- [ ] Lessons doc
+- [ ] No tag
+- [ ] Issue #5 closed
+- [ ] housekeeping_done=true
