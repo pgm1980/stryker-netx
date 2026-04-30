@@ -1,65 +1,59 @@
 ---
-current_sprint: "3"
-sprint_goal: "Production Hardening: adopt upstream integration suite + NuGet/CI distribution → tag v1.0.0-rc.1 (release candidate; v1.0.0 gated on Pillar A completion)"
-branch: "feature/3-production-hardening"
+current_sprint: "4"
+sprint_goal: "Bug Elimination: fix Sprint-3-deferred Bug-5 + green all Pillar-A phases → tag v1.0.0 (production)"
+branch: "feature/4-bug-elimination"
 started_at: "2026-04-30"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: true
-tests_passed: true
-documentation_updated: true
+semgrep_passed: false
+tests_passed: false
+documentation_updated: false
 ---
 
-# Sprint 3 — Production Hardening (CLOSED 2026-04-30)
+# Sprint 4 — Bug Elimination
 
-**GitHub-Issue:** [#3](https://github.com/pgm1980/stryker-netx/issues/3) — closed
-**Base-Tag:** `v1.0.0-preview.2` (Sprint 2 closed)
-**Final-Tag:** `v1.0.0-rc.1` (release candidate — see lessons doc for v1.0.0 gating)
-**Lessons-Doc:** `_docs/sprint_3_lessons.md`
+**GitHub-Issue:** [#4](https://github.com/pgm1980/stryker-netx/issues/4)
+**Base-Tag:** `v1.0.0-rc.1` (Sprint 3 closed PARTIAL)
+**Target-Tag:** `v1.0.0` (production)
+**Strategie:** Bug-5 zuerst (gating defect), dann alle deferred Pillar-A Phasen, dann ship.
 
-## Phasen-Stand
+## Aktueller Phase-Stand
 
-### Pillar A — Real-world hardening
-- [x] **3.1** — Vendor + identity-migrate `integrationtest/` from upstream — commit `668a47e`
-- [~] **3.2** — NetCore categories — **PARTIAL** (4 bugs fixed; 1 deferred extern-alias bug) — commit `1b10594`
-- [ ] **3.3** — MTP categories — **DEFERRED** to follow-up sprint (depends on Phase 3.2 mutation-engine fix)
-- [ ] **3.4** — Edge cases — **DEFERRED** (same dependency)
-- [ ] **3.5** — Validation framework vendor + green — **DEFERRED** (same dependency)
-- [ ] **3.6** — Stryker-on-Stryker — **DEFERRED** (same dependency)
+- [ ] **4.1** — Audit + Maxential decision on Bug-5 fix approach (Path A vs Path B)
+- [ ] **4.2** — Fix Bug-5 (selected approach) — mutation engine project-reference handling
+- [ ] **4.3** — Re-run NetCore SingleTestProject — verify the fix
+- [ ] **4.4** — NetCore MultipleTestProjects + Solution categories
+- [ ] **4.5** — MTP categories (MSTest/XUnit/NUnit/TUnit/MTPSolution)
+- [ ] **4.6** — Edge cases (InitCommand, WebApiWithOpenApi, Generator)
+- [ ] **4.7** — Validation framework vendor + green
+- [ ] **4.8** — Stryker-on-Stryker dogfooding (≥ 60 % Mutation-Score)
+- [ ] **4.9** — NetFramework category (was OOS in Sprint 3)
+- [ ] **4.10** — Re-enable `integration-test.yaml` `pull_request` trigger
+- [ ] **4.11** — Sprint close + Tag `v1.0.0` (production signal)
 
-### Pillar B — Distribution
-- [x] **3.7** — NuGet packaging verified — commit `a3cba2b`
-- [x] **3.8** — GitHub Actions CI (build/test/semgrep on PR) — commit `753ae22`
-- [~] **3.9** — Integration-test CI matrix — vendored from upstream, trigger changed to `workflow_dispatch` until Phase 3.2 bug fixed — commit `753ae22`
-- [x] **3.10** — GitHub Actions Release pipeline — commit `753ae22`
-- [x] **3.11** — README + Migration Guide — commit `753ae22`
-- [x] **3.12** — Sprint-3-Closing + Tag `v1.0.0-rc.1`
+## Sprint-4-DoD
 
-## Sprint-3-DoD
-
-- [x] All 12 sub-phases addressed (8 done, 4 deferred-with-honest-documentation)
-- [x] `dotnet build stryker-netx.slnx` 0 warnings, 0 errors
-- [x] `dotnet test` 27/27 pass
-- [x] Sample E2E `dotnet stryker-netx --solution Sample.slnx`: 100.00% Mutation-Score
-- [~] All Integration-Test-Kategorien grün — **PARTIAL** (Phase 3.2 partial; rest deferred)
-- [~] CI Matrix grün — local CI workflow ready; remote runs need first push to validate
-- [ ] Stryker-on-Stryker Mutation-Score ≥ 60 % — **DEFERRED**
-- [x] NuGet-Package lokal installierbar — verified Phase 3.7
-- [x] README enthält install + quickstart + .slnx value-prop + migration guide
-- [x] Migration Guide komplett
-- [x] GitHub Actions Release Workflow geschrieben (dry-run-by-default)
-- [x] Public API Stryker.* Libraries unverändert
-- [x] Semgrep clean (0 findings on 478 files)
-- [x] Lessons-doc `_docs/sprint_3_lessons.md`
-- [x] Tag `v1.0.0-rc.1` (release candidate; v1.0.0 gated on Pillar A completion)
-- [x] memory_updated=true, documentation_updated=true, semgrep_passed=true, tests_passed=true
-- [x] GitHub-Issue #3 geschlossen
-- [x] housekeeping_done=true
+- [ ] Bug-5 fixed
+- [ ] Alle Integration-Test-Kategorien (NetCore + MTP + Edge cases) grün auf Windows
+- [ ] NetFramework category grün ODER documented als Linux/macOS-not-applicable
+- [ ] Validation framework asserts mutation correctness (alle Trait-Categories grün)
+- [ ] Stryker-on-Stryker Mutation-Score ≥ 60 %
+- [ ] `dotnet build stryker-netx.slnx` 0 warnings, 0 errors
+- [ ] `dotnet test` all unit tests pass
+- [ ] Sample E2E (`--solution Sample.slnx`) 100 %
+- [ ] Sample E2E (`--config-file stryker-config.json`) 100 %
+- [ ] Public API Stryker.* Libraries unverändert
+- [ ] Semgrep clean (0 findings auf gesamtes src/)
+- [ ] Lessons-doc `_docs/sprint_4_lessons.md`
+- [ ] Tag `v1.0.0` (production signal — kein "preview", kein "rc")
+- [ ] memory_updated=true, documentation_updated=true, semgrep_passed=true, tests_passed=true
+- [ ] GitHub-Issue #4 geschlossen
+- [ ] housekeeping_done=true
 
 ## Verweis
 
-`_reference/stryker-4.14.1/` — vollständige Upstream-Codebase
-`integrationtest/` — vendored integration suite (Phase 3.1)
-`_docs/sprint_3_lessons.md` — full Sprint-3 lessons doc with bug catalogue + path-to-v1.0.0
+- `_docs/sprint_3_lessons.md` — Bug-5 root-cause analysis + path forward
+- `integrationtest/` — vendored upstream suite (Phase 3.1)
+- `_reference/stryker-4.14.1/` — Upstream reference for cross-checking behaviour
