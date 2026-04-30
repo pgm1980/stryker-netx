@@ -69,16 +69,16 @@ public class StrykerOptions : IStrykerOptions
     /// <remarks>it may also contain the platform in the form of <c>configuration|platform</c>.</remarks>
     public string? Configuration
     {
-        get => _configuration;
+        get;
         init
         {
             if (string.IsNullOrWhiteSpace(value))
             {
-                _configuration = null;
+                field = null;
                 return;
             }
             var blocks = value.Split('|');
-            _configuration = blocks[0];
+            field = blocks[0];
             if (blocks.Length > 1)
             {
                 Platform = blocks[1];
@@ -279,5 +279,4 @@ public class StrykerOptions : IStrykerOptions
     public IProvideId? MutantIdProvider { get; set; }
 
     private readonly string? _workingDirectoryField;
-    private string? _configuration;
 }
