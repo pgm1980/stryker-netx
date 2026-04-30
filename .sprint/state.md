@@ -3,9 +3,9 @@ current_sprint: "1"
 sprint_goal: "Mega-Sprint: Bootstrap + Cleanup + Test-Stack-Migration für alle 17 Stryker-Projekte (TFM net10.0, Buildalyzer 9, Roslynator+Sonar+Meziantou+TWAE, MSTest→xUnit, Shouldly→FluentAssertions, MsBuildHelper-Fix, Repo-Identität stryker-netx)"
 branch: "feature/1-bootstrap-and-cleanup"
 started_at: "2026-04-30"
-housekeeping_done: false
+housekeeping_done: true
 memory_updated: true
-github_issues_closed: false
+github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
@@ -30,7 +30,7 @@ documentation_updated: true
 - [x] Phase 7 — Integration & DoD-Setup (ArchUnit + FsCheck + BenchmarkDotNet + Sample; CLI smoke-test blocked durch Buildalyzer-9 → Phase 8)
 - [x] Phase 8 — Buildalyzer-9 silent-failure Fix + End-to-End Mutation-Run (17 tests, 5/5 mutants killed, 100% score)
 - [x] Phase 9 — Buildalyzer komplett entfernt + Workspaces.MSBuild integriert (9a Adapter parallel + 9b Migration; E2E 100% Score erhalten; Phase-8-Workarounds #1 + #4 obsolet)
-- [ ] **Phase 10** — TBD (originally-planned Phase-9-Inhalt; User detailliert nach Phase 9)
+- [x] **Phase 10** — Modernisierungs-Sweep auf C# 14 / .NET 10 (10.1 Audit, 10.2 LoggerMessage Source-Generators, 10.3 Collection Expressions + Primary Ctors, 10.4 Frozen Collections, 10.5+10.6 Pattern Matching, 10.7 Sprint-Closing)
 
 ## Sprint-1-DoD
 
