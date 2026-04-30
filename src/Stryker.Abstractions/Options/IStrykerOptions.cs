@@ -39,6 +39,12 @@ public interface IStrykerOptions
     /// <see cref="Stryker.Abstractions.MutationProfile.Defaults"/> if not set.
     /// </summary>
     MutationProfile MutationProfile { get; init; }
+
+    /// <summary>
+    /// v2.0.0 (ADR-016, Sprint 8): mutation execution engine selector.
+    /// Defaults to <see cref="Stryker.Abstractions.MutationEngine.Recompile"/>.
+    /// </summary>
+    MutationEngine MutationEngine { get; init; }
     OptimizationModes OptimizationMode { get; init; }
     string? OutputPath { get; init; }
     string? Platform { get; }

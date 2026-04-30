@@ -112,6 +112,9 @@ public class StrykerOptions : IStrykerOptions
     /// <inheritdoc />
     public MutationProfile MutationProfile { get; init; } = MutationProfile.Defaults;
 
+    /// <inheritdoc />
+    public MutationEngine MutationEngine { get; init; } = MutationEngine.Recompile;
+
     /// <summary>
     /// Used to set colors in the reports and fail stryker if the mutation score is lower than the break value.
     /// </summary>
