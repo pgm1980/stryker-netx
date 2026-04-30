@@ -143,6 +143,14 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new MatchGuardMutator(),
         new WithExpressionMutator(),
         new NakedReceiverMutator(),
+        // v2.0.0 Sprint 12 (greenfield .NET-specific batch): 5 operators with no
+        // PIT/cargo/mutmut equivalent. All Stronger | All or All-only.
+        new AsyncAwaitMutator(),
+        new DateTimeMutator(),
+        new SpanMemoryMutator(),
+        // ExceptionSwapMutator + GenericConstraintMutator: All only (most disruptive).
+        new ExceptionSwapMutator(),
+        new GenericConstraintMutator(),
     ];
 
     private IEnumerable<IMutator> Mutators { get; }
