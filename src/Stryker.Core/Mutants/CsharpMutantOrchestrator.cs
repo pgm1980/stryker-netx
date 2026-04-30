@@ -151,6 +151,21 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
             foreach (var mutation in mutator.Mutate(current, semanticModel, Options!))
             {
                 mutation.OriginalNode = current;
+
+                // Sprint 7 (ADR-017): equivalent-mutant filter. If a registered
+                // filter is highly confident the mutation is semantically
+                // identical to the original, skip emitting a mutant for it —
+                // it would otherwise survive every test and falsely lower the
+                // mutation score. Conservative-by-design: filters abstain on
+                // uncertainty so real bugs slip through as "non-equivalent" and
+                // get tested rather than the other way round.
+                var equivalentBy = Filters.EquivalentMutantFilterPipeline.Default.FindEquivalentFilter(mutation, semanticModel);
+                if (equivalentBy is not null)
+                {
+                    LogEquivalentMutantSkipped(Logger, equivalentBy, mutation.OriginalNode, mutation.ReplacementNode);
+                    continue;
+                }
+
                 var newMutant = CreateNewMutant(mutation, context);
                 // Skip if the mutant is a duplicate
                 if (IsMutantDuplicate(newMutant, mutation))
@@ -206,4 +221,7 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Mutant {NewMutant} discarded as it is a duplicate of {Mutant}")]
     private static partial void LogMutantDuplicate(ILogger logger, int newMutant, int mutant);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Equivalent mutant skipped by filter '{FilterId}': {OriginalNode} -> {ReplacementNode}")]
+    private static partial void LogEquivalentMutantSkipped(ILogger logger, string filterId, SyntaxNode originalNode, SyntaxNode replacementNode);
 }
