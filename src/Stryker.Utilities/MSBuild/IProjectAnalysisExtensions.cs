@@ -364,7 +364,11 @@ public static partial class IProjectAnalysisExtensions
     {
         foreach (var reference in projectAnalysis.References)
         {
-            if (!projectAnalysis.ReferenceAliases.TryGetValue(reference, out var aliases) || aliases is null)
+            // Sprint 3.2: normalize path for lookup — RoslynProjectAnalysis stores
+            // alias keys as Path.GetFullPath; the references list may contain
+            // semantically-identical but textually-different forms.
+            var lookupKey = Path.GetFullPath(reference);
+            if (!projectAnalysis.ReferenceAliases.TryGetValue(lookupKey, out var aliases) || aliases is null)
             {
                 aliases = [];
             }

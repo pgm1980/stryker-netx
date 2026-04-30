@@ -1,0 +1,17 @@
+<Project>
+
+  <!--
+    Sprint 3.1: empty, deliberately. The presence of THIS file stops MSBuild
+    from walking up to the repo root's Directory.Packages.props, which means
+    Central Package Management (CPM) is OFF for everything under
+    `integrationtest/`. Inline `<PackageReference Version="..." />` in the
+    upstream-vendored .csproj files works as-is.
+
+    Companion to `Directory.Build.props` in the same directory.
+  -->
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+</Project>

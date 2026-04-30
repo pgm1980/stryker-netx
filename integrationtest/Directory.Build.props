@@ -1,0 +1,29 @@
+<Project>
+
+  <!--
+    Sprint 3.1: integrationtest/ is intentionally isolated from the root
+    build settings. These are fixture projects vendored from upstream
+    Stryker.NET 4.14.1 (`_reference/stryker-4.14.1/integrationtest/`) and
+    must remain bit-for-bit comparable to the upstream baseline so that
+    differences in Stryker behaviour become visible.
+
+    Differences from the root Directory.Build.props:
+      * Central Package Management (CPM) DISABLED — upstream csproj files
+        carry inline <PackageReference Include="..." Version="..."/> and
+        have their own packages.lock.json. Forcing CPM here would either
+        break restore (NU1008) or silently shift versions away from the
+        upstream baseline.
+      * TreatWarningsAsErrors DISABLED — fixture defects (e.g. Defects/*.cs,
+        UnsafeCode.cs, EmptyFor.cs) deliberately emit warnings to exercise
+        edge cases of the mutator pipeline. They must compile.
+      * Analyzers (Roslynator/Sonar/Meziantou) NOT inherited — fixtures
+        intentionally violate "best practices" (that's the point).
+  -->
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <AnalysisLevel>none</AnalysisLevel>
+  </PropertyGroup>
+
+</Project>

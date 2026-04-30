@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -47,8 +49,25 @@ public sealed class MSBuildWorkspaceProvider : IMSBuildWorkspaceProvider
         await _workspace.OpenSolutionAsync(solutionFilePath, cancellationToken: cancellationToken).ConfigureAwait(false);
 
     /// <inheritdoc />
-    public async Task<Project> OpenProjectAsync(string projectFilePath, CancellationToken cancellationToken = default) =>
-        await _workspace.OpenProjectAsync(projectFilePath, cancellationToken: cancellationToken).ConfigureAwait(false);
+    /// <remarks>
+    /// Sprint 3.2: idempotent — multiple test projects in a solution often reference
+    /// the same library (.csproj). Roslyn's <see cref="MSBuildWorkspace"/> throws
+    /// <see cref="ArgumentException"/> ("X is already part of the workspace") when a
+    /// project is loaded twice. Returning the cached <see cref="Project"/> on the
+    /// second call matches the implicit contract Stryker.Core relies on.
+    /// </remarks>
+    public async Task<Project> OpenProjectAsync(string projectFilePath, CancellationToken cancellationToken = default)
+    {
+        var normalizedPath = Path.GetFullPath(projectFilePath);
+        var existing = _workspace.CurrentSolution.Projects.FirstOrDefault(p =>
+            !string.IsNullOrEmpty(p.FilePath) &&
+            string.Equals(Path.GetFullPath(p.FilePath), normalizedPath, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            return existing;
+        }
+        return await _workspace.OpenProjectAsync(projectFilePath, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public ImmutableList<WorkspaceDiagnostic> Diagnostics => _workspace.Diagnostics;
