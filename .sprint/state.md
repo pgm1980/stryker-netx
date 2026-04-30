@@ -3,13 +3,13 @@ current_sprint: "5"
 sprint_goal: "v2.0.0 Architecture Foundation: 6 ADRs (013-018) + IMutator-hierarchy interface stub + MutationProfile enum (no behavior change)"
 branch: "feature/5-v2-architecture-foundation"
 started_at: "2026-04-30"
-housekeeping_done: false
-memory_updated: false
-github_issues_closed: false
+housekeeping_done: true
+memory_updated: true
+github_issues_closed: true
 sprint_backlog_written: true
-semgrep_passed: false
-tests_passed: false
-documentation_updated: false
+semgrep_passed: true
+tests_passed: true
+documentation_updated: true
 ---
 
 # Sprint 5 — v2.0.0 Architecture Foundation

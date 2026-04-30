@@ -1232,8 +1232,228 @@ dotnet stryker-netx
 
 ---
 
+## 8. v2.0.0 Architecture Foundation (Sprint 5)
+
+ADRs 013–018 lock the architectural decisions for the v2.0.0 release line. They are derived from the gap analysis in `_input/mutation_framework_comparison.md` and were prioritised via a Maxential macro-decision (9 thoughts) + ToT branch exploration (3 branches; Architecture-First chosen with score 0.95). For implementation timing see the v2.0.0 roadmap in Sprint 5+ planning.
+
+### ADR-013: AST/IL Hybrid Decision — Roslyn-AST primär, IL-Sicht selektiv
+
+**Status:** Accepted (Sprint 5)
+
+**Context.** `mutation_framework_comparison.md` §5 stellt fest: Stryker.NET (und damit stryker-netx) arbeitet auf dem Roslyn-AST. PIT arbeitet auf JVM-Bytecode. Roslyn ist die richtige primäre Wahl für C#, aber für einige Mutationen (z.B. `checked`, Inline-Constants, Equivalent-Mutant Filtering durch IL-Equivalence-Check) gewinnt man durch zusätzliche IL-Sicht.
+
+**Decision.** Roslyn-AST + SemanticModel bleibt die **primäre** Mutator-Ebene. IL-Sicht wird **selektiv** als Hilfsmittel eingeführt, NICHT als zweite Mutator-Plattform:
+
+1. **Roslyn-AST** (`Microsoft.CodeAnalysis.CSharp.Syntax`) für alle Mutator-Implementierungen (alle 24 bestehenden + alle neuen).
+2. **Roslyn-SemanticModel** (`Microsoft.CodeAnalysis.SemanticModel`) für type-driven mutators (siehe ADR-015).
+3. **System.Reflection.Metadata + System.Reflection.Emit** als Hilfsmittel:
+   - Hot-Swap (ADR-016): mutated method als IL emittieren und in laufenden Prozess injizieren.
+   - Equivalent-Mutant Filter (ADR-017): IL-Diff zwischen original + mutated Compilation als Heuristik.
+4. **Kein** PIT-style Bytecode-Mutation als zweiter Operator-Ebene — würde die mental load verdoppeln und C#-spezifische Pattern-Matching/LINQ-Sichtbarkeit verlieren.
+
+**Alternatives.**
+- *Bytecode-only (PIT-style)*: verworfen — Roslyn macht C#-spezifische Konstrukte (LINQ, Pattern Matching, async/await) viel sichtbarer als IL.
+- *AST-only (Status quo)*: verworfen für v2.0.0 — IL hilft bei Hot-Swap-Performance und Equivalent-Mutant-Detection.
+- *AST + Bytecode parallel*: verworfen — verdoppelt Maintenance-Last ohne Mehrwert; Roslyn deckt 95 % der C#-Mutationen ab.
+
+**Consequences.**
+- (+) v2.0.0 nutzt das volle Roslyn-Ökosystem (Source Generators, Pattern Matching, CSharpCompilation API).
+- (+) Trampoline (ADR-016) wird realisierbar ohne Mutator-Code zu touchen.
+- (+) Equivalent-Mutant Filter (ADR-017) bekommt eine objektive IL-Vergleichs-Heuristik.
+- (–) Stryker.Utilities + Stryker.Core müssen zusätzlich `System.Reflection.Emit` (BCL) und `System.Reflection.Metadata` (BCL) referenzieren — beide sind Teil von .NET 10 BCL, kein neues NuGet.
+- (–) Hot-Swap-Implementierung (Sprint 8) braucht IL-Generation Know-how.
+
+**Backed by.** `mutation_framework_comparison.md` §5 Punkt 1; v2.0.0-Roadmap-Maxential Branch X.
+
+---
+
+### ADR-014: Operator-Hierarchie — Operator → Sub-Operator → Group (PIT-Modell)
+
+**Status:** Accepted (Sprint 5); implementiert in Sprint 6.
+
+**Context.** Stryker.NET (und stryker-netx v1.x) hat eine **Flat-List** von 24 IMutator-Implementierungen. Jeder Mutator gehört zu einer `Mutator`-Enum-Kategorie (Boolean, Logical, Math, …) und einer `MutationLevel` (Basic / Standard / Advanced / Complete). Es gibt keine echte Hierarchie. PIT modelliert demgegenüber:
+- **Operator** (z.B. `MATH`)
+- **Sub-Operator** (z.B. `MATH_ADD_TO_SUB`, `MATH_MUL_TO_DIV`)
+- **Group** (DEFAULTS / STRONGER / ALL — Bündel von Operatoren)
+
+Der Vorteil: Operator-Profile (siehe ADR-018) lassen sich als Group-Selektoren ausdrücken, ohne jeden einzelnen Sub-Operator als Flat-List anzugeben. Inkrementelle Refinements (z.B. „mehr Subops zur MATH-Familie hinzufügen") sind ohne API-Bruch möglich.
+
+**Decision.** Einführung einer dreischichtigen Hierarchie in `Stryker.Abstractions`:
+
+```
+public interface IMutatorGroup        // Sammlung von Operatoren (z.B. „CoreOperators")
+public interface IMutator             // Eine Operator-Familie (z.B. BinaryExpressionMutator)
+public interface IMutationOperator    // Ein einzelner sub-operator (z.B. „+ → -")
+```
+
+Bestehende Mutator-Implementierungen (`BinaryExpressionMutator`, `BooleanMutator`, etc.) werden zu **`IMutator`** und enthalten eine Liste von **`IMutationOperator`**-Sub-Operatoren. Eine **`IMutatorGroup`** ist eine `IReadOnlyList<IMutator>` mit Profile-Tag (siehe ADR-018).
+
+**Alternatives.**
+- *Status quo (Flat-List + MutationLevel-Enum)*: verworfen — skaliert nicht für die ~50+ neuen Sub-Operatoren in v2.0.0.
+- *Pure Mutation-Level-Erweiterung*: verworfen — Levels sind ordinal (Basic < Standard < …), Profile sind orthogonal (DEFAULTS ≠ STRONGER ist nicht „mehr").
+- *Tagging via Attribute*: verworfen — Reflektion ist langsamer und macht die API-Surface unklarer.
+
+**Consequences.**
+- (+) v2.0.0 kann Profile (ADR-018) nativ ausdrücken.
+- (+) Sub-Operator-Granularität ermöglicht selektives Disable von einzelnen Substitutionen (z.B. `--disable-suboperator MATH_ADD_TO_SUB`).
+- (–) **Public-API-Bruch** in `Stryker.Abstractions` — semver Major-Bump (v2.0.0) gerechtfertigt.
+- (–) Sprint 6 muss alle 24 bestehenden Mutatoren refactoren. Mitigation: bestehende 27/27 Tests + Sample E2E als Safety Net.
+
+**Backed by.** `mutation_framework_comparison.md` §5 Punkt 2 + §3 PIT-Stärken; v2.0.0-Roadmap-Maxential Branch X Sprint 6.
+
+---
+
+### ADR-015: SemanticModel-driven Mutator Infrastructure
+
+**Status:** Accepted (Sprint 5); implementiert in Sprint 7.
+
+**Context.** Stryker.NET v1.x verwendet `SemanticModel` nur sporadisch. cargo-mutants (Rust) zeigt: **typgetriebene Mutationen** sind das größte Aussagekraft-Differenzial — `Result<T>` → `Result::Err(default())`, `Vec<T>` → `vec![]`, `HashMap` → `HashMap::new()`. In C# wäre das Äquivalent: `Task<T>` → `Task.FromResult(default(T))`, `IEnumerable<T>` → `Enumerable.Empty<T>()`, `Dictionary<K,V>` → `new Dictionary<K,V>()`. Diese Mutationen brauchen `SemanticModel`, um den exakten Rückgabetyp zur Mutationszeit zu kennen.
+
+**Decision.** Erweitere `MutatorBase<TNode>` (Stryker.Core) um obligatorische `SemanticModel`-Propagation (bereits Status quo seit Sprint 1) und führe ein neues Marker-Interface ein:
+
+```csharp
+public interface ITypeAwareMutator : IMutator { }
+```
+
+Type-aware Mutatoren bekommen zusätzlich:
+
+```csharp
+protected ITypeSymbol? GetReturnType(SyntaxNode node, SemanticModel model);
+protected ITypeSymbol? GetExpressionType(ExpressionSyntax expr, SemanticModel model);
+```
+
+als Helpers in einer neuen `TypeAwareMutatorBase<TNode> : MutatorBase<TNode>`-Basisklasse.
+
+**Alternatives.**
+- *Syntax-only (Status quo)*: verworfen — siehe Context.
+- *Roslyn `Compilation` direkt im Mutator*: verworfen — bricht ADR-001 (Stryker.Abstractions Roslyn-frei) und ADR-014 (Hierarchie-Sauberkeit).
+
+**Consequences.**
+- (+) Sprint 9 (Type-Driven Mutators) wird realisierbar.
+- (+) C6 (Konservative Defaults für `uint`, `byte`) wird trivial implementierbar.
+- (+) D1 (Type-Checker Integration) bekommt einen Hook (Mutationen nach Emission via `compilation.GetDiagnostics()` filtern).
+- (–) Marginal höhere Mutationszeit (SemanticModel-Aufrufe sind nicht gratis); Mitigation: SemanticModel pro Document wird einmal berechnet und an alle Mutatoren propagiert.
+
+**Backed by.** `mutation_framework_comparison.md` §5 Punkt 3 + §4.2 cargo-mutants Differenzial-Feature; v2.0.0-Roadmap-Maxential Sprint 7.
+
+---
+
+### ADR-016: AssemblyLoadContext Hot-Swap (Trampoline-Äquivalent) — design only, impl in Sprint 8
+
+**Status:** Accepted (Sprint 5); implementiert in Sprint 8 mit ggf. eigenen Maxential-Sub-Decisions.
+
+**Context.** Stryker.NET v1.x kompiliert für **jeden Mutanten neu**. Bei 660 Mutationen × ~4 Sekunden Kompilierzeit = ~44 Minuten pro Lauf. Das ist der größte Wettbewerbsnachteil gegenüber mutmut (Trampoline-basiert: nur eine Kompilierung, dann Runtime-Switching) und PIT (Custom ClassLoader hot-loads mutated classes). `mutation_framework_comparison.md` §5 Punkt 4 nennt **AssemblyLoadContext mit Hot-Swap der mutierten Methode** als das C#-Äquivalent — und potenziell den größten Wettbewerbsvorteil.
+
+**Decision.** v2.0.0 führt einen optionalen Hot-Swap-Modus ein, der die Standard-Pipeline ablöst (gesteuert per CLI-Flag `--engine hotswap | recompile`):
+
+1. **Initial-Build** des Source-Projekts (1×) erzeugt eine Baseline-Assembly.
+2. **Pro Mutant**: nur die mutierte Methode als neue Assembly emittieren (`CSharpCompilation.Emit` einer Hilfsklasse, die nur die mutierte Methode enthält).
+3. **Hot-Swap**: über `AssemblyLoadContext` die mutierte Methode in den Test-Runner-Prozess injizieren (entweder durch `Assembly.Load`-with-replacement oder via `MetadataUpdater.ApplyUpdate` für .NET 10 EnC-Hot-Reload).
+4. **Test-Run** läuft im selben Prozess, schaltet zwischen Mutanten via AssemblyLoadContext-Switch.
+
+Detaillierte Implementierungs-Sub-Entscheidungen (ALC-vs-MetadataUpdater, IsolatedScope-Strategie, Test-Runner-Integration) in **Sprint 8 Phase 8.1** mit eigenem Maxential-Lauf.
+
+**Alternatives.**
+- *Status quo (Recompile pro Mutant)*: bleibt als `--engine recompile` verfügbar (Fallback).
+- *Process-Pool*: verworfen — IPC-Overhead frisst die Ersparnis; mutmut hat Trampoline gewählt aus selbem Grund.
+- *MSIL-Patching der Baseline-Assembly direkt*: verworfen — bricht NRT-Annotations und macht Debug-Symbole unbrauchbar.
+
+**Consequences.**
+- (+) **5–10× Performance-Boost** für medium+ Projekte (Schätzung; präzise Zahlen aus Sprint-8-Benchmarks).
+- (+) Echtzeit-Mutationsschätzungen werden möglich.
+- (–) Hot-Swap-Modus ist **Sprint-8-HIGH-RISK** (Engine-Rewrite). Sprint 4's integration suite (8 categories) als safety net.
+- (–) Test-Runner-Integration: VsTest und MTP haben unterschiedliche Process-Models; ggf. nur MTP unterstützt Hot-Swap initial.
+- (–) Recompile-Modus als Fallback erhöht Maintenance-Surface — bewusste Inkaufnahme für Risk-Mitigation.
+
+**Backed by.** `mutation_framework_comparison.md` §5 Punkt 4 (größter Wettbewerbsvorteil); v2.0.0-Roadmap-Maxential Sprint 8 (HIGH risk, dedicated sprint).
+
+---
+
+### ADR-017: Equivalent-Mutant Filtering als first-class Layer
+
+**Status:** Accepted (Sprint 5); implementiert in Sprint 7.
+
+**Context.** PIT zeigt: das Filter-Layer ist fast genauso wichtig wie der Operator-Layer. Equivalent-Mutants sind Mutationen, die das Verhalten **nicht** ändern (z.B. `i+0` an Stelle von `i`, leere Methoden zurückgeben statt Stryker-Mutationen). Sie verschwenden Test-Zeit und verfälschen den Mutation-Score nach unten. Stryker.NET v1.x hat **kein** dediziertes Filter-Layer — Equivalent-Mutants schlagen als „Survived" durch.
+
+**Decision.** Einführe eine pipeline-stage `IEquivalentMutantFilter` zwischen Mutator und Test-Runner:
+
+```csharp
+public interface IEquivalentMutantFilter
+{
+    bool IsEquivalent(Mutation mutation, SemanticModel model, Compilation original);
+}
+```
+
+Filter werden in **DI registriert** und als Pipeline applied. Initial-Set in Sprint 7:
+- `IdentityArithmeticFilter` — `x + 0`, `x * 1`, `x - 0` als equivalents
+- `EmptyReturnEquivalentFilter` — Mutator schlägt Empty-Return vor, aber Methode hat bereits leere Return-Liste
+- `IdempotentBooleanFilter` — `!!x → x`, `!(!x) → x`
+
+Erweiterbar in späteren Sprints. Heuristic: bei Unsicherheit als Mutant beibehalten (false negative > false positive).
+
+**Alternatives.**
+- *Kein Filter (Status quo)*: verworfen — Mutation-Scores werden systematisch zu niedrig.
+- *Filter als Mutator-interne Logik*: verworfen — duplicate code in jedem Mutator, kein zentraler Audit-Punkt.
+- *Filter als post-test (nach Killed/Survived-Klassifikation)*: verworfen — Tests laufen unnötig.
+
+**Consequences.**
+- (+) Mutation-Scores werden systematisch sauberer.
+- (+) Test-Zeit sinkt durch weniger zu testende Mutationen.
+- (+) Operator-Authors können Equivalent-Patterns explizit dokumentieren statt sie implizit zuzulassen.
+- (–) False-Positive-Risiko: ein Filter könnte einen Mutant als equivalent erkennen, der es nicht ist → unkilled mutant. Mitigation: konservative Filter, Heuristic „bei Unsicherheit beibehalten".
+
+**Backed by.** `mutation_framework_comparison.md` §5 Punkt 5 + §4.1 PIT „Equivalent-Mutant-Filtering".
+
+---
+
+### ADR-018: Mutation Levels als Profiles — DEFAULTS / STRONGER / ALL
+
+**Status:** Accepted (Sprint 5); implementiert in Sprint 6 (zusammen mit ADR-014 Hierarchie-Refactor).
+
+**Context.** Stryker.NET v1.x hat ein `MutationLevel`-Enum mit ordinaler Bedeutung (Basic < Standard < Advanced < Complete). Das ist eine 1-D-Skala — „mehr Level = mehr Mutationen". PIT zeigt: Mutation-Profile sind orthogonal — DEFAULTS ist das, was ohne Konfiguration läuft; STRONGER fügt akademisch stärkere Operatoren hinzu; ALL ist alles inkl. experimentell. Diese Profile sind nicht ordinal („STRONGER ist nicht 'mehr Level' als DEFAULTS, sondern 'andere Auswahl'").
+
+`mutation_framework_comparison.md` §5 Punkt 6 nennt das als StrykerJS-Innovation, die in .NET-Linie noch fehlt.
+
+**Decision.** v2.0.0 führt zusätzlich zum bestehenden `MutationLevel`-Enum (das bleibt für Backward-Compat) ein neues `MutationProfile`-Enum ein:
+
+```csharp
+[Flags]
+public enum MutationProfile
+{
+    None     = 0,
+    Defaults = 1 << 0,    // Was Stryker.NET als sinnvolle Standard-Auswahl betrachtet
+    Stronger = 1 << 1,    // Defaults + akademisch stärkere Operatoren (PIT „STRONGER" entspricht)
+    All      = 1 << 2     // Alle Operatoren inkl. experimenteller (ADR-014 Sub-Operators alle aktiv)
+}
+```
+
+`IMutator`/`IMutationOperator` bekommen ein Attribut:
+
+```csharp
+[MutationProfileMembership(MutationProfile.Defaults | MutationProfile.Stronger | MutationProfile.All)]
+public sealed class BinaryExpressionMutator : IMutator { … }
+```
+
+Selektion via CLI: `--profile defaults | stronger | all` oder per `stryker-config.json`. `MutationLevel` bleibt als zweite Achse (Backward-Compat); bei Kombinations-Konflikten gewinnt das restriktivere.
+
+**Alternatives.**
+- *Nur MutationLevel erweitern*: verworfen — siehe Context (Profile sind orthogonal, nicht ordinal).
+- *Profile als String-Tag*: verworfen — Tippfehler-anfällig, schlechter IntelliSense.
+- *Profile per Config-File only (kein Code-Attribut)*: verworfen — Operator-Authors sollen Profile-Zugehörigkeit lokal dokumentieren.
+
+**Consequences.**
+- (+) v2.0.0 spricht die Sprache der Mutation-Testing-Community (PIT-Konvention).
+- (+) Zukünftige experimentelle Operatoren (E5 Access-Modifier-Mutation, ADR-Erweiterung) können direkt in `All` landen ohne Default-Verhalten zu ändern.
+- (+) Backward-Compat: bestehende `--mutation-level` Flag funktioniert weiter.
+- (–) Zwei Achsen (Level + Profile) sind erklärungsbedürftig — Migration-Guide v1→v2 muss das klar dokumentieren (Sprint 12).
+
+**Backed by.** `mutation_framework_comparison.md` §5 Punkt 6 + §3 PIT-Stärke „Operator-Gruppen-Konzept"; v2.0.0-Roadmap-Maxential Sprint 6.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
 |---------|-------|-------|----------|
 | 0.1.0 | 2026-04-30 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Initiale Sprint-0-Version mit 12 ADRs |
+| 0.2.0 | 2026-04-30 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 5 (v2.0.0 Architecture Foundation): ADRs 013–018 hinzugefügt — AST/IL Hybrid, Operator-Hierarchie, SemanticModel-Driven, Hot-Swap (Trampoline), Equivalent-Mutant Filtering, Mutation Profiles |
