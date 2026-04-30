@@ -88,6 +88,61 @@ gh api advisories/<GHSA-ID> --jq '{summary, severity, vulnerabilities: [.vulnera
 
 Keine in Phase 1. Stryker-Code aus 4.14.1 ist kompilierbar — alle "errors" sind Quality-Findings der drei Analyzer.
 
+### Kategorie 5: Mirror-Code-Files — Modernization PFLICHT (kein File-Scope-Pragma)
+
+**Erkennungsmerkmal**: File-Header verweist auf Mono.Cecil, Testura.Mutation oder eine andere konkrete Upstream-Source UND die Klasse trägt `[ExcludeFromCodeCoverage]`.
+
+**Phase 2 Beispiele**:
+- `src/Stryker.Utilities/EmbeddedResources/CrossPlatformAssemblyResolver.cs` (Port von Mono.Cecil's `BaseAssemblyResolver`)
+- `src/Stryker.Utilities/EmbeddedResources/EmbeddedResourcesGenerator.cs` (Port von Testura.Mutation's `EmbeddedResourceCreator`)
+
+**ANTI-PATTERN (vom User abgelehnt — Phase 2 Iteration)**: File-scoped `#pragma warning disable` über 20+ Regeln mit dokumentiertem Header. War initial vom Subagent vorgeschlagen, vom User in Phase 2 ausdrücklich verworfen mit Begründung: „Quality-Direktive umgangen für ganze Files — User-Goal `Quality-Plus über Upstream` wird teilweise aufgehoben."
+
+**RICHTIGE Pattern-Lösung**: **Mirror-Files genauso modernisieren wie Stryker-original Files** — Nullable-Annotations, `string.Equals(StringComparison.Ordinal)`, `CultureInfo.InvariantCulture`, `ArgumentNullException.ThrowIfNull`, `Array.Empty<T>()`, Method-Splits (MA0051), File-scoped namespaces. Quality-Niveau über Upstream ist eines der erklärten Sprint-Ziele.
+
+**Was bleibt erlaubt — surgical-pragma**: Nur für **einzelne** Code-Zeilen mit konkreter technischer Notwendigkeit:
+- `S3011` für Roslyn-internal-Reflection (Forking Roslyn ist alternativlos): siehe `EmbeddedResourcesGenerator.cs` `GetResourceDescriptionInternalName`
+- `S3885` für Plugin-Loader `Assembly.LoadFrom` (Pfad-basiertes Laden, `Assembly.Load` löst nicht durch Pfad auf): siehe `IAnalyzerResultExtensions.cs` Plugin-Loader
+- `MA0046` für externe Delegate-API (Mono.Cecil-Vertrag): siehe `CrossPlatformAssemblyResolver.cs` `ResolveFailure`-Event
+Jede surgical-pragma muss eine **inline-Begründung** in derselben Zeile oder direkt darüber haben (CLAUDE.md-konform).
+
+**Effort**: Mirror-File-Modernization ist substantieller (~30–60 min pro File für Method-Splits + Nullable-Annotations). Wert: einheitliches Quality-Niveau über alle Files. Sprint-2-Velocity wird dadurch realistisch geplant.
+
+**Wichtig**: Bei Subagent-Dispatch IMMER explizit das Anti-Pattern erwähnen: „KEINE file-scope pragma-disables für Mirror-Files. Modernisiere wie Stryker-original Code."
+
+### Kategorie 6: Logger-Pattern-Findings — PHASE 2 NEU
+
+| Regel | Symptom | Pattern-Lösung | Phase 2 |
+|-------|---------|----------------|---------|
+| **CA2253** | Numeric placeholder `{0}` in LoggerMessage-Template | Benannter Placeholder: `{0}` → `{Analyzer}` | 1 |
+| **S6668** | Exception-Argument als Parameter statt Exception-Slot | `LogWarning(message, ex)` → `LogWarning(ex, message)` | 1 |
+
+### Kategorie 7: Locale/Format-Findings — PHASE 2 NEU
+
+| Regel | Symptom | Pattern-Lösung | Phase 2 |
+|-------|---------|----------------|---------|
+| **MA0011** + **CA1305** | `int.Parse(s)` ohne IFormatProvider | `int.Parse(s, CultureInfo.InvariantCulture)` (mit `using System.Globalization`) | 1 |
+
+### Kategorie 8: API-Signature mit `default`-Initializer — PHASE 2 NEU
+
+| Regel | Symptom | Pattern-Lösung | Phase 2 |
+|-------|---------|----------------|---------|
+| **CS8625** | `string defaultValue = default` (= null bei String) | `string defaultValue = ""` (truthful non-null default), API-Sig bleibt erhalten | 1 |
+
+### Kategorie 9: Path-Indexer-Returns mit nullable-Source — PHASE 2 NEU
+
+**Symptom**: `FilePathUtils.NormalizePathSeparators(...)` gibt `string?` zurück, public API soll `string` zurückgeben (1:1 mit Stryker.NET 4.14.1).
+
+**Pattern-Lösung**: Null-forgiving operator `!` am Aufrufende, weil:
+- Properties-Dictionary-Indexer wirft bei missing key → bei Erfolg ist Wert non-null
+- Stryker-API-Konsumenten erwarten non-null `string`-Rückgabe
+
+```csharp
+// Pattern 9
+public static string GetAssemblyFileName(this IAnalyzerResult analyzerResult) =>
+    FilePathUtils.NormalizePathSeparators(analyzerResult.Properties["TargetFileName"])!;
+```
+
 ---
 
 ## 4. Convention-Ausnahmen (dokumentiert)
@@ -173,8 +228,8 @@ Sprint 1 Phase {X}: PILOT (Phase 1, Stryker.Abstractions) ist abgeschlossen. Du 
 | Modul (Phase) | Files (.cs) | Initial Errors | Cleanup-Zeit | Notes |
 |---------------|-------------|----------------|--------------|-------|
 | Stryker.Abstractions (Phase 1, PILOT) | 56 (vor Splits) → 58 (nach Splits) | 25 (real) + 447 (CS1591) | ~2h Hauptsession | Pilot — Lessons-Aufbau |
-| (Phase 2) Utilities | TBD | Schätzung 30–60 | TBD | Subagent A |
-| (Phase 2) DataCollector | TBD | Schätzung 10–20 | TBD | Subagent B (netstandard2.0) |
+| Stryker.Utilities (Phase 2) | 15 .cs (nach Phase-2-Splits) | 74 initial → 0 | ~3h: Hauptsession (kleine Files) + Subagent (3 große Files mit Mirror-Pragma) + Hauptsession (Mirror-Pattern abgelehnt → Option B → Mirror-Files manuell modernisiert mit Method-Splits, Nullable-Annotations, CultureInfo, StringComparer.Ordinal) | Worktree-Isolation für Subagent fehlte; Mirror-File-Pragma-Pattern initial vom Subagent vorgeschlagen, vom User verworfen → Sektion 5 als Anti-Pattern dokumentiert |
+| Stryker.DataCollector (Phase 2, netstandard2.0) | 2 (Original) → 3 (nach ThrowingListener-Split) | 35 initial → 0 | ~30 min Hauptsession | Sonderfall netstandard2.0; CA1001 (IDisposable wegen TraceListener-Field); kein `required`-Modifier (netstandard2.0-Polyfill-Frei-Stil) — stattdessen nullable annotations |
 | (Phase 3) Configuration | TBD | Schätzung 50–100 | TBD | Subagent C |
 | (Phase 3) RegexMutators | TBD | Schätzung 80–150 | TBD | Subagent D |
 | (Phase 3) Solutions | TBD | Schätzung 50–100 | TBD | Subagent E |
@@ -203,3 +258,4 @@ NACH Phase 7 (Sprint-1-DoD geschlossen) startet Sprint 1.5 mit dispatched-subage
 | Datum | Änderung |
 |-------|----------|
 | 2026-04-30 | Initial-Erstellung nach Phase 1 PILOT (Stryker.Abstractions) — Build grün 0/0 |
+| 2026-04-29 | Phase 2 (Stryker.Utilities) — Build grün 0/0; Sektion 3 erweitert um Kategorien 5–9 (Mirror-Files, Logger-Pattern, Locale/Format, API-Signature-default, Path-Indexer-Pattern) |

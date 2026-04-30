@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.DataCollector — Layer 0 (Foundation, Sonderfall netstandard2.0).
+    VsTest-Adapter-Loading-Constraint (ADR-002): TFM MUSS netstandard2.0 bleiben — VsTest
+    DataCollectors werden nur in dieser Surface vom Test-Host geladen.
+    1:1 namespace-compatibility with upstream Stryker.NET 4.14.1 (ADR-003).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>Stryker.DataCollector</AssemblyName>
+    <RootNamespace>Stryker.DataCollector</RootNamespace>
+    <PackageId>Stryker.DataCollector</PackageId>
+    <Description>VsTest DataCollector for stryker-netx — collects per-test coverage data during mutation runs. netstandard2.0 by VsTest-adapter constraint.</Description>
+    <PackageTags>mutation-testing;stryker;dotnet;netx;datacollector;vstest</PackageTags>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>TRACE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.TestPlatform.ObjectModel" />
+    <PackageReference Include="Microsoft.TestPlatform.Portable" />
+  </ItemGroup>
+
+</Project>

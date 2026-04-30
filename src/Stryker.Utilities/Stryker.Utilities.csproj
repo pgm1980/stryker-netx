@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.Utilities — Layer 0 (Foundation).
+    Utility helpers (FileSystem-wrappers, Logging, Process-utils, Buildalyzer-helpers,
+    Mono.Cecil-helpers) used by all other Stryker modules. References Stryker.Abstractions.
+    1:1 namespace-compatibility with upstream Stryker.NET 4.14.1 (ADR-003).
+    TFM, LangVersion, Nullable, TWAE, Analyzer-Suite via Directory.Build.props.
+    Versions via Directory.Packages.props (CPM).
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.Utilities</AssemblyName>
+    <RootNamespace>Stryker.Utilities</RootNamespace>
+    <PackageId>Stryker.Utilities</PackageId>
+    <Description>Internal utility helpers for stryker-netx — a 1:1 port of Stryker.NET 4.14.1 to C# 14 / .NET 10.</Description>
+    <PackageTags>mutation-testing;stryker;dotnet;netx;utilities</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Buildalyzer" />
+    <PackageReference Include="Mono.Cecil" />
+    <PackageReference Include="ResXResourceReader.NetStandard" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" />
+    <!--
+      VisualBasic reference: explicit override for CPM (resolves to 5.3.0 via Directory.Packages.props).
+      Buildalyzer 9.0 transitively pulls in VisualBasic 4.0.0 — same NU1608 mitigation as Stryker.Abstractions.
+      See _docs/sprint_1_lessons.md Sektion 2.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stryker.Abstractions\Stryker.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

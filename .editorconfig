@@ -162,3 +162,9 @@ dotnet_diagnostic.CA1852.severity = warning  # Seal internal types — supports 
 # documented Mutator catalog). Re-evaluate only if upstream Stryker.NET ever renames them.
 dotnet_diagnostic.CA1720.severity = none  # Identifier contains type name — Stryker public-API
 dotnet_diagnostic.CA1716.severity = none  # Identifier matches reserved keyword — Stryker public-API
+
+# CA1848 — Use LoggerMessage delegates: PERFORMANCE-Optimierung, aber substantieller Refactor pro
+# Logger-Aufruf (~50+ in Stryker.Core/Stryker.Utilities). Wird in einem dedizierten Logger-
+# Modernization-Sprint nach Sprint 1 angegangen (parallel zu Sprint-1.5 XML-Doc-Sprint), um
+# Sprint-1-Mega-Scope nicht weiter aufzublähen. Re-Eval bei Logger-Modernization-Sprint-Abschluss.
+dotnet_diagnostic.CA1848.severity = suggestion  # LoggerMessage delegates — phased per Logger-Modernization-Sprint
