@@ -1,11 +1,19 @@
 name: integration test
 run-name: e2e ${{ github.head_ref || github.ref_name }}
 
-# Sprint 3.2 PARTIAL: integration suite vendored from upstream Stryker.NET
-# 4.14.1 is currently behind the mutation-engine project-reference fix
-# (CS0430 extern-alias bug, see Sprint 3 lessons). Manual-only trigger
-# until that bug is resolved; once green, switch back to `pull_request`.
+# Sprint 4.10: re-enabled `pull_request` trigger after Sprint 4.2 fixed
+# Bug-5 (mutation-engine project-reference handling). All NetCore + MTP
+# categories now run to completion locally; CI matrix exercises them
+# across Ubuntu / Windows / macOS.
+#
+# NetFramework category remains effectively Windows+nuget.exe-gated.
+# `dotnet msbuild -restore` does NOT restore legacy packages.config —
+# the upstream-provided FullFrameworkApp fixture uses that older flow.
+# CI's `windows-latest` runner ships nuget.exe, so the matrix entry is
+# left intact; local runs without nuget.exe will fail on that one
+# category but the rest pass.
 on:
+  pull_request:
   workflow_dispatch:
     inputs:
       category:

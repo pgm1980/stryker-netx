@@ -43,7 +43,7 @@ dotnet tool install -g dotnet-stryker-netx
 Or pin a specific version:
 
 ```bash
-dotnet tool install -g dotnet-stryker-netx --version 1.0.0-preview.2
+dotnet tool install -g dotnet-stryker-netx --version 1.0.0
 ```
 
 ## Quickstart
@@ -83,11 +83,11 @@ If you already use `dotnet-stryker`, switching is a two-step rename:
 
 That's it. **`stryker-config.json`, CLI flags, and reporter output formats are unchanged.** No config file edits required.
 
-## Known limitations (v1.0.0-preview.2)
+## Known limitations (v1.0.0)
 
-- `<ProjectReference Include="..." Aliases="X"/>` (project-references with extern aliases) is not yet handled in the mutated-compilation step — `extern alias X;` in source code triggers `CS0430` after mutation. Tracking issue / fix planned for the next sub-phase. Workaround: drop the `Aliases` metadata or use `<Reference>` (metadata-reference) form instead.
-- Integration-test parity with upstream is partial — see `integrationtest/` for the full upstream-compatibility test matrix; categories that pass / fail are documented in the Sprint 3 lessons.
-- `JsonReport` reporter still uses runtime reflection (not source-generated) — Sprint 4 candidate. Functional, just not AOT-trimmable.
+- **NetFramework projects** (legacy `packages.config` style — `<TargetFramework>net48</TargetFramework>`) require `nuget.exe restore` of the .sln before invocation, because `dotnet msbuild -restore` only handles `<PackageReference>` style. CI's `windows-latest` runner ships `nuget.exe`; local-only blocked unless `nuget.exe` is on PATH.
+- `JsonReport` reporter still uses runtime reflection (not source-generated) — functional, just not AOT-trimmable. Tracking for a future "AOT" sprint.
+- Validation framework count-based assertions in `integrationtest/Validation/ValidationProject/ValidateStrykerResults.cs` hardcode upstream Stryker.NET 4.14.1's exact mutant counts and have NOT been reconciled to our mutator output (which legitimately differs slightly due to C#-14-aware behavior). The framework BUILDS and the InitCommand validation test PASSES; per-fixture count reconciliation is a follow-up task.
 
 ## Project status
 
@@ -96,7 +96,8 @@ That's it. **`stryker-config.json`, CLI flags, and reporter output formats are u
 | Sprint 0 — Architecture & Design | ✅ 12 ADRs, FRs, NFRs, test stack chosen |
 | Sprint 1 — Implementation (Mega-Sprint, 10 phases) | ✅ Tag `v1.0.0-preview.1` — Buildalyzer fully removed, all 11 + 6 projects on .NET 10, 233 ILogger calls source-generated |
 | Sprint 2 — Code Excellence (8 phases) | ✅ Tag `v1.0.0-preview.2` — C# 14 extension members, [GeneratedRegex], JsonSerializerContext, field keyword, list patterns, RSL — code-quality lifted to "high-end" |
-| Sprint 3 — Production Hardening | 🚧 In progress — integration suite, NuGet packaging, CI |
+| Sprint 3 — Production Hardening | ✅ Tag `v1.0.0-rc.1` — integration suite vendored, NuGet packaging + CI + Release pipeline + README + Migration Guide done; Bug-5 surfaced |
+| Sprint 4 — Bug Elimination | ✅ Tag **`v1.0.0`** — Bug-5 (mutation-engine project-reference handling) fixed; all NetCore + MTP + Edge integration categories run end-to-end |
 
 See [`_docs/`](`_docs`) for sprint lessons docs.
 
