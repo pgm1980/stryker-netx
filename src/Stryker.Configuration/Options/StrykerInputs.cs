@@ -28,8 +28,15 @@ public class StrykerInputs : IStrykerInputs
     public MutationLevelInput MutationLevelInput { get; init; } = new();
     /// <summary>v2.0.0 (ADR-018): mutation profile selector (Defaults / Stronger / All).</summary>
     public MutationProfileInput MutationProfileInput { get; init; } = new();
-    /// <summary>v2.0.0 (ADR-016): mutation engine selector (Recompile / HotSwap).</summary>
+    /// <summary>
+    /// <b>Obsolete in v2.2.0 — deprecated per ADR-021.</b> Originally introduced in
+    /// v2.0.0 (ADR-016) for the planned HotSwap engine selector. Kept as CLI shim
+    /// so existing scripts/configs don't break; emits a deprecation warning when
+    /// the user explicitly supplies <c>--engine</c>.
+    /// </summary>
+#pragma warning disable CS0618 // Reference to obsolete MutationEngineInput — this is the deprecated shim itself.
     public MutationEngineInput MutationEngineInput { get; init; } = new();
+#pragma warning restore CS0618
     public ThresholdBreakInput ThresholdBreakInput { get; init; } = new();
     public ThresholdHighInput ThresholdHighInput { get; init; } = new();
     public ThresholdLowInput ThresholdLowInput { get; init; } = new();
@@ -106,6 +113,7 @@ public class StrykerInputs : IStrykerInputs
         string? sinceTarget,
         string? projectVersion)
     {
+#pragma warning disable CS0618 // MutationEngine + MutationEngineInput are deprecated v2.2.0 (ADR-021); the assignment here is the shim that keeps --engine flag accepting input.
         return new StrykerOptions()
         {
             ProjectPath = basePath,
@@ -163,5 +171,6 @@ public class StrykerInputs : IStrykerInputs
             TestRunner = TestRunnerInput.Validate(),
             MutantIdProvider = new BasicIdProvider()
         };
+#pragma warning restore CS0618
     }
 }

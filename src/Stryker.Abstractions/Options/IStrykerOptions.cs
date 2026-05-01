@@ -41,10 +41,17 @@ public interface IStrykerOptions
     MutationProfile MutationProfile { get; init; }
 
     /// <summary>
-    /// v2.0.0 (ADR-016, Sprint 8): mutation execution engine selector.
-    /// Defaults to <see cref="Stryker.Abstractions.MutationEngine.Recompile"/>.
+    /// <b>Obsolete in v2.2.0 — deprecated per ADR-021.</b> Originally introduced
+    /// in v2.0.0 (ADR-016) as the mutation execution engine selector. The
+    /// HotSwap engine was removed because the underlying ADR-016 was based on
+    /// a wrong mental model of Stryker.NET's cost structure. This property
+    /// remains as a deprecated shim for v2.x source compatibility.
     /// </summary>
+    // S1133 + CS0618 deferred to v3.0 per ADR-021 — see MutationEngine enum and IMutationEngine interface.
+#pragma warning disable CS0618, S1133
+    [System.Obsolete("Deprecated in v2.2.0 (ADR-021): HotSwap engine was based on a wrong mental model. The property is a shim; v3.0 may remove it.")]
     MutationEngine MutationEngine { get; init; }
+#pragma warning restore CS0618, S1133
     OptimizationModes OptimizationMode { get; init; }
     string? OutputPath { get; init; }
     string? Platform { get; }

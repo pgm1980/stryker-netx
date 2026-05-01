@@ -1,7 +1,7 @@
 ---
-current_sprint: "14"
-sprint_goal: "v2.1.0: 3 new mutators (ConstantReplacement, GenericConstraintLoosen, SpanReadOnlySpanDeclaration) + 1 new equivalence filter (RoslynDiagnostics) + doc clarification on already-implemented coverage-driven skip; HotSwap deferred to v2.2.0"
-branch: "feature/14-v2.1-filter-pipeline"
+current_sprint: "15"
+sprint_goal: "v2.2.0: walk back ADR-016 (HotSwap engine) — recherche surfaced wrong mental model in v2.0.0 architecture; cleanup HotSwap surface, ADR-021 + ADR-022, soft deprecation. No new mutators."
+branch: "feature/15-v2.2-hotswap-walkback"
 started_at: "2026-05-01"
 housekeeping_done: true
 memory_updated: true
@@ -12,42 +12,40 @@ tests_passed: true
 documentation_updated: true
 ---
 
-# Sprint 14 — v2.1.0 Filter pipeline + operator completion
+# Sprint 15 — v2.2.0 HotSwap walk-back
 
-**GitHub-Issue:** [#14](https://github.com/pgm1980/stryker-netx/issues/14)
-**Base-Tag:** `v2.0.1` (Sprint 13 closed)
-**Final-Tag:** `v2.1.0`
-**Reference inputs:** `_input/mutation_framework_comparison.md` §4.1 (CRCR) + §4.2 + §4.3 (mutmut Roslyn-diag) + §4.4 (Span/Memory) + Sprint 13 lessons + Sprint-14 Maxential session (15 thoughts, B2 branch chosen)
+**GitHub-Issue:** [#15](https://github.com/pgm1980/stryker-netx/issues/15)
+**Base-Tag:** `v2.1.0` (Sprint 14 closed)
+**Final-Tag:** `v2.2.0`
+**Reference:** Sprint 15 Maxential session (14 thoughts, 3-way branch C2 chosen). Recherche revealed `CsharpMutationProcess.CompileMutations` does single-pass compile of all mutations — ADR-016's "5–10× perf boost" assumption was wrong.
 
-## Implementation order (ascending in risk)
+## Implementation order
 
-- [x] **14.1** — `ConstantReplacementMutator` (PIT CRCR `c → 0, 1, -1, -c`) — Stronger | All
-- [x] **14.2** — `GenericConstraintLoosenMutator` (per-clause loosening) — Stronger | All
-- [x] **14.3** — `SpanReadOnlySpanDeclarationMutator` (declaration-site swap) — All only
-- [x] **14.4** — `RoslynDiagnosticsEquivalenceFilter` (new IEquivalentMutantFilter, syntax-error pre-filter)
-- [x] **14.5** — Wire 3 mutators into `DefaultMutatorList.V2OperatorBatches`
-- [x] **14.6** — Wire filter into `EquivalentMutantFilterPipeline.Default`
-- [x] **14.7** — README + MIGRATION update (51-mutator state, coverage-already-impl note, v2.2 HotSwap roadmap)
-- [x] **14.8** — ADR-019 (v2.2 HotSwap focused-release decision)
-- [x] **14.9** — Build/Test/E2E/Semgrep green
-- [x] **14.10** — Sprint-close + lessons + tag `v2.1.0` + GitHub release + merge to main
+- [x] **15.1** — Write ADR-021 (walk back ADR-016, full recherche trail, YAGNI rationale)
+- [x] **15.2** — Write ADR-022 (incremental mutation testing as future direction, Status: Proposed)
+- [x] **15.3** — `[Obsolete]` annotations on `MutationEngine` enum, `IMutationEngine` interface, `IStrykerOptions.MutationEngine` property, `MutationEngineInput` class
+- [x] **15.4** — Delete `HotSwapEngine.cs` + `RecompileEngine.cs`
+- [x] **15.5** — CLI shim: `--engine recompile|hotswap` accepted with deprecation warning
+- [x] **15.6** — Build/Test/E2E/Semgrep green
+- [x] **15.7** — README "Mutation Engines" section rewrite + Sprint history table
+- [x] **15.8** — MIGRATION "Documented removals (v2.2)" section
+- [x] **15.9** — Lessons doc + commit + tag `v2.2.0` + release + merge
 
-## Sprint-14-DoD
+## Sprint-15-DoD
 
-- [x] 3 new mutator files
-- [x] 1 new filter file
-- [x] All 3 mutators carry `[MutationProfileMembership]`
-- [x] All wired into `DefaultMutatorList`
-- [x] Filter wired into `EquivalentMutantFilterPipeline.Default`
+- [x] ADR-021 written
+- [x] ADR-022 written (Proposed)
+- [x] Engines deleted
+- [x] `[Obsolete]` annotations applied
+- [x] CLI deprecation warning
 - [x] dotnet build 0/0
 - [x] dotnet test 27/27
-- [x] Sample E2E 100% under default profile
+- [x] Sample E2E 100%
 - [x] Semgrep clean
-- [x] README + MIGRATION updated (26 + 17 + 8 = 51)
-- [x] ADR-019 v2.2 HotSwap deferral
+- [x] README + MIGRATION updated
 - [x] Lessons doc
-- [x] Tag `v2.1.0`
-- [x] GitHub release published
+- [x] Tag `v2.2.0`
+- [x] GitHub release
 - [x] Branch merged into main
-- [x] Issue #14 closed
+- [x] Issue #15 closed
 - [x] housekeeping_done=true

@@ -138,13 +138,13 @@ These are rough estimates from the project's own dogfooding. Real numbers depend
 
 ```
 --mutation-profile <Defaults|Stronger|All>   default: Defaults
---engine <Recompile|HotSwap>                 default: Recompile
-                                             (HotSwap is scaffolding-only in v2.0.0)
+--engine <Recompile|HotSwap>                 deprecated v2.2.0 — accepted as no-op shim
+                                             with deprecation warning per ADR-021
 ```
 
 ## Removed / changed CLI flags
 
-**None.** Every v1.x flag works exactly as before.
+**None.** Every v1.x flag works exactly as before. The `--engine` flag added in v2.0.0 was deprecated in v2.2.0 (see "Documented removals (v2.2)" below) but remains accepted for backwards compatibility.
 
 ## Removed / changed config fields
 
@@ -157,20 +157,26 @@ The `Stryker.Abstractions` and `Stryker.Core` public surfaces are **strictly add
 - `MutationProfile` enum (new)
 - `MutationProfileMembershipAttribute` (new)
 - `IMutationOperator`, `IMutatorGroup`, `ITypeAwareMutator` (new interfaces — stubs in v2.0.0, intended for future operator-hierarchy work)
-- `IMutationEngine` + `MutationEngine` enum (new)
+- `IMutationEngine` + `MutationEngine` enum (new in v2.0.0; **deprecated `[Obsolete]` in v2.2.0** per ADR-021)
 - `IStrykerOptions.MutationProfile` property (new — defaults to `MutationProfile.Defaults`)
-- `IStrykerOptions.MutationEngine` property (new — defaults to `MutationEngine.Recompile`)
+- `IStrykerOptions.MutationEngine` property (new in v2.0.0; **deprecated `[Obsolete]` in v2.2.0** per ADR-021)
 - `EquivalentMutantFilterPipeline` (new — internal in v2.0.0, may surface in v2.1)
 
 No type was renamed, removed, or had a method signature change.
 
-## Roadmap (v2.1 → v2.2 → v2.x)
+## Documented removals (v2.2)
 
-After v2.1.0, the operator-shaped recommendations from `_input/mutation_framework_comparison.md` are essentially exhausted. The remaining roadmap is dominated by infrastructure work.
+v2.2.0 walks back ADR-016 per ADR-021 — the HotSwap mutation engine is removed. **No breaking changes for users:** the `--engine` flag still accepts `Recompile` and `HotSwap` (logged as deprecated), the `MutationEngine` enum and related abstractions remain as `[Obsolete]` source-compat shims. The implementation classes (`HotSwapEngine`, `RecompileEngine`) have been deleted because they had no execution path.
 
-### v2.2.0 — HotSwap engine focused release (per ADR-019)
+**Why:** pre-implementation recherche for v2.2.0 surfaced that ADR-016's "5–10× perf boost" claim was based on a wrong mental model of Stryker.NET's cost structure. Stryker.NET compiles ALL mutations into a SINGLE assembly with runtime `ActiveMutationId` switching — there is no per-mutant compile to optimize away with a hot-swap pattern. The actual perf-relevant configuration is `--coverage-analysis` (default `perTest`), which has shipped since v1.x.
 
-- **HotSwap engine implementation** (`MetadataUpdater.ApplyUpdate`-based — see `_docs/architecture spec/architecture_specification.md` ADR-016 + ADR-019). Genuinely a 1-3-month engineering effort: IL-delta production, test-host lifecycle (start once, keep alive across mutants), `MetadataUpdater.ApplyUpdate` orchestration loop. Not appropriate to compress into a multi-deliverable release; v2.2.0 is its own focused release.
+See [ADR-021](_docs/architecture%20spec/architecture_specification.md) for the full recherche trail and [ADR-022 (Proposed)](_docs/architecture%20spec/architecture_specification.md) for the legitimate future perf direction (incremental mutation testing — file-watcher + change-driven re-run, no commitment).
+
+**v3.0 (future):** the deprecated `MutationEngine` symbols may be hard-removed.
+
+## Roadmap (v2.2 → v2.x)
+
+After v2.1.0, the operator-shaped recommendations from `_input/mutation_framework_comparison.md` are essentially exhausted. After v2.2.0, the misguided HotSwap engine work is cleaned up. The remaining roadmap is small.
 
 ### v2.x — long-tail items
 
