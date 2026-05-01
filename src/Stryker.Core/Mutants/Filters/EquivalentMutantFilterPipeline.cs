@@ -37,6 +37,10 @@ public sealed class EquivalentMutantFilterPipeline
         // v2.1.0 Sprint 14 (mutmut-style Type-Checker integration): re-parses
         // the replacement node and short-circuits on parser-level errors.
         new RoslynDiagnosticsEquivalenceFilter(),
+        // v2.4.0 Sprint 17 (semantic-error pre-filter): uses Roslyn
+        // speculative-binding to catch type-checking errors in expression-
+        // level replacements that the parser-only filter misses.
+        new RoslynSemanticDiagnosticsEquivalenceFilter(),
     ]);
 
     /// <summary>

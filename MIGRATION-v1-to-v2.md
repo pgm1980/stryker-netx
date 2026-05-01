@@ -101,6 +101,8 @@ v2.1.0 adds (filter pipeline + operator completion):
 v2.3.0 adds (long-tail):
 - **AsyncAwaitResultMutator** (greenfield — `await x → x.Result`; spec-faithful semantic variant of v2.0.0's `AsyncAwaitMutator` which emits `GetAwaiter().GetResult()`). Both ship — different exception-wrapping signatures catch different test-spec assumptions.
 
+v2.4.0 (Sprint 17) extends `GenericConstraintLoosenMutator` with a hardcoded BCL-interface-pair table (`ICloneable ↔ IDisposable`, `IComparable ↔ IEquatable`, `IEnumerable ↔ ICollection`, etc.) — same mutator class, more variants emitted per generic-constraint clause.
+
 44 mutators total (= 26 + 18).
 
 ### `All` (= Stronger + the noisiest experimental operators)
@@ -177,15 +179,19 @@ See [ADR-021](_docs/architecture%20spec/architecture_specification.md) for the f
 
 **v3.0 (future):** the deprecated `MutationEngine` symbols may be hard-removed.
 
-## Roadmap (v2.2 → v2.x)
+## Roadmap (v2.4 → v3.0)
 
-After v2.1.0, the operator-shaped recommendations from `_input/mutation_framework_comparison.md` are essentially exhausted. After v2.2.0, the misguided HotSwap engine work is cleaned up. The remaining roadmap is small.
+After v2.1.0, the operator-shaped recommendations from `_input/mutation_framework_comparison.md` are essentially exhausted. After v2.4.0, the only remaining long-tail item is JsonReport full AOT-trim, which is deferred to v3.0 per ADR-024.
 
 ### v2.x — long-tail items
 
 - **Access-Modifier-Mutation** (`private ↔ public`) — controversial; kept off the roadmap unless requested.
-- **Generic-constraint loosening — interface-target case**: `GenericConstraintLoosenMutator` (v2.1.0) treats interface-typed constraints by emitting a `class`-constraint replacement rather than the per-interface alternative; a future iteration could add ICloneable→IDisposable-style swaps if the bug-class proves real.
-- **RoslynDiagnostics filter — semantic errors**: the v2.1.0 filter checks parser diagnostics only. A future v2.2 ADR may extend the `IEquivalentMutantFilter` contract to carry a `Compilation` parameter so semantic-error pre-filtering becomes possible.
+
+### v3.0 (when scheduled)
+
+- **Hard-remove `[Obsolete]` `MutationEngine` symbols** (Sprint 15 / ADR-021)
+- **JsonReport full AOT-trim** — flatten `IJsonReport` / `ISourceFile` / `IJsonMutant` (7 interfaces, 34 referencing files) to concrete sealed records; delete custom converters; source-gen handles the full type graph natively (Sprint 17 / ADR-024)
+- ADR-022 (Proposed): incremental mutation testing — only commit if user-demand surfaces
 
 ### Already implemented (v1.x — the comparison.md roadmap entry was a documentation gap, not a code gap)
 

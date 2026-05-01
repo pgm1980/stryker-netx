@@ -111,7 +111,7 @@ Or in `stryker-config.json`:
 }
 ```
 
-## Operator catalogue (v2.3.0)
+## Operator catalogue (v2.4.0)
 
 | Family | v1.x mutators (Defaults) | Stronger additions | All-only additions |
 |--------|--------------------------|--------------------|--------------------|
@@ -135,9 +135,9 @@ Or in `stryker-config.json`:
 | Generic constraints | — | GenericConstraintLoosen (per-clause, v2.1) | GenericConstraint (drop-all) |
 | Other | Block, Statement, Assignment, Checked, Regex, NullCoalescing | — | — |
 
-Total: **26 (Defaults) + 18 (Stronger) + 8 (All-only) = 52 mutators** (v2.3.0).
+Total: **26 (Defaults) + 18 (Stronger) + 8 (All-only) = 52 mutators** (v2.4.0; `GenericConstraintLoosenMutator` extended in v2.4.0 with BCL-interface-pair variants — same mutator class, more variants).
 
-The equivalent-mutant filter pipeline ships **4 filters** (v2.1.0): `IdentityArithmeticFilter`, `IdempotentBooleanFilter`, `ConservativeDefaultsEqualityFilter`, and `RoslynDiagnosticsEquivalenceFilter` (v2.1 — fast-paths mutants with parser-error replacement nodes, mutmut's mypy/pyrefly-style pre-filter).
+The equivalent-mutant filter pipeline ships **5 filters** (v2.4.0): `IdentityArithmeticFilter`, `IdempotentBooleanFilter`, `ConservativeDefaultsEqualityFilter`, `RoslynDiagnosticsEquivalenceFilter` (v2.1 — parser-error pre-filter), and **`RoslynSemanticDiagnosticsEquivalenceFilter`** (v2.4 — uses Roslyn speculative-binding for O(1) per-mutation semantic-error pre-filtering, catches type-checking errors that the parser-only v2.1 filter misses).
 
 After v2.1.0, the catalogue closes essentially all operator-shaped recommendations from the comparison spec. Operator-level gaps from PIT/cargo-mutants/mutmut are exhausted.
 
@@ -172,10 +172,10 @@ That's it. **`stryker-config.json`, CLI flags, and reporter output formats are u
 
 See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking changes for the default profile**. To opt into the expanded catalogue, add `--mutation-profile Stronger` or `--mutation-profile All`.
 
-## Known limitations (v2.3.0)
+## Known limitations (v2.4.0)
 
 - **NetFramework projects** (legacy `packages.config` style — `<TargetFramework>net48</TargetFramework>`) require `nuget.exe restore` of the .sln before invocation, because `dotnet msbuild -restore` only handles `<PackageReference>` style. CI's `windows-latest` runner ships `nuget.exe`; local-only blocked unless `nuget.exe` is on PATH. (Carried forward from v1.0.)
-- `JsonReport` reporter uses **hybrid source-gen + custom-converter** serialization as of v2.3.0. Source-gen `JsonReportSerializerContext` provides JsonTypeInfo for the entry types `JsonReport` / `IJsonReport`; custom polymorphic converters (`SourceFileConverter`, `JsonMutantConverter`, etc.) handle interface-typed properties at runtime. Net effect: **AOT-trim-progress, not AOT-trim-complete**. Full AOT-trim would require flattening `IJsonReport` / `ISourceFile` / `IJsonMutant` to concrete types — out of scope.
+- `JsonReport` reporter uses **hybrid source-gen + custom-converter** serialization as of v2.3.0. Source-gen `JsonReportSerializerContext` provides JsonTypeInfo for the entry types `JsonReport` / `IJsonReport`; custom polymorphic converters (`SourceFileConverter`, `JsonMutantConverter`, etc.) handle interface-typed properties at runtime. Net effect: **AOT-trim-progress, not AOT-trim-complete**. Full AOT-trim **deferred to v3.0** per [ADR-024](_docs/architecture%20spec/architecture_specification.md) — requires flattening `IJsonReport` / `ISourceFile` / `IJsonMutant` (7 interfaces, 34 referencing files) to concrete types, which is a v3.0-cadence breaking change.
 - Validation framework count-based assertions in `integrationtest/Validation/ValidationProject/ValidateStrykerResults.cs` are **principled-skip** as of v2.3.0 per [ADR-023](_docs/architecture%20spec/architecture_specification.md). Counts were hardcoded for upstream Stryker.NET 4.14.1's exact mutator output; our v2.x catalogue (52 mutators vs upstream's 26) legitimately produces different counts; manual reconciliation would be a Sisyphean treadmill driftung with every Operator-Addition. The 11 affected `[Fact]` tests carry `[Fact(Skip = "...")]` with link to ADR-023. Fixture-level reconciliation is intentionally **not** roadmapped.
 - **HotSwap engine** — removed in v2.2.0 per ADR-021. The `--engine` flag is accepted as a deprecated no-op shim; both `Recompile` and `HotSwap` are treated identically with a deprecation warning.
 - **AsyncAwait family** — both variants ship: `AsyncAwaitMutator` (v2.0.0) emits `await x → x.GetAwaiter().GetResult()` (unwraps exceptions); `AsyncAwaitResultMutator` (v2.3.0) emits `await x → x.Result` (wraps in `AggregateException`). Tests asserting on specific exception types may pass under one and fail under the other — having both maximises kill-detection sensitivity.
@@ -204,6 +204,7 @@ See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking
 | Sprint 14 — Filter pipeline + operator completion | ✅ Tag **`v2.1.0`** — 3 new mutators (ConstantReplacement = PIT CRCR, GenericConstraintLoosen, SpanReadOnlySpanDeclaration) + 1 new equivalence filter (RoslynDiagnostics, mutmut-style); HotSwap engine deferred to v2.2.0 per ADR-019 |
 | Sprint 15 — HotSwap walk-back | ✅ Tag **`v2.2.0`** — pre-implementation recherche revealed ADR-016 was based on a wrong mental model of Stryker.NET's cost structure (no per-mutant compile to optimize away). ADR-021 walks back ADR-016, soft-deprecates the engine surface, deletes dead code. ADR-022 (Proposed) records incremental mutation testing as the legitimate future perf direction without commitment. |
 | Sprint 16 — Long-tail items | ✅ Tag **`v2.3.0`** — 1 new mutator (AsyncAwaitResult — spec-faithful `.Result` variant), JsonReport hybrid source-gen rewrite (AOT-trim progress), validation-framework count-tests principled-skip per ADR-023. 2 deferred (RoslynDiagnostics filter v2 cost-too-high; GenericConstraintLoosen interface-target speculative). |
+| Sprint 17 — Final long-tail rest | ✅ Tag **`v2.4.0`** — RoslynSemanticDiagnosticsEquivalenceFilter (Roslyn speculative-binding for O(1) per-mutation semantic-error pre-filter — caught the v2.3 "cost-too-high" deferred item via smarter API choice), GenericConstraintLoosenMutator extension with BCL-interface-pair table (ICloneable↔IDisposable etc.). JsonReport full AOT-trim deferred to v3.0 per ADR-024. |
 
 See [`_docs/`](_docs/) for per-sprint lessons.
 

@@ -1662,6 +1662,57 @@ Die 11 Count-Tests werden **nicht reconciled**, sondern mit `[Fact(Skip = "...")
 
 ---
 
+## ADR-024: JsonReport full AOT-trim — v3.0-scope deferral (v2.4.0)
+
+**Status.** Accepted — 2026-05-01 (Sprint 17, v2.4.0).
+
+**Context.**
+
+v2.3.0 (Sprint 16) shipped JsonReport hybrid source-gen serialization: `JsonReportSerializerContext` provides `JsonTypeInfo` for the entry types `JsonReport` + `IJsonReport`; custom polymorphic converters (`SourceFileConverter`, `JsonMutantConverter`, `LocationConverter`, `PositionConverter`, `JsonTestFileConverter`, `JsonTestConverter`) attach to the runtime `JsonSerializerOptions` via `JsonTypeInfoResolver.Combine` and continue to handle interface-typed properties at runtime. The Sprint 16 lessons doc explicitly noted this as "AOT-trim progress, not AOT-trim complete" and listed full AOT-trim as long-tail.
+
+Sprint 17 evaluated the full AOT-trim scope:
+
+- 7 interface types in `Stryker.Abstractions/Reporting/` (IJsonReport, ISourceFile, IJsonMutant, IJsonTestFile, IJsonTest, ILocation, IPosition)
+- 34 source files reference at least one of these interfaces
+- Full AOT-trim requires flattening these interfaces to concrete types (e.g. sealed records) — at which point custom converters become unnecessary, and source-gen handles everything natively
+
+**Decision.**
+
+Defer JsonReport full AOT-trim to **v3.0**.
+
+**Backed by.** Sprint 17 Maxential-Session (3-way branch E1=full-refactor / E2=parallel-concrete-shim / E3=defer-to-v3.0; E3 chosen). Aligns with Sprint 15 ADR-021 (HotSwap walk-back) + Sprint 16 ADR-023 (Validation-non-reconciliation) deferral discipline.
+
+**Begründung.**
+
+1. **Breaking change cadence.** Flattening 7 public interfaces to concrete types is a breaking API change that violates v2.0.0's stated "zero breaking changes for default profile" principle (README + MIGRATION). The right cadence for breaking interface changes is a major-version boundary — i.e. v3.0.
+
+2. **Parallel concrete-types variant doubles maintenance.** Branch E2 evaluated shipping concrete-typed records alongside the interface shims (analogous to Sprint 15's `[Obsolete]`-shim pattern for `MutationEngine`). Rejected — interface flattening for serialization isn't symmetric with `[Obsolete]` deprecation; the user-visible benefit is gated on opting into the new types, which means doubling the surface for mild-marginal value.
+
+3. **Current AOT-progress is sufficient for v2.x.** v2.3.0's hybrid source-gen eliminates reflection on the entry-type metadata graph — embedders that don't need full AOT-trim get measurable startup-time wins already. Full AOT-trim is the kind of "5%-of-users-care-deeply" feature that justifies its own focused major release.
+
+**Alternatives evaluated (Maxential branches).**
+
+- **E1 — Full breaking-change refactor** in v2.4.0. Rejected — violates no-breaking-changes-mid-major-version principle.
+- **E2 — Parallel concrete-type variant + `[Obsolete]` interfaces.** Rejected — doubles maintenance with low marginal value.
+
+**Consequences.**
+
+- (+) Honest scope assessment — refactor is genuinely v3.0-sized.
+- (+) Aligns with established v2.x deferral discipline (ADR-021, ADR-023).
+- (+) v3.0 sprint will batch this with the `[Obsolete]` `MutationEngine` hard-removal — coherent breaking-change release.
+- (–) Long-tail item stays open for one more major version.
+
+**Implementation outline für v3.0.**
+
+1. ADR-025: concrete-types schema for the JsonReport family
+2. Replace interface declarations with `sealed record` declarations (or sealed classes if record-init-binding doesn't work for the polymorphic-deserialization case)
+3. Delete custom converters (`SourceFileConverter`, `JsonMutantConverter`, etc.)
+4. Simplify `JsonReportSerializerContext` to handle the full type graph natively
+5. Remove `JsonTypeInfoResolver.Combine` plumbing in `JsonReportSerialization`
+6. Update embedders' migration guide
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -1671,3 +1722,4 @@ Die 11 Count-Tests werden **nicht reconciled**, sondern mit `[Fact(Skip = "...")
 | 0.3.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 14 (v2.1.0): ADR-019 — HotSwap-Engine als eigene v2.2.0-Release statt Sprint-14-Quetschung |
 | 0.4.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 15 (v2.2.0): ADR-021 — Walking back ADR-016 (HotSwap-Engine wegen falschen mentalen Modells in v2.0.0-Architektur entfernt). ADR-022 (Proposed) — Inkrementelles Mutation-Testing als zukünftige Performance-Direction. Supersedes ADR-016 + ADR-019. |
 | 0.5.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 16 (v2.3.0): ADR-023 — Validation-Framework Count-Tests prinzipieller Skip statt Reconciliation. AsyncAwaitResultMutator (catalogue +1 = 52). JsonReport hybrid source-gen. |
+| 0.6.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 17 (v2.4.0): ADR-024 — JsonReport full AOT-trim als v3.0-scope deferral. Plus RoslynSemanticDiagnosticsFilter + GenericConstraintLoosen interface-pair extension. |
