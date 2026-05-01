@@ -1,7 +1,7 @@
 ---
-current_sprint: "31"
-sprint_goal: "MTP DefaultRunnerFactory + ResponseListener tests → v2.18.0"
-branch: "feature/31-mtp-factory-listener-port"
+current_sprint: "32"
+sprint_goal: "MTP MicrosoftTestPlatformRunnerPoolTests → v2.19.0"
+branch: "feature/32-mtp-runner-pool-tests-port"
 started_at: "2026-05-02"
 housekeeping_done: true
 memory_updated: true
@@ -11,7 +11,4 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-
-# Sprint 31 — MTP DefaultRunnerFactory + ResponseListener
-
-11 tests grün (5 Factory + 6 Listener). 510 solution-wide grün.
+# Sprint 32 — 29/30 grün, 1 skip
