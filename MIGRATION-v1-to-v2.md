@@ -98,7 +98,10 @@ v2.1.0 adds (filter pipeline + operator completion):
 - **ConstantReplacementMutator** (PIT CRCR full matrix — `c → 0, 1, -1, -c`; complements `InlineConstantsMutator`'s `c+1`/`c-1` axes)
 - **GenericConstraintLoosenMutator** (per-clause constraint loosening: `where T : class → where T : new()` etc.; complements v2.0.0's drop-all `GenericConstraintMutator`)
 
-43 mutators total (= 26 + 17).
+v2.3.0 adds (long-tail):
+- **AsyncAwaitResultMutator** (greenfield — `await x → x.Result`; spec-faithful semantic variant of v2.0.0's `AsyncAwaitMutator` which emits `GetAwaiter().GetResult()`). Both ship — different exception-wrapping signatures catch different test-spec assumptions.
+
+44 mutators total (= 26 + 18).
 
 ### `All` (= Stronger + the noisiest experimental operators)
 
@@ -116,7 +119,7 @@ v2.0.1 adds (spec-gap closure):
 v2.1.0 adds:
 - **SpanReadOnlySpanDeclarationMutator** (greenfield — declaration-site `Span<T> ↔ ReadOnlySpan<T>` and `Memory<T> ↔ ReadOnlyMemory<T>` swap; complements v2.0.1's invocation-site `AsSpanAsMemoryMutator`)
 
-51 mutators total (= 26 + 17 + 8).
+52 mutators total (= 26 + 18 + 8).
 
 ---
 

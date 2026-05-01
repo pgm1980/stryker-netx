@@ -185,6 +185,9 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new ConstantReplacementMutator(),
         new GenericConstraintLoosenMutator(),
         new SpanReadOnlySpanDeclarationMutator(),
+        // Sprint 16 (v2.3.0 long-tail): AsyncAwaitResult — spec-faithful semantic
+        // variant of v2.0.0's AsyncAwaitMutator. Stronger | All.
+        new AsyncAwaitResultMutator(),
     ];
 
     private IEnumerable<IMutator> Mutators { get; }
