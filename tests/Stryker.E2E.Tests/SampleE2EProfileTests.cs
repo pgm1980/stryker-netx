@@ -11,8 +11,9 @@ namespace Stryker.E2E.Tests;
 /// profile. The two cached runs (json-only, json+html) are shared across
 /// every <c>[Fact]</c> via <see cref="StrykerRunCacheFixture"/>.
 ///
-/// v2.7.0 design note: profile-comparison tests (Defaults vs Stronger vs All)
-/// are deferred — see <see cref="StrykerRunCacheFixture"/> for the rationale.
+/// Sprint 22 (v2.9.0): three additional profile-comparison Facts at
+/// <c>--mutation-level Advanced</c> exercise the newly-wired
+/// <c>--mutation-profile</c> CLI flag. Each profile gets its own cached run.
 /// </summary>
 [Collection(E2ETestCollection.Name)]
 public class SampleE2EProfileTests
@@ -103,5 +104,48 @@ public class SampleE2EProfileTests
         var htmlReport = Directory.GetFiles(reportsDir, "*.html").FirstOrDefault();
         htmlReport.Should().NotBeNull(
             "--reporter html must produce a .html file in the reports directory");
+    }
+
+    [Fact]
+    public void All_TotalIsStrictlyGreaterThan_Defaults()
+    {
+        // Sprint 22: with --mutation-profile All --mutation-level Advanced the
+        // additional Stronger/All-only operators (AOD, InlineConstants, …) fire on
+        // Sample.Library and produce strictly more mutants than Defaults at the same
+        // level. Concretely on the current Calculator code: 5 (Defaults) vs 13 (All).
+        var defaults = _cache.GetDefaultsRunAtAdvancedLevel();
+        var all = _cache.GetAllRunAtAdvancedLevel();
+        var defaultsTotal = defaults.Report!.SummariseMutants().Total;
+        var allTotal = all.Report!.SummariseMutants().Total;
+        allTotal.Should().BeGreaterThan(defaultsTotal,
+            "the All profile must enable Stronger-only and All-only operators that Defaults excludes");
+    }
+
+    [Fact]
+    public void Stronger_TotalIsAtLeast_Defaults()
+    {
+        // Sprint 22: Stronger ⊇ Defaults by membership-flag construction —
+        // every Defaults-only mutator is also a Stronger member, plus the PIT-Stronger
+        // additions. The total must therefore be >= the Defaults total.
+        var defaults = _cache.GetDefaultsRunAtAdvancedLevel();
+        var stronger = _cache.GetStrongerRunAtAdvancedLevel();
+        var defaultsTotal = defaults.Report!.SummariseMutants().Total;
+        var strongerTotal = stronger.Report!.SummariseMutants().Total;
+        strongerTotal.Should().BeGreaterThanOrEqualTo(defaultsTotal,
+            "Stronger is a superset of Defaults by [MutationProfileMembership] flag construction");
+    }
+
+    [Fact]
+    public void All_FileMap_ContainsEveryDefaultsFile()
+    {
+        // Sprint 22: every file Stryker reports under Defaults at Advanced level
+        // must also appear under All at Advanced level. The All profile only adds
+        // mutators — it never removes them — so the per-file report cannot lose entries.
+        var defaults = _cache.GetDefaultsRunAtAdvancedLevel();
+        var all = _cache.GetAllRunAtAdvancedLevel();
+        var defaultsFiles = defaults.Report!.Files.Keys;
+        var allFiles = all.Report!.Files.Keys;
+        allFiles.Should().Contain(defaultsFiles,
+            "the All profile must report on every file the Defaults profile reports on");
     }
 }

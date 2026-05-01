@@ -59,6 +59,7 @@ public static class FileConfigGenerator
                 AdditionalTimeout = inputs.AdditionalTimeoutInput.SuppliedInput ?? inputs.AdditionalTimeoutInput.Default,
                 Mutate = inputs.MutateInput.SuppliedInput is null ? [.. inputs.MutateInput.Default] : [.. inputs.MutateInput.SuppliedInput],
                 MutationLevel = inputs.MutationLevelInput.SuppliedInput ?? inputs.MutationLevelInput.Default,
+                MutationProfile = inputs.MutationProfileInput.SuppliedInput ?? inputs.MutationProfileInput.Default,
                 Reporters = inputs.ReportersInput.SuppliedInput is null ? [.. inputs.ReportersInput.Default] : [.. inputs.ReportersInput.SuppliedInput],
                 Solution = inputs.SolutionInput.SuppliedInput ?? inputs.SolutionInput.Default,
                 Configuration = inputs.ConfigurationInput.SuppliedInput ?? inputs.ConfigurationInput.Default,
