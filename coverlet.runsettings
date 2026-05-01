@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sprint 23 (v2.10.0): coverlet runsettings to address the parallel-testhost
+  file-lock race condition discovered in Sprint 18.
+
+  Background: when `dotnet test stryker-netx.slnx` runs the four test
+  projects in parallel, each test-host process invokes coverlet's
+  InstrumentationHelper, which copies+rewrites every assembly under the test
+  project's bin/ directory. `Stryker.DataCollector.dll` (a netstandard2.0
+  helper used at test runtime by Stryker itself, NOT a unit under test)
+  appears in every test project's bin/ folder; parallel coverlet copies of
+  the same destination path collide on the file lock and either fail with
+  IOException or skip the project entirely.
+
+  Fix: tell coverlet to exclude Stryker.DataCollector from instrumentation
+  so the file is never copied — eliminating the race entirely. Coverlet
+  still instruments every Stryker.* production assembly that we actually
+  want coverage for.
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Exclude>[Stryker.DataCollector]*,[xunit*]*,[FluentAssertions*]*,[Moq*]*,[FsCheck*]*</Exclude>
+          <ExcludeByAttribute>Obsolete,GeneratedCode,CompilerGenerated</ExcludeByAttribute>
+          <SkipAutoProps>true</SkipAutoProps>
+          <DeterministicReport>true</DeterministicReport>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
