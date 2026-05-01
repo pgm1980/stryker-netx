@@ -5,9 +5,9 @@ branch: "feature/22-mutation-profile-cli"
 started_at: "2026-05-01"
 housekeeping_done: true
 memory_updated: true
-github_issues_closed: false
+github_issues_closed: true
 sprint_backlog_written: true
-semgrep_passed: false
+semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
