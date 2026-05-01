@@ -1451,9 +1451,58 @@ Selektion via CLI: `--profile defaults | stronger | all` oder per `stryker-confi
 
 ---
 
+## ADR-019: HotSwap-Engine als eigene v2.2.0-Release statt Sprint-14-Quetschung
+
+**Status.** Entschieden — 2026-05-01 (Sprint 14, v2.1.0).
+
+**Context.**
+v2.0.0 (Sprint 8, ADR-016) hat das Hot-Swap-Engine-Scaffolding geliefert: `IMutationEngine`-Interface, `RecompileEngine` (default), `HotSwapEngine`-Stub, der bei Aufruf `NotSupportedException` mit ADR-016-Pointer wirft, plus `--engine`-Flag. Die echte Implementierung — `MetadataUpdater.ApplyUpdate`-basierte In-Process IL-Delta-Anwendung mit langlebigem Test-Host — wurde explizit als „focused follow-up sub-sprint" zurückgestellt.
+
+Sprint 14 (v2.1.0) bringt 4 weitere Deliverables (3 Mutatoren + 1 Filter). Die offene Frage: HotSwap-Implementierung in v2.1.0 mit reinpacken, oder als eigene v2.2.0-Release herauslösen?
+
+**Decision.**
+HotSwap-Engine als **eigene fokussierte v2.2.0-Release** herauslösen. v2.1.0 bleibt bei den 4 Operator-/Filter-Deliverables. v2.0.0-Scaffolding bleibt unverändert.
+
+**Backed by.** Maxential-Branch-Vergleich (Sprint 14, 2 Branches B1=expand, B2=defer; B2 chosen), Sprint-3 + Sprint-8 + Sprint-11 Honest-Deferral-Pattern als Präzedenzfall.
+
+**Begründung.**
+
+1. **Engineering-Größe.** Realistische End-zu-End-Implementierung erfordert:
+   - IL-Delta-Berechnung (PE/PE-Diff inklusive Method-Token-Stabilität)
+   - `MetadataUpdater.ApplyUpdate`-Aufruf-Orchestrierung (delta-bytes, IL-bytes, PDB-bytes je Update)
+   - Test-Host-Lifecycle: einmal starten, über alle Mutanten am Leben halten, nur bei fatalen Fehlern neu starten
+   - Edit-and-Continue-Compatibility-Checks (manche Mutationen sind nicht hot-swappable, z.B. Signatur-Änderungen)
+   - End-zu-End-Validierung mit allen 51 v2.1.0-Mutatoren
+   
+   Geschätzter Aufwand: 1–3 Personenmonate fokussierter Engineering-Arbeit. Das ist eine eigene Release, nicht ein Sprint-Item neben anderen.
+
+2. **YAGNI / Ship-Working-Things-Disziplin.** Framework-Code, der vom Endbenutzer nicht verwendet werden kann (weil der echte Delta-Producer fehlt), ist Wartungs-Surface ohne Liefer-Wert. Anti dem expliziten Project-Prinzip.
+
+3. **Honest-Deferral-Präzedenz.** Sprint 8 (Hot-Swap-Scaffolding-only), Sprint 11 (CRCR-deferred), Sprint 13 (Phase-A-doc-fix-vor-Phase-B-implementation) — alle haben das Muster „lieber sauberes Liefer-Versprechen halten als Half-Implemented Big Items über mehrere Releases verteilen" etabliert. v2.1.0 honoriert dasselbe Muster.
+
+**Alternatives.**
+- *Substanzieller HotSwap-Framework-Ausbau in v2.1.0 (Branch B1 in Maxential):* verworfen — würde ~1500 LOC dead code produzieren ohne working delta-producer; vergrößert v2.1.0-Surface ohne User-Value.
+
+**Consequences.**
+- (+) v2.1.0 ships fokussiert mit 4 working deliverables (3 Mutatoren + 1 Filter) und ist klein genug zum reviewen.
+- (+) v2.2.0 wird als „HotSwap engine focused release" explizit benannt — Stakeholder wissen woran sie sind.
+- (+) v2.0.0-Scaffolding bleibt stabil — kein Refactoring der `IMutationEngine`-Stubs nötig bevor die echte Implementierung kommt.
+- (–) `HotSwapEngine.ThrowIfInvoked()` bleibt für eine weitere Minor-Version aktiv. Nutzer, die `--engine HotSwap` heute setzen, bekommen weiterhin `NotSupportedException` mit ADR-016-Pointer.
+
+**Implementation roadmap für v2.2.0.**
+1. ADR-020: IL-Delta-Berechnungs-Strategie (Mono.Cecil vs. System.Reflection.Metadata)
+2. `IDeltaProducer`-Interface + Production-Implementation
+3. Test-Host-Lifecycle-Manager (`HotSwapTestHostController`)
+4. `HotSwapEngine.RunMutationCycle(Mutant) → Task<MutantResult>` mit ApplyUpdate-Orchestrierung
+5. End-zu-End-Validierung gegen alle 51 Mutatoren
+6. Performance-Benchmark vs. RecompileEngine
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
 |---------|-------|-------|----------|
 | 0.1.0 | 2026-04-30 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Initiale Sprint-0-Version mit 12 ADRs |
 | 0.2.0 | 2026-04-30 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 5 (v2.0.0 Architecture Foundation): ADRs 013–018 hinzugefügt — AST/IL Hybrid, Operator-Hierarchie, SemanticModel-Driven, Hot-Swap (Trampoline), Equivalent-Mutant Filtering, Mutation Profiles |
+| 0.3.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 14 (v2.1.0): ADR-019 — HotSwap-Engine als eigene v2.2.0-Release statt Sprint-14-Quetschung |

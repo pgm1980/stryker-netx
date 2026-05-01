@@ -179,6 +179,12 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new ArgumentPropagationMutator(),
         new AsSpanAsMemoryMutator(),
         new MethodBodyReplacementMutator(),
+        // Sprint 14 (v2.1.0 filter pipeline + operator completion):
+        // ConstantReplacement + GenericConstraintLoosen: Stronger | All.
+        // SpanReadOnlySpanDeclaration: All only (high compile-failure rate).
+        new ConstantReplacementMutator(),
+        new GenericConstraintLoosenMutator(),
+        new SpanReadOnlySpanDeclarationMutator(),
     ];
 
     private IEnumerable<IMutator> Mutators { get; }

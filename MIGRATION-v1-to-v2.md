@@ -94,7 +94,11 @@ v2.0.1 adds (spec-gap closure):
 - **MemberVariableMutator** (PIT EXP_MEMBER_VARIABLE — instance field/property assignment reset to `default`)
 - **TaskWhenAllToWhenAnyMutator** (greenfield — `Task.WhenAll(...) ↔ Task.WhenAny(...)` swap)
 
-41 mutators total (= 26 + 15).
+v2.1.0 adds (filter pipeline + operator completion):
+- **ConstantReplacementMutator** (PIT CRCR full matrix — `c → 0, 1, -1, -c`; complements `InlineConstantsMutator`'s `c+1`/`c-1` axes)
+- **GenericConstraintLoosenMutator** (per-clause constraint loosening: `where T : class → where T : new()` etc.; complements v2.0.0's drop-all `GenericConstraintMutator`)
+
+43 mutators total (= 26 + 17).
 
 ### `All` (= Stronger + the noisiest experimental operators)
 
@@ -109,7 +113,10 @@ v2.0.1 adds (spec-gap closure):
 - **AsSpanAsMemoryMutator** (greenfield — `AsSpan() ↔ AsMemory()` and read-only variants; high compile-failure rate, runner classifies failed-compile as killed)
 - **MethodBodyReplacementMutator** (cargo-mutants C1 "function-body replacement genre" — non-void method bodies replaced with `{ return default; }`, void with `{ }`; skips async/abstract/partial/extern/expression-bodied)
 
-48 mutators total (= 26 + 15 + 7).
+v2.1.0 adds:
+- **SpanReadOnlySpanDeclarationMutator** (greenfield — declaration-site `Span<T> ↔ ReadOnlySpan<T>` and `Memory<T> ↔ ReadOnlyMemory<T>` swap; complements v2.0.1's invocation-site `AsSpanAsMemoryMutator`)
+
+51 mutators total (= 26 + 17 + 8).
 
 ---
 
@@ -157,29 +164,31 @@ The `Stryker.Abstractions` and `Stryker.Core` public surfaces are **strictly add
 
 No type was renamed, removed, or had a method signature change.
 
-## Roadmap (v2.0.x → v2.1)
+## Roadmap (v2.1 → v2.2 → v2.x)
 
-After v2.0.1 the operator catalogue closes nearly all operator-shaped recommendations from `_input/mutation_framework_comparison.md`. Remaining open items below.
+After v2.1.0, the operator-shaped recommendations from `_input/mutation_framework_comparison.md` are essentially exhausted. The remaining roadmap is dominated by infrastructure work.
 
-### Cross-cutting infrastructure (v2.0.x → v2.1)
+### v2.2.0 — HotSwap engine focused release (per ADR-019)
 
-- **HotSwap engine implementation** (`MetadataUpdater.ApplyUpdate`-based — see `_docs/architecture spec/architecture_specification.md` ADR-016)
-- **Coverage-driven mutation skip** (mutmut-style: skip mutants in lines with no test coverage)
-- **Roslyn Diagnostics filter** (mutmut-style: feed compilation diagnostics into the equivalence-filter pipeline as a new `IEquivalentMutantFilter`)
+- **HotSwap engine implementation** (`MetadataUpdater.ApplyUpdate`-based — see `_docs/architecture spec/architecture_specification.md` ADR-016 + ADR-019). Genuinely a 1-3-month engineering effort: IL-delta production, test-host lifecycle (start once, keep alive across mutants), `MetadataUpdater.ApplyUpdate` orchestration loop. Not appropriate to compress into a multi-deliverable release; v2.2.0 is its own focused release.
 
-### Open operators (§4.1 / §4.4)
+### v2.x — long-tail items
 
-- **CRCR full matrix** (constant-replacement composite — partial overlap with `InlineConstantsMutator`'s `n+1` / `n-1` axes; missing are the `0`, `1`, `-1`, `-c` substitutions)
-- **Span/Memory — declaration-site `Span<T> ↔ ReadOnlySpan<T>` swap** (the v2.0.0 `SpanMemoryMutator` emits `Slice(start, length) → Slice(0, length)`; the v2.0.1 `AsSpanAsMemoryMutator` covers the `AsSpan()/AsMemory()` invocation swap; the declaration-type swap is the third remaining piece)
-- **Access-Modifier-Mutation** (`private ↔ public`) — controversial; kept off the roadmap unless requested
+- **Access-Modifier-Mutation** (`private ↔ public`) — controversial; kept off the roadmap unless requested.
+- **Generic-constraint loosening — interface-target case**: `GenericConstraintLoosenMutator` (v2.1.0) treats interface-typed constraints by emitting a `class`-constraint replacement rather than the per-interface alternative; a future iteration could add ICloneable→IDisposable-style swaps if the bug-class proves real.
+- **RoslynDiagnostics filter — semantic errors**: the v2.1.0 filter checks parser diagnostics only. A future v2.2 ADR may extend the `IEquivalentMutantFilter` contract to carry a `Compilation` parameter so semantic-error pre-filtering becomes possible.
+
+### Already implemented (v1.x — the comparison.md roadmap entry was a documentation gap, not a code gap)
+
+- **Coverage-driven mutation skip** — shipped as `OptimizationModes.SkipUncoveredMutants` and `CoverageBasedTest`, exposed via the `--coverage-analysis` flag (default `perTest`). The `CoverageAnalyser` runs an initial coverage capture pass and skips uncovered mutants — exactly the mutmut "skip mutants in lines with no test coverage" semantic.
 
 ### Documented semantic deviations from the spec
 
 These are intentionally implemented differently from the spec's exact wording — they catch a closely-related bug class but with distinct semantics. Spelled out so future readers are not surprised:
 
 - **`AsyncAwaitMutator`** emits `await x → x.GetAwaiter().GetResult()` rather than the spec's `await x → x.Result`. Both are sync-over-async substitutions; `.Result` wraps exceptions in `AggregateException`, `GetAwaiter().GetResult()` unwraps. Either way, tests that fail to await the result fail the mutant.
-- **`GenericConstraintMutator`** drops the entire `where T : ...` clause set rather than performing the spec-listed *loosening* (`where T : class → where T : new()`). Closely related but more aggressive. A loosening variant may be added under a separate mutator in v2.1.
-- **`SpanMemoryMutator`** targets `span.Slice(start, length) → span.Slice(0, length)`. The spec asked for `Span<T> ↔ ReadOnlySpan<T>` and `AsSpan() → AsMemory()` — the latter ships in v2.0.1 as `AsSpanAsMemoryMutator`; the former is roadmapped.
+- **`GenericConstraintMutator` (drop-all, v2.0.0) + `GenericConstraintLoosenMutator` (per-clause, v2.1.0)** — both ship. The drop-all is the maximally aggressive variant (All only); the per-clause loosening is the spec-faithful one (Stronger | All). Use the profile to pick.
+- **`SpanMemoryMutator` (Slice-zero) + `AsSpanAsMemoryMutator` (invocation-site) + `SpanReadOnlySpanDeclarationMutator` (declaration-site)** — all three coexist. The Slice-zero variant is stryker-netx-specific; the other two correspond directly to spec items.
 
 ## Questions or issues
 
