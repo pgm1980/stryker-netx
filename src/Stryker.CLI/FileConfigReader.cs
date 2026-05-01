@@ -26,6 +26,7 @@ public static class FileConfigReader
         var config = LoadConfig(configFilePath);
 
         ApplyTopLevelInputs(config, inputs);
+        ApplyMutationInputs(config, inputs);
         ApplySinceInputs(config, inputs);
         ApplyBaselineInputs(config, inputs);
         ApplyProjectInfoInputs(config, inputs);
@@ -45,8 +46,6 @@ public static class FileConfigReader
         inputs.AdditionalTimeoutInput.SuppliedInput = config.AdditionalTimeout;
         inputs.BreakOnInitialTestFailureInput.SuppliedInput = config.BreakOnInitialTestFailure;
         if (config.CoverageAnalysis is { } coverageAnalysis) { inputs.CoverageAnalysisInput.SuppliedInput = coverageAnalysis; }
-        if (config.Mutate is { } mutate) { inputs.MutateInput.SuppliedInput = mutate; }
-        if (config.MutationLevel is { } mutationLevel) { inputs.MutationLevelInput.SuppliedInput = mutationLevel; }
         if (config.Reporters is { } reporters) { inputs.ReportersInput.SuppliedInput = reporters; }
         if (config.Solution is { } solution) { inputs.SolutionInput.SuppliedInput = solution; }
         if (config.Configuration is { } configuration) { inputs.ConfigurationInput.SuppliedInput = configuration; }
@@ -58,9 +57,16 @@ public static class FileConfigReader
         if (config.TestCaseFilter is { } testCaseFilter) { inputs.TestCaseFilterInput.SuppliedInput = testCaseFilter; }
         if (config.TestRunner is { } testRunner) { inputs.TestRunnerInput.SuppliedInput = testRunner; }
         if (config.DashboardUrl is { } dashboardUrl) { inputs.DashboardUrlInput.SuppliedInput = dashboardUrl; }
+        if (config.ReportFileName is { } reportFileName) { inputs.ReportFileNameInput.SuppliedInput = reportFileName; }
+    }
+
+    private static void ApplyMutationInputs(FileBasedInput config, IStrykerInputs inputs)
+    {
+        if (config.Mutate is { } mutate) { inputs.MutateInput.SuppliedInput = mutate; }
+        if (config.MutationLevel is { } mutationLevel) { inputs.MutationLevelInput.SuppliedInput = mutationLevel; }
+        if (config.MutationProfile is { } mutationProfile) { inputs.MutationProfileInput.SuppliedInput = mutationProfile; }
         if (config.IgnoreMutations is { } ignoreMutations) { inputs.IgnoreMutationsInput.SuppliedInput = ignoreMutations; }
         if (config.IgnoreMethods is { } ignoreMethods) { inputs.IgnoredMethodsInput.SuppliedInput = ignoreMethods; }
-        if (config.ReportFileName is { } reportFileName) { inputs.ReportFileNameInput.SuppliedInput = reportFileName; }
     }
 
     private static void ApplySinceInputs(FileBasedInput config, IStrykerInputs inputs)

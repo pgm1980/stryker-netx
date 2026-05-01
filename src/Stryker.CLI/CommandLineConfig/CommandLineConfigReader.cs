@@ -228,6 +228,7 @@ public class CommandLineConfigReader
         // Category: Mutation
         AddCliInput(inputs.MutateInput, "mutate", "m", optionType: CommandOptionType.MultipleValue, argumentHint: "glob-pattern", category: InputCategory.Mutation);
         AddCliInput(inputs.MutationLevelInput, "mutation-level", "l", category: InputCategory.Mutation);
+        AddCliInput(inputs.MutationProfileInput, "mutation-profile", null, category: InputCategory.Mutation);
         AddCliInput(inputs.SinceInput, "since", "", optionType: CommandOptionType.SingleOrNoValue, argumentHint: "committish", category: InputCategory.Mutation);
         AddCliInput(inputs.WithBaselineInput, "with-baseline", "", optionType: CommandOptionType.SingleOrNoValue, argumentHint: "committish", category: InputCategory.Mutation);
         // Category: Reporting

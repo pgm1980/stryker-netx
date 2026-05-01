@@ -30,6 +30,7 @@ public interface IStrykerInputs
     ModuleNameInput ModuleNameInput { get; init; }
     MutateInput MutateInput { get; init; }
     MutationLevelInput MutationLevelInput { get; init; }
+    MutationProfileInput MutationProfileInput { get; init; }
     MsBuildPathInput MsBuildPathInput { get; init; }
     OutputPathInput OutputPathInput { get; init; }
     ReportFileNameInput ReportFileNameInput { get; init; }

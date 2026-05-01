@@ -20,6 +20,9 @@ public class FileBasedInput : IExtraData
     [JsonPropertyName("mutation-level")]
     public string? MutationLevel { get; init; }
 
+    [JsonPropertyName("mutation-profile")]
+    public string? MutationProfile { get; init; }
+
     [JsonPropertyName("language-version")]
     public string? LanguageVersion { get; init; }
 
