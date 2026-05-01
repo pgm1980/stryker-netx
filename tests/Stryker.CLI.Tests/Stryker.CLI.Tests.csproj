@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.CLI.Tests — Sprint 37 (v2.24.0) foundation + smoke + small-file ports.
+    Port of upstream stryker-net 4.14.1 src/Stryker.CLI/Stryker.CLI.UnitTest/.
+    Framework conversion: MSTest → xUnit, Shouldly → FluentAssertions.
+
+    Sprint 37: foundation + CommandLineConfigReaderTests (5 tests) + Logging/InputBuilderTests (3 tests).
+    Sprint 38: ConfigBuilderTests + FileConfigReaderTests + StrykerCLIInitCommandTests.
+    Sprint 39: StrykerCLITests (largest).
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.CLI.Tests</AssemblyName>
+    <RootNamespace>Stryker.CLI.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup Label="Test stack (CLAUDE.md test-stack-Pflicht)">
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="TestableIO.System.IO.Abstractions.TestingHelpers" />
+  </ItemGroup>
+
+  <ItemGroup Label="Project under test">
+    <ProjectReference Include="..\..\src\Stryker.CLI\Stryker.CLI.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Abstractions\Stryker.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Configuration\Stryker.Configuration.csproj" />
+  </ItemGroup>
+
+</Project>
