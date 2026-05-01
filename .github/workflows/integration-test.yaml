@@ -61,6 +61,29 @@ jobs:
           dotnet-version: |
             8.x
             10.x
+
+      # Sprint 24 (v2.11.0): NetFramework's FullFrameworkApp.Test fixture uses
+      # legacy packages.config which `dotnet msbuild -restore` does NOT handle.
+      # `nuget.exe restore` of the .sln is required. windows-latest already
+      # ships nuget.exe but a dedicated install step makes the dependency
+      # explicit (and keeps non-Windows runners ignoring this matrix entry).
+      - name: Set up nuget.exe (NetFramework matrix only)
+        if: ${{ matrix.runtime == 'netframework' }}
+        uses: nuget/setup-nuget@v2
+        with:
+          nuget-version: '6.x'
+
+      - name: Restore NetFramework packages.config (NetFramework matrix only)
+        if: ${{ matrix.runtime == 'netframework' }}
+        shell: pwsh
+        run: |
+          $solutionPath = "integrationtest/TargetProjects/NetFramework/FullFrameworkApp.sln"
+          if (Test-Path $solutionPath) {
+            nuget restore $solutionPath
+          } else {
+            Write-Host "::warning::FullFrameworkApp.sln not found at $solutionPath; packages.config restore skipped."
+          }
+
       - name: Run integration tests
         shell: pwsh
         run: ./integration-tests.ps1
