@@ -1499,6 +1499,114 @@ HotSwap-Engine als **eigene fokussierte v2.2.0-Release** herauslösen. v2.1.0 bl
 
 ---
 
+## ADR-021: Walking back ADR-016 — HotSwap engine entfernt (v2.2.0)
+
+**Status.** Accepted — 2026-05-01 (Sprint 15, v2.2.0). **Supersedes ADR-016 + ADR-019 (HotSwap-Roadmap).**
+
+**Context.**
+
+ADR-016 (Sprint 5, v2.0.0 Architecture Foundation) hat einen *AssemblyLoadContext-Hot-Swap-Modus* als Sprint-8-Scaffolding festgelegt mit folgender Decision:
+
+> 1. **Initial-Build** des Source-Projekts (1×) erzeugt eine Baseline-Assembly.
+> 2. **Pro Mutant**: nur die mutierte Methode als neue Assembly emittieren.
+> 3. **Hot-Swap** über `AssemblyLoadContext` oder `MetadataUpdater.ApplyUpdate`.
+> 4. **Test-Run** läuft im selben Prozess.
+
+Plus die Versprechung:
+> (+) **5–10× Performance-Boost** für medium+ Projekte.
+
+ADR-019 (Sprint 14, v2.1.0) hat die echte Implementierung in eine eigene fokussierte v2.2.0-Release herausgelöst.
+
+**Pre-Implementation-Recherche (Sprint 15) hat ein fundamentales Problem in den ADR-016-Annahmen aufgedeckt:**
+
+Per Serena+Grep auf der tatsächlichen Mutation-Execution-Pipeline:
+- `Stryker.Core/MutationTest/CsharpMutationProcess.cs` Zeile 65: `CompileMutations(input, compilingProcess)`
+- `CompileMutations` ruft `compilingProcess.Compile(projectInfo.CompilationSyntaxTrees, ms, msForSymbols)` — EIN compile-pass für ALLE Mutationen in EINER Assembly
+- Test-Runtime-Switching zwischen Mutanten via `ActiveMutationId`-Environment-Variable im Test-Host
+- `MutationTestExecutor.RunTestSessionAsync` ruft `TestRunner.TestMultipleMutantsAsync(...)` mit Mutant-Batches auf
+
+**Die ADR-016-Annahme "Stryker kompiliert pro Mutant" ist falsch.** Stryker.NET hat seit Jahren ein cleveres "all-mutations-in-one-assembly + runtime-id-switching"-Pattern. Es gibt keinen Per-Mutant-Compile, der durch HotSwap eingespart werden könnte.
+
+**Wo Stryker's tatsächliche Kosten liegen:**
+1. Initial-Compile der All-Mutations-Assembly (1×, amortisiert)
+2. Test-Host-Process-Spawn pro Test-Batch (echter cost driver)
+3. Coverage-Capture-Initial-Pass (1×, optional via `--coverage-analysis`)
+
+Bereits mitigiert durch v1.x `OptimizationModes.SkipUncoveredMutants` + `CoverageBasedTest` (default `--coverage-analysis perTest`), die Mutanten ohne Test-Coverage als `NoCoverage` markieren und nie Test-Run schedulen.
+
+**Decision.**
+
+ADR-016 ist auf einem falschen mentalen Modell von Stryker.NET's Cost-Struktur basiert. v2.2.0 nimmt ADR-016 zurück:
+
+1. **Soft-Deprecate die HotSwap-Surface:**
+   - `MutationEngine` enum → `[Obsolete]`
+   - `IMutationEngine` interface → `[Obsolete]`
+   - `IStrykerOptions.MutationEngine` property → `[Obsolete]`
+   - `MutationEngineInput` config input → `[Obsolete]`, akzeptiert `recompile|hotswap` weiterhin mit Deprecation-Warning (kein Breaking Change für CLI-Nutzer)
+
+2. **Lösche die dead-code Engines:**
+   - `Stryker.Core/Engines/HotSwapEngine.cs` (warf nur `NotSupportedException`)
+   - `Stryker.Core/Engines/RecompileEngine.cs` (war nur `IMutationEngine.Kind`-Marker, keine Execution-Path)
+
+3. **v3.0 (zukünftig)** kann hard-removal der `MutationEngine`-Surface vornehmen.
+
+**Backed by.** Sprint 15 Maxential-Session (14 Thoughts, 3-way branch C1/C2/C3, C2 = walk-back gewählt). Recherche-Trail: Serena `find_symbol` + Grep auf `CompileMutations`, `MutationTestExecutor`, `IMutationEngine`-References (gesamte Surface = 8 Files / 23 Mention-Sites kartiert vor Decision).
+
+**Alternatives evaluated (Maxential branches).**
+
+- **C1 — HotSwap framework MVP trotzdem bauen.** Verworfen — würde ~1500 LOC dead framework code shippen ohne working delta-producer + ohne klares Wertversprechen (das versprochene 5–10× boost existiert nicht). Verstößt gegen YAGNI.
+- **C3 — Pivot zu inkrementellem Mutation-Testing.** Verworfen für v2.2.0 als Stealth-Pivot wäre. Verdient eigene ADR + Multi-Sprint-Roadmap. Siehe ADR-022 (Proposed).
+
+**Consequences.**
+
+- (+) Honest Engineering — kein dead framework code, keine misleading user-facing flags. Alignt mit dem Sprint-13-Phase-A reconciliation discipline pattern (admit doc errors openly, fix them).
+- (+) Reduzierte Maintenance-Surface (zwei deletable Files, vier deprecate-able Symbols).
+- (+) Das `--engine` CLI flag bleibt akzeptiert (mit Deprecation-Warning) für Backwards-Compat — kein Breaking Change für User die `--engine recompile` heute setzen.
+- (+) Klarstellung: Stryker.NET's bestehende all-mutations-in-one-assembly + ActiveMutationId-Pattern IST bereits eine sehr effiziente Architektur — kein Architecture-Pivot nötig.
+- (–) Public-facing acknowledgement, dass eine v2.0.0-Architektur-Decision auf einer falschen Annahme basierte. Mitigiert dadurch dass die honest-deferral patterns (Sprint 8 scaffolding-only, Sprint 11 CRCR-deferred, Sprint 13 Phase A reconciliation) das Muster "Fehler offen zugeben + sauber korrigieren" bereits etabliert haben.
+- (–) v2.2.0 ist eine "Negativrelease" (löscht statt fügt hinzu). Akzeptabel, weil das Project's stated principle "ship working things" das wertet höher als "ship something".
+
+**Lessons.**
+
+1. **Pre-implementation recherche im echten Code ist Pflicht VOR Architektur-Entscheidungen.** ADR-016 wurde in Sprint 5 (v2.0.0 Architecture Foundation) basierend auf dem comparison.md §5 Punkt 4 (Mutmut-Trampoline-Inspiration) verabschiedet, ohne den tatsächlichen `CompileMutations`-Pfad zu prüfen. Hätte eine 30-Minuten-Recherche damals gespart, wäre die ADR-016-Decision nie getroffen worden.
+2. **Comparison-Spec-Inspiration ≠ Implementations-Reality.** Was bei PIT/mutmut/cargo-mutants Performance-Wert hat, ist nicht automatisch übertragbar — Architektur-Differenzen zwischen Frameworks ändern was profitable Optimierungen sind.
+3. **Sunk-Cost-Fallacy aktiv vermeiden.** Der Versuchung "wir haben Sprint 8 schon Scaffolding gebaut, also bauen wir auch v2.2.0 voll aus" wurde durch das Maxential-Branch-Forcing widerstanden.
+
+---
+
+## ADR-022: Inkrementelles Mutation-Testing als zukünftige Performance-Direction (Proposed)
+
+**Status.** Proposed — 2026-05-01 (Sprint 15, v2.2.0). **Kein commitment für irgendeine Release.**
+
+**Context.**
+
+Sprint-15-Recherche (siehe ADR-021) hat aufgezeigt: Stryker.NET's tatsächliche Cost-Driver sind (a) Initial-Compile der all-mutations-Assembly, (b) Test-Host-Process-Spawn pro Batch. Die mutmut-Trampoline-Technik (die ADR-016 inspiriert hat) addressiert *Trampoline-Switching innerhalb eines Test-Host-Lifetimes* — das ist orthogonal zu Stryker's bereits effizienter Architektur.
+
+Die echte Performance-Opportunity in Stryker's Architektur liegt in **inkrementellem Mutation-Testing**: bei einer Source-Datei-Änderung im Watch-Loop nur die *betroffenen* Mutanten neu testen, statt die gesamte Suite.
+
+**Proposed direction.**
+
+Eine zukünftige `IncrementalMutationCoordinator`-Komponente würde:
+1. **File-Watcher** (`System.IO.FileSystemWatcher`) auf die Source-Verzeichnisse.
+2. **Source-change-diff** — welche Syntax-Trees haben sich geändert seit dem letzten Run.
+3. **Mutant-Impact-Analysis** — für jeden Mutanten cachebar als (Syntax-Tree-Hash, Test-Result). Wenn der Hash unverändert ist, Test-Result wiederverwenden.
+4. **Partial-rerun** — nur Mutanten mit invalidierten Caches neu testen.
+5. **Persistent-cache** zwischen Watch-Loop-Iterationen (z.B. `.stryker-cache/`-Directory).
+
+**Realistic perf-impact:** Beim 1-Datei-Edit in einer 100-Datei-Codebase würde nur ~1% der Mutanten re-tested — das wäre die "5–10× boost" die ADR-016 ursprünglich versprach (aber für die Watch-Loop-Use-Case, nicht für den vollständigen CI-Run).
+
+**Scope-Risk.** Inkrementelles Mutation-Testing ist eigene Multi-Sprint-Arbeit:
+- Sprint A: File-watcher infrastructure + persistent cache scheme
+- Sprint B: Source-change-diff + mutant-impact-analysis
+- Sprint C: Watch-CLI-Mode (`stryker-netx --watch`) + reporter-integration
+- Sprint D: End-zu-End-Integration mit existierender Pipeline
+
+**No commitment.** Diese ADR ist Status: Proposed. Erst commit bei klarer User-Demand und Stakeholder-Priority. Aktuelles `--coverage-analysis perTest` (default) liefert bereits gute genug Performance für die meisten CI-Use-Cases.
+
+**Backed by.** Sprint 15 Maxential-Branch C3 (rejected for v2.2 scope, kept as proposed direction).
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -1506,3 +1614,4 @@ HotSwap-Engine als **eigene fokussierte v2.2.0-Release** herauslösen. v2.1.0 bl
 | 0.1.0 | 2026-04-30 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Initiale Sprint-0-Version mit 12 ADRs |
 | 0.2.0 | 2026-04-30 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 5 (v2.0.0 Architecture Foundation): ADRs 013–018 hinzugefügt — AST/IL Hybrid, Operator-Hierarchie, SemanticModel-Driven, Hot-Swap (Trampoline), Equivalent-Mutant Filtering, Mutation Profiles |
 | 0.3.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 14 (v2.1.0): ADR-019 — HotSwap-Engine als eigene v2.2.0-Release statt Sprint-14-Quetschung |
+| 0.4.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 15 (v2.2.0): ADR-021 — Walking back ADR-016 (HotSwap-Engine wegen falschen mentalen Modells in v2.0.0-Architektur entfernt). ADR-022 (Proposed) — Inkrementelles Mutation-Testing als zukünftige Performance-Direction. Supersedes ADR-016 + ADR-019. |

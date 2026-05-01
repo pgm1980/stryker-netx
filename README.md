@@ -16,7 +16,7 @@ v2.x is **fully backwards-compatible**: existing v1.x users see zero behavioral 
 - **Operator hierarchy** + `[MutationProfileMembership]` attribute on every mutator (ADR-014, ADR-018).
 - **SemanticModel-driven type-aware mutators** (ADR-015) — used by `TypeDrivenReturn`, `ArgumentPropagation`, `MemberVariable`, `MethodBodyReplacement`.
 - **Equivalent-Mutant Filter pipeline** as a first-class stage (ADR-017).
-- **`--engine` flag** (`Recompile` default | `HotSwap` SCAFFOLDING-only — focused-release v2.2.0 per ADR-019).
+- **`--engine` flag** — deprecated v2.2.0 per ADR-021 (was based on a wrong mental model; accepted as a no-op shim).
 
 See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md) for the full upgrade story.
 
@@ -139,16 +139,21 @@ Total: **26 (Defaults) + 17 (Stronger) + 8 (All-only) = 51 mutators** (v2.1.0).
 
 The equivalent-mutant filter pipeline ships **4 filters** (v2.1.0): `IdentityArithmeticFilter`, `IdempotentBooleanFilter`, `ConservativeDefaultsEqualityFilter`, and `RoslynDiagnosticsEquivalenceFilter` (v2.1 — fast-paths mutants with parser-error replacement nodes, mutmut's mypy/pyrefly-style pre-filter).
 
-After v2.1.0, the catalogue closes essentially all operator-shaped recommendations from the comparison spec. Operator-level gaps from PIT/cargo-mutants/mutmut are exhausted; what remains for v2.2+ is infrastructure (HotSwap engine implementation — its own focused release per ADR-019).
+After v2.1.0, the catalogue closes essentially all operator-shaped recommendations from the comparison spec. Operator-level gaps from PIT/cargo-mutants/mutmut are exhausted.
 
-## Mutation Engines (v2.0.0)
+## Mutation execution model (updated v2.2.0)
 
-`--engine` selects the execution model:
+Stryker.NET (and stryker-netx) compile **all mutations into a single assembly** with runtime `ActiveMutationId` switching. There is no per-mutant compile to optimize away. The actual cost driver is test-host process spawn per batch — already mitigated by the existing `--coverage-analysis` flag (default `perTest`), which skips uncovered mutants and reuses the test host across covered mutants.
 
-| Engine | Status | Description |
-|--------|--------|-------------|
-| `Recompile` (default) | ✅ Production | v1.x default — compile per mutant, run the test suite, discard. Maximally compatible. |
-| `HotSwap` | 🚧 Scaffolding only | v2.0.0 ships the `IMutationEngine` plumbing; the `MetadataUpdater.ApplyUpdate`-based implementation is roadmapped (see `_docs/architecture spec` ADR-016). Selecting it currently throws `NotSupportedException` with a pointer to the follow-up implementation work. |
+The `--engine Recompile|HotSwap` flag introduced in v2.0.0 was based on a wrong mental model of this cost structure. **v2.2.0 walks it back per [ADR-021](_docs/architecture%20spec/architecture_specification.md):**
+
+- The flag is still accepted for backwards compatibility (no breaking change for existing scripts/configs).
+- Both values are treated identically — they have no functional effect.
+- A deprecation warning is logged when the flag is supplied explicitly.
+- The `HotSwapEngine` and `RecompileEngine` implementation classes have been deleted.
+- The `MutationEngine` enum, `IMutationEngine` interface, `IStrykerOptions.MutationEngine` property, and `MutationEngineInput` config class are marked `[Obsolete]` as v2.x source-compat shims; v3.0 may hard-remove them.
+
+For real performance tuning, use `--coverage-analysis perTest` (default) or `--coverage-analysis all` — see `OptimizationModes` documentation. A future incremental-mutation-testing direction (file-watcher + change-driven re-run) is tracked in [ADR-022 (Proposed)](_docs/architecture%20spec/architecture_specification.md), without commitment.
 
 ## Migration from upstream Stryker.NET
 
@@ -172,7 +177,7 @@ See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking
 - **NetFramework projects** (legacy `packages.config` style — `<TargetFramework>net48</TargetFramework>`) require `nuget.exe restore` of the .sln before invocation, because `dotnet msbuild -restore` only handles `<PackageReference>` style. CI's `windows-latest` runner ships `nuget.exe`; local-only blocked unless `nuget.exe` is on PATH. (Carried forward from v1.0.)
 - `JsonReport` reporter still uses runtime reflection (not source-generated) — functional, just not AOT-trimmable. Tracking for a future "AOT" sprint.
 - Validation framework count-based assertions in `integrationtest/Validation/ValidationProject/ValidateStrykerResults.cs` hardcode upstream Stryker.NET 4.14.1's exact mutant counts and have NOT been reconciled to our mutator output (which legitimately differs slightly due to C#-14-aware behavior + the v2.0/v2.1 expanded catalogue). The framework BUILDS and the InitCommand validation test PASSES; per-fixture count reconciliation is a follow-up task.
-- **HotSwap engine** — still scaffolding only as of v2.1.0 (see Mutation Engines table above). Targeted as v2.2.0's focused release per ADR-019.
+- **HotSwap engine** — removed in v2.2.0 per ADR-021. The `--engine` flag is accepted as a deprecated no-op shim; both `Recompile` and `HotSwap` are treated identically with a deprecation warning.
 - **AsyncAwaitMutator** semantics — emits `await x → x.GetAwaiter().GetResult()`, **not** `await x → x.Result` as listed in the comparison spec. The two are similar but not identical (`.Result` wraps exceptions in `AggregateException`; `GetAwaiter().GetResult()` unwraps). Documented for transparency.
 - **GenericConstraintMutator** (v2.0.0) drops the entire constraint-clause set; **GenericConstraintLoosenMutator** (v2.1.0) does the spec-listed per-clause loosening (`where T : class → where T : new()` etc.). Both ship — the former is more aggressive, the latter more targeted. Use the profile to control activation.
 - **SpanMemoryMutator** semantics — emits `span.Slice(start, length) → span.Slice(0, length)`, a stryker-netx-specific variant. **AsSpanAsMemoryMutator** (v2.0.1) handles invocation-site `AsSpan() ↔ AsMemory()`; **SpanReadOnlySpanDeclarationMutator** (v2.1) handles declaration-site `Span<T> ↔ ReadOnlySpan<T>`. All three coexist.
@@ -197,6 +202,7 @@ See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking
 | Sprint 12 — Greenfield + Release | ✅ Tag **`v2.0.0`** — production |
 | Sprint 13 — Spec-gap closure | ✅ Tag **`v2.0.1`** — 8 new mutators (ConfigureAwait, DateTimeAddSign, SwitchArmDeletion, MemberVariable, TaskWhenAllToWhenAny, ArgumentPropagation, AsSpanAsMemory, MethodBodyReplacement) closing remaining §4.1 / §4.2 / §4.4 spec items |
 | Sprint 14 — Filter pipeline + operator completion | ✅ Tag **`v2.1.0`** — 3 new mutators (ConstantReplacement = PIT CRCR, GenericConstraintLoosen, SpanReadOnlySpanDeclaration) + 1 new equivalence filter (RoslynDiagnostics, mutmut-style); HotSwap engine deferred to v2.2.0 per ADR-019 |
+| Sprint 15 — HotSwap walk-back | ✅ Tag **`v2.2.0`** — pre-implementation recherche revealed ADR-016 was based on a wrong mental model of Stryker.NET's cost structure (no per-mutant compile to optimize away). ADR-021 walks back ADR-016, soft-deprecates the engine surface, deletes dead code. ADR-022 (Proposed) records incremental mutation testing as the legitimate future perf direction without commitment. |
 
 See [`_docs/`](_docs/) for per-sprint lessons.
 

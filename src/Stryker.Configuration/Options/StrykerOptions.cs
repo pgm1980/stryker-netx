@@ -113,7 +113,9 @@ public class StrykerOptions : IStrykerOptions
     public MutationProfile MutationProfile { get; init; } = MutationProfile.Defaults;
 
     /// <inheritdoc />
+#pragma warning disable CS0618 // Reference to obsolete MutationEngine — this is the deprecated shim itself.
     public MutationEngine MutationEngine { get; init; } = MutationEngine.Recompile;
+#pragma warning restore CS0618
 
     /// <summary>
     /// Used to set colors in the reports and fail stryker if the mutation score is lower than the break value.
