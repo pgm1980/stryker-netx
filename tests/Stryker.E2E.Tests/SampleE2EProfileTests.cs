@@ -148,4 +148,25 @@ public class SampleE2EProfileTests
         allFiles.Should().Contain(defaultsFiles,
             "the All profile must report on every file the Defaults profile reports on");
     }
+
+    [Fact]
+    public void All_AtCompleteLevel_DoesNotCrash()
+    {
+        // Sprint 23 regression: the Complete level combined with the All profile
+        // used to crash with an unhandled InvalidCastException coming out of
+        // Roslyn's qualified-name visitor. Root cause was the unary-operator
+        // mutator firing on namespace identifiers and the conditional placer
+        // wrapping the mutation in a parenthesised expression which then sat
+        // in a name-syntax slot. Fixed by per-mutator parent-context skip and
+        // a global no-mutate orchestrator on the qualified-name node kind.
+        var run = _cache.GetAllRunAtCompleteLevel();
+        run.ExitCode.Should().Be(0,
+            "Complete + All must complete the run cleanly (no unhandled InvalidCastException)");
+        run.Report.Should().NotBeNull("the JSON report must be produced");
+        run.Report!.Files.Should().NotBeEmpty(
+            "even with profile All + level Complete the file map must contain Calculator.cs");
+        run.Report.SummariseMutants().Total.Should().BeGreaterThan(
+            _cache.GetAllRunAtAdvancedLevel().Report!.SummariseMutants().Total,
+            "Complete level admits Complete-only operators that Advanced excludes — total must grow");
+    }
 }

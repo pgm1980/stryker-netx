@@ -17,10 +17,12 @@ namespace Stryker.E2E.Tests.Infrastructure;
 /// operators added in Sprints 9–14 are predominantly <c>Advanced</c> or
 /// <c>Complete</c> level — at the default <c>Standard</c> level the three
 /// profiles are indistinguishable on Sample.Library, so the comparison would
-/// be vacuous. <c>Complete</c>-level + <c>All</c>-profile currently triggers a
-/// pre-existing <c>InvalidCastException</c> in one of the v2.x operators
-/// (<c>VisitQualifiedName</c> rewriter); that bug is unrelated to Sprint 22
-/// and is roadmapped for a follow-up sprint.
+/// be vacuous.
+///
+/// Sprint 23 (v2.10.0): the previously-roadmapped <c>Complete + All</c> crash
+/// (UoiMutator firing on namespace identifiers, ParenthesizedExpression in
+/// NameSyntax slot) is fixed; <see cref="GetAllRunAtCompleteLevel"/> exercises
+/// the regression path end-to-end.
 /// </summary>
 public sealed class StrykerRunCacheFixture
 {
@@ -75,4 +77,15 @@ public sealed class StrykerRunCacheFixture
     /// <summary>Sprint 22: All profile at Advanced level. Includes Stronger-only and All-only operators (provided they are Advanced or below).</summary>
     public StrykerRunResult GetAllRunAtAdvancedLevel()
         => GetRun("--mutation-profile", "All", "--mutation-level", "Advanced", "--reporter", "json");
+
+    /// <summary>
+    /// Sprint 23 regression run: <c>--mutation-level Complete --mutation-profile All</c>
+    /// used to crash with <c>InvalidCastException</c> when the conditional placer
+    /// wrapped a UOI-mutated namespace identifier in a ParenthesizedExpression.
+    /// Fixed by per-mutator QualifiedName-parent skip + global
+    /// <c>DoNotMutateOrchestrator&lt;QualifiedNameSyntax&gt;</c>. This run must
+    /// complete cleanly. <c>--break-at 0</c> keeps a low score from failing CI.
+    /// </summary>
+    public StrykerRunResult GetAllRunAtCompleteLevel()
+        => GetRun("--mutation-profile", "All", "--mutation-level", "Complete", "--reporter", "json", "--break-at", "0");
 }

@@ -94,6 +94,17 @@ public sealed class UoiMutator : MutatorBase<IdentifierNameSyntax>
             return false;
         }
 
+        // Sprint 23: skip identifiers that live in a NameSyntax-typed slot
+        // (QualifiedName like `Sample.Library` in namespace decls / using directives /
+        // type references; AliasQualifiedName like `global::Foo`). The conditional
+        // placer wraps every mutation in `(MutantControl.IsActive(N) ? mutated : original)`
+        // — a ParenthesizedExpressionSyntax. Roslyn's QualifiedNameSyntax visitor
+        // casts both children to NameSyntax and crashes on the parens.
+        if (parent is QualifiedNameSyntax or AliasQualifiedNameSyntax)
+        {
+            return false;
+        }
+
         return true;
     }
 }
