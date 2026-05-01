@@ -161,4 +161,19 @@ public abstract class MutatorTestBase
         mutations.Should().ContainSingle();
         return mutations[0];
     }
+
+    /// <summary>
+    /// v2.6.0 (Sprint 19): builds a <see cref="Mutation"/> from a pair of
+    /// SyntaxNodes for filter-input scenarios. Filters consume Mutation
+    /// objects rather than SyntaxNodes directly, so per-filter tests need
+    /// this constructor convenience.
+    /// </summary>
+    protected static Mutation BuildMutation(SyntaxNode original, SyntaxNode replacement, Mutator type = Mutator.Statement, string displayName = "test")
+        => new()
+        {
+            OriginalNode = original,
+            ReplacementNode = replacement,
+            Type = type,
+            DisplayName = displayName,
+        };
 }
