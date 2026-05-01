@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.TestRunner.MicrosoftTestPlatform.Tests — Sprint 30 (v2.17.0).
+    Port of upstream stryker-net 4.14.0 src/Stryker.TestRunner.MicrosoftTestPlatform.UnitTest/.
+    Sprint 30 establishes project setup + smoke; remaining 7 test files port across
+    Sprints 31-35 (per LOC bucket: 102, 126, 319, 483, 488, 640, 1107).
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.TestRunner.MicrosoftTestPlatform.Tests</AssemblyName>
+    <RootNamespace>Stryker.TestRunner.MicrosoftTestPlatform.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup Label="Test stack (CLAUDE.md test-stack-Pflicht)">
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup Label="Production code under test + helpers">
+    <ProjectReference Include="..\..\src\Stryker.Abstractions\Stryker.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.TestRunner.MicrosoftTestPlatform\Stryker.TestRunner.MicrosoftTestPlatform.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Utilities\Stryker.Utilities.csproj" />
+    <ProjectReference Include="..\Stryker.TestHelpers\Stryker.TestHelpers.csproj" />
+  </ItemGroup>
+
+</Project>
