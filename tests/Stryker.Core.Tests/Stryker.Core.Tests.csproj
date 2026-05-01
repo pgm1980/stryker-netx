@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.Core.Tests — Sprint 18 Hardening Super-Sprint A.
+    Per-mutator unit-test coverage for all 52 mutators in src/Stryker.Core/Mutators/.
+    Architecture-decision: single test project mirroring upstream Stryker.NET pattern
+    (Maxential S1 chosen). SemanticModel strategy: Real CSharpCompilation for happy-path
+    type-aware tests (ToT Hybrid chosen, best-path score 0.92 → 0.85 → 1.0).
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.Core.Tests</AssemblyName>
+    <RootNamespace>Stryker.Core.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup Label="Test stack (CLAUDE.md test-stack-Pflicht)">
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup Label="Project references — production code under test">
+    <ProjectReference Include="..\..\src\Stryker.Abstractions\Stryker.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Core\Stryker.Core.csproj" />
+  </ItemGroup>
+
+</Project>
