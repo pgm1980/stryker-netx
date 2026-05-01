@@ -23,6 +23,7 @@
   <Project Path="src/Stryker.Utilities/Stryker.Utilities.csproj" />
   <Project Path="tests/Stryker.Architecture.Tests/Stryker.Architecture.Tests.csproj" />
   <Project Path="tests/Stryker.Core.Tests/Stryker.Core.Tests.csproj" />
+  <Project Path="tests/Stryker.E2E.Tests/Stryker.E2E.Tests.csproj" />
   <Project Path="benchmarks/Stryker.Benchmarks/Stryker.Benchmarks.csproj" />
   <Project Path="samples/Sample.Library/Sample.Library.csproj" />
   <Project Path="samples/Sample.Tests/Sample.Tests.csproj" />

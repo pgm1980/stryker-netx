@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.E2E.Tests — Sprint 21 Automated E2E.
+    Spawns Stryker.CLI as a subprocess against samples/Sample.slnx, parses the
+    JSON mutation report, asserts score / counts / reporter outputs. Closes the
+    gap between in-process Unit/Integration tests (Sprint 18+19+20) and manual
+    real-project verification.
+
+    Architecture (Maxential 15 thoughts + 1 branch + 1 revision + ToT 13-cand
+    test-ranking → 10 selected): separate project (D1-A); hybrid build-fixture
+    + direct-binary spawn (D2-D); [Collection("E2E-Sequential")] +
+    DisableTestParallelization assembly-wide (D3); minimal MutationReport
+    record (D4); StrykerRunCacheFixture (3 profile-runs cached, shared across
+    multiple Facts) (D5).
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.E2E.Tests</AssemblyName>
+    <RootNamespace>Stryker.E2E.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup Label="Test stack (CLAUDE.md test-stack-Pflicht)">
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <!--
+    Forces dotnet build of Stryker.CLI before this test project is built, so the
+    binary is on disk when the BuildFixture runs. ProjectReference + ReferenceOutputAssembly=false
+    means we get the build dependency without compile-time API coupling — the
+    tests exec the binary, they don't link against its types.
+  -->
+  <ItemGroup Label="Build dependency only — tests spawn the CLI binary as a subprocess">
+    <ProjectReference Include="..\..\src\Stryker.CLI\Stryker.CLI.csproj"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>
