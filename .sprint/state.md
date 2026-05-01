@@ -1,7 +1,7 @@
 ---
-current_sprint: "29"
-sprint_goal: "Port upstream VsTestRunnerPoolTests.cs (727 LOC, größtes file) → v2.16.0"
-branch: "feature/29-vstest-runner-pool-tests-port"
+current_sprint: "30"
+sprint_goal: "Stryker.TestRunner.MicrosoftTestPlatform.Tests project + foundation + smoke (small files) → v2.17.0"
+branch: "feature/30-mtp-unittest-port"
 started_at: "2026-05-01"
 housekeeping_done: true
 memory_updated: true
@@ -12,10 +12,10 @@ tests_passed: true
 documentation_updated: true
 ---
 
-# Sprint 29 — VsTestRunnerPoolTests port
+# Sprint 30 — MTP UnitTest project setup + foundation
 
-**GitHub-Issue:** [#37](https://github.com/pgm1980/stryker-netx/issues/37)
-**Base-Tag:** `v2.15.0`
-**Final-Tag:** `v2.16.0`
+**GitHub-Issue:** [#39](https://github.com/pgm1980/stryker-netx/issues/39)
+**Base-Tag:** `v2.16.0`
+**Final-Tag:** `v2.17.0`
 
-Letzter VsTest test-file. ~727 LOC. Erbt von VsTestMockingHelper.
+10 upstream files = 3334 LOC total. Sprint 30 portiert kleinste 3 (TestBase 10 + TestableRunner 25 + RpcJsonSerializerOptionsTests 34 = 69 LOC). Sprint 31-35 portieren grössere files einzeln.
