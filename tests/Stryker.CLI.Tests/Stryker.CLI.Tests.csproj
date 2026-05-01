@@ -29,6 +29,7 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="TestableIO.System.IO.Abstractions.TestingHelpers" />
+    <PackageReference Include="Spectre.Console.Testing" />
   </ItemGroup>
 
   <ItemGroup Label="Project under test">
