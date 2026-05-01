@@ -36,4 +36,15 @@
     <ProjectReference Include="..\Stryker.TestHelpers\Stryker.TestHelpers.csproj" />
   </ItemGroup>
 
+  <ItemGroup Label="Test resources copied alongside the test assembly (Sprint 28+)">
+    <!--
+      TestResources contains source-shaped sample data that the upstream tests
+      read at runtime via File.ReadAllText. They are NOT to be compiled — the
+      sample code intentionally has analyzer violations and is meant to be
+      mutated/inspected as text. Exclude from <Compile> + copy to output.
+    -->
+    <Compile Remove="TestResources\**\*.cs" />
+    <None Include="TestResources\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

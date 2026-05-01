@@ -1,7 +1,7 @@
 ---
-current_sprint: "27"
-sprint_goal: "Port upstream CoverageCollectorTests.cs (198 LOC) → v2.14.0"
-branch: "feature/27-coverage-collector-tests-port"
+current_sprint: "28"
+sprint_goal: "Port upstream VsTextContextInformationTests.cs (202 LOC) → v2.15.0"
+branch: "feature/28-vstest-context-information-tests-port"
 started_at: "2026-05-01"
 housekeeping_done: true
 memory_updated: true
@@ -12,8 +12,8 @@ tests_passed: true
 documentation_updated: true
 ---
 
-# Sprint 27 — CoverageCollectorTests port
+# Sprint 28 — VsTextContextInformationTests port
 
-**GitHub-Issue:** [#33](https://github.com/pgm1980/stryker-netx/issues/33)
-**Base-Tag:** `v2.13.0`
-**Final-Tag:** `v2.14.0`
+**GitHub-Issue:** [#35](https://github.com/pgm1980/stryker-netx/issues/35)
+**Base-Tag:** `v2.14.0`
+**Final-Tag:** `v2.15.0`
