@@ -1,7 +1,7 @@
 ---
-current_sprint: "25"
-sprint_goal: "Port upstream Stryker.TestRunner.VsTest.UnitTest (5 files / 1726 LOC) → tests/Stryker.TestRunner.VsTest.Tests/ → v2.12.0"
-branch: "feature/25-vstest-unittest-port"
+current_sprint: "26"
+sprint_goal: "Port upstream VsTestMockingHelper.cs (574 LOC) full + analyzer-clean → v2.13.0"
+branch: "feature/26-vstest-mocking-helper-port"
 started_at: "2026-05-01"
 housekeeping_done: true
 memory_updated: true
@@ -12,15 +12,11 @@ tests_passed: true
 documentation_updated: true
 ---
 
-# Sprint 25 — VsTest.UnitTest port
+# Sprint 26 — VsTestMockingHelper port
 
-**GitHub-Issue:** [#29](https://github.com/pgm1980/stryker-netx/issues/29)
-**Base-Tag:** `v2.11.0` (Sprint 24 closed)
-**Final-Tag:** `v2.12.0`
+**GitHub-Issue:** [#31](https://github.com/pgm1980/stryker-netx/issues/31)
+**Base-Tag:** `v2.12.0` (Sprint 25 closed)
+**Final-Tag:** `v2.13.0`
 
-## Reihenfolge
-1. VsTestMockingHelper (574 LOC, helper-foundation)
-2. CoverageCaptureTests (25 LOC, smoke)
-3. CoverageCollectorTests (198 LOC)
-4. VsTextContextInformationTests (202 LOC)
-5. VsTestRunnerPoolTests (727 LOC, größtes file last)
+## Strategie
+Compile-driven port. Sprint 25's 22 erkannte Errors per build-cycle fixen. No tests run (helper has no [Fact]s).
