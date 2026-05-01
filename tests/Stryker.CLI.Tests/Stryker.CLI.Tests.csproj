@@ -38,4 +38,13 @@
     <ProjectReference Include="..\..\src\Stryker.Configuration\Stryker.Configuration.csproj" />
   </ItemGroup>
 
+  <ItemGroup Label="Test resources (Sprint 39 ConfigBuilderTests fixtures)">
+    <None Include="ConfigFiles\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="stryker-config.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
