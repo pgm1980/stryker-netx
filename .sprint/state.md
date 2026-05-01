@@ -1,7 +1,7 @@
 ---
-current_sprint: "38"
-sprint_goal: "CLI StrykerCLIInitCommandTests → v2.25.0 (scope reduced)"
-branch: "feature/38-cli-medium-tests-port"
+current_sprint: "39"
+sprint_goal: "CLI ConfigBuilderTests → v2.26.0"
+branch: "feature/39-cli-config-builder-port"
 started_at: "2026-05-02"
 housekeeping_done: true
 memory_updated: true
@@ -11,9 +11,10 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Sprint 38 — 6/6 grün, scope reduced to 1 file
+# Sprint 39 — 8/8 grün, ConfigBuilderTests portiert
 
 ## Outcome
-- StrykerCLIInitCommandTests: 6/6 grün (4 Facts + 2 Theory cases)
-- Solution-wide: 626 grün ohne E2E (0 failures)
-- Scope reduced mid-sprint: ConfigBuilder + FileConfigReader deferred to Sprint 39 + 40 (Sprint 25 lesson)
+- 8/8 tests grün
+- ConfigFiles/ + stryker-config.json fixtures copied + csproj idiom
+- Solution-wide: 634 grün ohne E2E
+- 3 build-fix-cycles + 1 production-drift discovery (Sprint 13 null-guards in ApplyTopLevelInputs)
