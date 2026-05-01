@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.TestHelpers — Sprint 24 (v2.11.0).
+    Foundation library for the upstream-UnitTest port track (Sprints 25–32):
+    framework-agnostic helpers ported from upstream stryker-net 4.14.0
+    src/Stryker.Core/Stryker.Core.UnitTest/. Consumed by every per-module
+    test project. Skipped: AssertExtensions (Shouldly-specific) and
+    IgnoreIfAttribute (MSTest-specific) — xUnit + FluentAssertions equivalents
+    are written inline at call sites.
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.TestHelpers</AssemblyName>
+    <RootNamespace>Stryker.TestHelpers</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup Label="Helper dependencies">
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Moq" />
+  </ItemGroup>
+
+  <ItemGroup Label="Stryker production references the helpers wrap (ApplicationLogging, IProcessExecutor)">
+    <ProjectReference Include="..\..\src\Stryker.Utilities\Stryker.Utilities.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Core\Stryker.Core.csproj" />
+  </ItemGroup>
+
+</Project>
