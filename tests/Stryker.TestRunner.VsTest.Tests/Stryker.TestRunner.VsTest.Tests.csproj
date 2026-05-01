@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.TestRunner.VsTest.Tests — Sprint 25 (v2.12.0).
+    Port of upstream stryker-net 4.14.0 src/Stryker.TestRunner.VsTest.UnitTest/.
+    Framework conversion: MSTest → xUnit, Shouldly → FluentAssertions.
+    Tests cross-referenced upstream's Stryker.Core.UnitTest helpers; we use
+    tests/Stryker.TestHelpers/ (Sprint 24 foundation) instead.
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.TestRunner.VsTest.Tests</AssemblyName>
+    <RootNamespace>Stryker.TestRunner.VsTest.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup Label="Test stack (CLAUDE.md test-stack-Pflicht)">
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="TestableIO.System.IO.Abstractions.TestingHelpers" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup Label="Production code under test + helpers">
+    <ProjectReference Include="..\..\src\Stryker.Core\Stryker.Core.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.TestRunner.VsTest\Stryker.TestRunner.VsTest.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.DataCollector\Stryker.DataCollector.csproj" />
+    <ProjectReference Include="..\Stryker.TestHelpers\Stryker.TestHelpers.csproj" />
+  </ItemGroup>
+
+</Project>

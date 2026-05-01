@@ -26,6 +26,7 @@
   <Project Path="tests/Stryker.E2E.Tests/Stryker.E2E.Tests.csproj" />
   <Project Path="tests/Stryker.Solutions.Tests/Stryker.Solutions.Tests.csproj" />
   <Project Path="tests/Stryker.TestHelpers/Stryker.TestHelpers.csproj" />
+  <Project Path="tests/Stryker.TestRunner.VsTest.Tests/Stryker.TestRunner.VsTest.Tests.csproj" />
   <Project Path="benchmarks/Stryker.Benchmarks/Stryker.Benchmarks.csproj" />
   <Project Path="samples/Sample.Library/Sample.Library.csproj" />
   <Project Path="samples/Sample.Tests/Sample.Tests.csproj" />
