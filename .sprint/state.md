@@ -1,7 +1,7 @@
 ---
-current_sprint: "72"
-sprint_goal: "Options batch H (4 verified-unported Inputs, 26 green + 2 skip) → v2.58.0"
-branch: "feature/72-options-batch-h"
+current_sprint: "73"
+sprint_goal: "Options batch I (DashboardApiKey + BaselineProvider Inputs, 20 green) → v2.59.0"
+branch: "feature/73-options-batch-i"
 started_at: "2026-05-02"
 housekeeping_done: false
 memory_updated: false
@@ -11,16 +11,15 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: false
 ---
-# Sprint 72 — Options batch H (26 grün + 2 skip, verified-unported)
+# Sprint 73 — Options batch I (20 grün, verified-unported)
 
 ## Outcome
-- AzureFileStorageSasInputTests (4 facts + 2 theories ×3/×3 = 10 facts) ported
-- AzureFileStorageUrlInputTests (6 facts) ported
-- ConcurrencyInputTests (4 facts + 1 theory ×4 = 8) — 3 ported (1 fact + 1 base) + 5 skipped (production drift: [LoggerMessage] source-gen bypasses Moq.Verify)
-- SinceInputTests (7 facts) ported
-- Total: 26 green + 2 skip
-- Dogfood-project: 605 + 16 skip = 621
-- 0 build-fix-cycles (1-shot port)
+- DashboardApiKeyInputTests (5 facts) — env var get/set/restore pattern
+- BaselineProviderInputTests (3 facts + 6 theories ×2/×2/×2/×2/×2/×2 + 2 MemberData ×2 = 15) ported
+- Total: 20 green, 0 skip
+- Dogfood-project: 625 + 16 skip = 641
+- 1 build-fix-cycle (CS8625 SuppliedInput=null → null! + CA1825/MA0005 new Reporter[] {} → Array.Empty<Reporter>())
+- ReportOpenerTests skipped — duplicate of OpenReportInputTests (Sprint 70)
 
-## Lessons (NEW)
-- **[LoggerMessage] + Moq Verify drift**: production uses `[LoggerMessage]` source-gen which generates strongly-typed state objects; the standard `ILogger.Log(level, eventId, state, ...)` interception path that LoggerMockExtensions.Verify expects is bypassed. 5 ConcurrencyInput tests skipped with uniform reason. Future remediation: a "structured-logging-test sprint" rewrites Verify to look at the [LoggerMessage]-generated state directly.
+## Lessons
+- **MemberData for IEnumerable<T> theory data**: xUnit [Theory] [InlineData(new Reporter[] { Reporter.Dashboard })] errors with CA1825 — use `[MemberData(nameof(...))]` + `IEnumerable<object[]>` returning `[System.Array.Empty<Reporter>(), ...]` instead
