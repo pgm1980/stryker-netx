@@ -1,7 +1,7 @@
 ---
-current_sprint: "64"
-sprint_goal: "Reporters batch C (MarkdownSummaryReporter + ReportTestHelper, 5 green) → v2.50.0"
-branch: "feature/64-reporters-batch-c"
+current_sprint: "65"
+sprint_goal: "Reporters batch D (DashboardReporter, 10 green) → v2.51.0"
+branch: "feature/65-reporters-batch-d"
 started_at: "2026-05-02"
 housekeeping_done: false
 memory_updated: false
@@ -11,11 +11,14 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: false
 ---
-# Sprint 64 — Reporters batch C (5 grün)
+# Sprint 65 — Reporters batch D DashboardReporter (10 grün)
 
 ## Outcome
-- ReportTestHelper.cs (reusable mock-CsharpFolderComposite-tree-builder) ported
-- MarkdownSummaryReporterTests (5 facts) ported
-- Dogfood-project: 456 green + 14 skip = 470
-- Solution-wide: 1272 green + 32 skip ohne E2E
-- 0 build-fix-cycles (1-shot port)
+- DashboardReporterTests (8 facts + 1 theory ×2 = 10) ported
+- Dogfood-project: 466 + 14 skip = 480
+- Solution-wide: 1282 + 32 skip ohne E2E
+- 1 build-fix-cycle (TestBase inheritance for ApplicationLogging.LoggerFactory seeding — Sprint 49 lesson reapplied)
+- Production drift: `JsonReport` upstream → `IJsonReport` ours; `Mock<IDashboardClient>` setup uses `IJsonReport`
+
+## Lessons (NEW)
+- Reporter tests using DashboardReporter / RegexMutator / FilteredMutantsLogger / etc. **MUST inherit TestBase** because their ctors call `ApplicationLogging.LoggerFactory.CreateLogger<T>()` (Sprint 49 lesson reaffirmed)
