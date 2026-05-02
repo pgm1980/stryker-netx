@@ -9,12 +9,14 @@ using Stryker.Core.Mutants;
 using Stryker.Core.ProjectComponents.Csharp;
 using Stryker.Core.ProjectComponents.TestProjects;
 using Stryker.Core.Reporters;
+using Stryker.TestHelpers;
 using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Reporters;
 
-/// <summary>Sprint 56 (v2.42.0) port. MSTest → xUnit, Shouldly → FluentAssertions.</summary>
-public class BroadcastReporterTests
+/// <summary>Sprint 56 (v2.42.0) port. MSTest → xUnit, Shouldly → FluentAssertions.
+/// : TestBase seeds ApplicationLogging.LoggerFactory (TestProjectsInfo ctor needs it).</summary>
+public class BroadcastReporterTests : TestBase
 {
     [Fact]
     public void BroadcastReporter_ShouldInvokeSameMethodWithSameObject_OnAllMutantsTested()
