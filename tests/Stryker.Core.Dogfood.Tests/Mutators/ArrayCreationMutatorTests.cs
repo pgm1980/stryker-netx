@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Stryker.Abstractions;
+using Stryker.Configuration.Options;
 using Stryker.Core.Mutators;
 using Xunit;
 
@@ -11,9 +12,13 @@ namespace Stryker.Core.Dogfood.Tests.Mutators;
 /// <summary>
 /// Sprint 47 (v2.34.0) port of upstream stryker-net 4.14.1.
 /// Framework conversion: MSTest → xUnit, Shouldly → FluentAssertions.
+/// Sprint 97 (v2.83.0) un-skipped 2 tests via real StrykerOptions instance (production drift:
+/// IMutator.Mutate now requires non-null IStrykerOptions).
 /// </summary>
 public class ArrayCreationMutatorTests
 {
+    private static readonly StrykerOptions DefaultOptions = new() { MutationLevel = MutationLevel.Standard };
+
     [Fact]
     public void ShouldBeMutationLevelStandard()
     {
@@ -38,7 +43,7 @@ public class ArrayCreationMutatorTests
         replacement.Initializer!.Expressions.Should().BeEmpty();
     }
 
-    [Fact(Skip = "Production drift: IMutator.Mutate now requires non-null IStrykerOptions; upstream test passed null. Re-enable with valid StrykerOptions in dedicated sub-sprint.")]
+    [Fact]
     public void ShouldNotRemoveValuesFromImplicitArrayCreation()
     {
         var expressionSyntax = (SyntaxFactory.ParseExpression("new [] { 1, 3 }") as ImplicitArrayCreationExpressionSyntax)!;
@@ -49,7 +54,7 @@ public class ArrayCreationMutatorTests
         // Pass through ApplyMutations on an ArrayCreation type only — but since the upstream test passes
         // ImplicitArrayCreationExpressionSyntax (not ArrayCreationExpressionSyntax) we can't call directly.
         // Use the IRegexMutator/IMutator dispatch via Mutate with cast:
-        var result = ((IMutator)target).Mutate(expressionSyntax, null!, null!).ToList();
+        var result = ((IMutator)target).Mutate(expressionSyntax, null!, DefaultOptions).ToList();
 
         result.Should().BeEmpty();
     }
@@ -69,7 +74,7 @@ public class ArrayCreationMutatorTests
         result2.Should().BeEmpty();
     }
 
-    [Fact(Skip = "Production drift: IMutator.Mutate now requires non-null IStrykerOptions; upstream test passed null. Re-enable with valid StrykerOptions in dedicated sub-sprint.")]
+    [Fact]
     public void ShouldMutateStackallocArrays()
     {
         var stackallocArrayCreationExpression = (SyntaxFactory.ParseExpression("stackalloc int[] { 1 }") as StackAllocArrayCreationExpressionSyntax)!;
@@ -77,7 +82,7 @@ public class ArrayCreationMutatorTests
         var target = new ArrayCreationMutator();
 
         // Same type-mismatch issue as ImplicitArray — use Mutate (interface dispatch).
-        var result = ((IMutator)target).Mutate(stackallocArrayCreationExpression, null!, null!).ToList();
+        var result = ((IMutator)target).Mutate(stackallocArrayCreationExpression, null!, DefaultOptions).ToList();
 
         result.Should().ContainSingle();
         var mutation = result[0];

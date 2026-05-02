@@ -6,14 +6,16 @@ using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Options.Inputs;
 
-/// <summary>Sprint 54 (v2.40.0) port.</summary>
+/// <summary>Sprint 54 (v2.40.0) port. Sprint 97 (v2.83.0) un-skipped: production
+/// Description has trailing space inside raw string, plus HelpText appends " | default: ''",
+/// resulting in two spaces before '|'. Adapted expected string to match.</summary>
 public class SourceProjectNameInputTests
 {
-    [Fact(Skip = "Production drift: HelpText whitespace differs (production has 2 spaces before '|', upstream test expected 1).")]
+    [Fact]
     public void ShouldHaveHelpText()
     {
         var target = new SourceProjectNameInput();
-        target.HelpText.Should().Be(@"Used to find the project to test in the project references of the test project. Example: ""ExampleProject.csproj"" | default: ''");
+        target.HelpText.Should().Be(@"Used to find the project to test in the project references of the test project. Example: ""ExampleProject.csproj""  | default: ''");
     }
 
     [Fact]

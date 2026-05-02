@@ -1,7 +1,7 @@
 ---
-current_sprint: "96"
-sprint_goal: "ConcurrencyInput (2) + S3BaselineProvider (4) → 6 skips → 6 real via EnableAllLogLevels helper → v2.82.0"
-branch: "feature/96-concurrencyinput-loggermessage-helper"
+current_sprint: "97"
+sprint_goal: "defer-skip aufarbeitung — 9 skips → 9 real (StatusReporter+SseEvent+SourceProjectName+ArrayCreationMutator) → v2.83.0"
+branch: "feature/97-defer-skip-aufarbeitung-batch1"
 started_at: "2026-05-02"
 housekeeping_done: false
 memory_updated: false
@@ -11,28 +11,24 @@ semgrep_passed: false
 tests_passed: true
 documentation_updated: false
 ---
-# Sprint 96 — LoggerMessage IsEnabled root-cause fix (defer-skip aufarbeitung)
+# Sprint 97 — defer-skip aufarbeitung batch 1
 
-## Outcome — 6 skips → 6 real
-- ConcurrencyInputTests: 2 skips → 2 green (WhenGivenValueIs..., WhenGiven1ShouldPrintWarning)
-- S3BaselineProviderTests: 4 skips → 4 green (Load_Returns_Null_When_Object_Not_Found, Load_Returns_Null_On_S3_Error, Save_Uploads_Report, Save_Logs_Error_On_Failure)
-- Net: +6 green, -6 skip
-- Dogfood-project: 916 + 93 skip = 1009
+## Outcome — 9 skips → 9 real
+- StatusReporterTests (3) — same EnableAllLogLevels root-cause as Sprint 96
+- SseEventTest (3) — SSE-spec newline wrappers, test expectations adapted
+- SourceProjectNameInputTests (1) — HelpText 2-space drift, test expectation adapted
+- ArrayCreationMutatorTests (2) — IMutator.Mutate requires non-null IStrykerOptions, fixed via static DefaultOptions
+- Net: +9 green, -9 skip
+- Dogfood-project: 925 + 84 skip = 1009
 
-## Critical root-cause discovery
-The "[LoggerMessage] source-gen drift (Sprint 72 lesson)" diagnosis was WRONG.
-Real cause: `Mock<ILogger<T>>.IsEnabled` returns `false` by default → production guard
-`if (logger.IsEnabled(LogLevel.X))` (CA1873) skips the Log call entirely → Verify finds nothing.
-
-Fix: new `EnableAllLogLevels<T>(this Mock<ILogger<T>>)` helper in
-`tests/Stryker.TestHelpers/LoggerMockExtensions.cs` — call once per logger mock before any
-Verify(...) on log statements that are IsEnabled-guarded in production.
-
-Also generalized `Verify` helper's `MatchesRenderedMessage` to support both classical
-structured-logging state AND [LoggerMessage] source-gen value-type structs (both have
-ToString() returning the formatted message — uniform match).
+## New helper
+`Mock<ILogger<T>>.VerifyNoOtherLogCalls()` — variant of VerifyNoOtherCalls() that first marks
+IsEnabled invocations as verified (infrastructure noise from [LoggerMessage] source-gen guards).
+Use whenever a test calls EnableAllLogLevels AND VerifyNoOtherCalls.
 
 ## Files changed
-- `tests/Stryker.TestHelpers/LoggerMockExtensions.cs` (new EnableAllLogLevels + generalized Verify)
-- `tests/Stryker.Core.Dogfood.Tests/Options/Inputs/ConcurrencyInputTests.cs` (2 unskipped)
-- `tests/Stryker.Core.Dogfood.Tests/Baseline/Providers/S3BaselineProviderTests.cs` (4 unskipped)
+- `tests/Stryker.TestHelpers/LoggerMockExtensions.cs` (new VerifyNoOtherLogCalls)
+- `tests/Stryker.Core.Dogfood.Tests/Reporters/StatusReporterTests.cs` (3 unskipped + ctor EnableAll)
+- `tests/Stryker.Core.Dogfood.Tests/Reporters/Html/RealTime/Events/SseEventTest.cs` (3 unskipped + adapted strings)
+- `tests/Stryker.Core.Dogfood.Tests/Options/Inputs/SourceProjectNameInputTests.cs` (1 unskipped + adapted string)
+- `tests/Stryker.Core.Dogfood.Tests/Mutators/ArrayCreationMutatorTests.cs` (2 unskipped + DefaultOptions)
