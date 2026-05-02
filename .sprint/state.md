@@ -1,7 +1,7 @@
 ---
-current_sprint: "76"
-sprint_goal: "ProjectComponents batch A (TestFile + TestCase, 4 green) → v2.62.0"
-branch: "feature/76-projectcomponents-batch-a"
+current_sprint: "77"
+sprint_goal: "MutantFilters batch C (IgnoreBlock + ExcludeFromCodeCoverage, 12 green) → v2.63.0"
+branch: "feature/77-mutantfilters-batch-c"
 started_at: "2026-05-02"
 housekeeping_done: false
 memory_updated: false
@@ -11,13 +11,15 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: false
 ---
-# Sprint 76 — ProjectComponents batch A (4 grün, verified-unported)
+# Sprint 77 — MutantFilters batch C (12 grün, verified-unported)
 
 ## Outcome
-- TestFileTests (1 fact) — equality on identical {SyntaxTree, FilePath, Source} + AddTest
-- TestCaseTests (1 fact + 1 theory ×2 = 3 facts) — equality on {Id, Name, Node}
-- Total: 4 green, 0 skip
-- Dogfood-project: 660 + 16 skip = 676
-- 1 build-fix-cycle:
-  1. Production drift: TestFile.SyntaxTree is now `required init` (Sprint 2 modernization). Tests must construct with SyntaxTree assignment.
-  2. Production drift: TestCase moved from `Stryker.Abstractions.Testing` → `Stryker.Core.ProjectComponents.TestProjects` namespace.
+- IgnoreBlockMutantFilterTests (4 facts) — Block mutant detection in source
+- ExcludeFromCodeCoverageFilterTests (4 facts + 1 theory ×3 = 7 facts) — [ExcludeFromCodeCoverage] attribute matching on method/property/class
+- Total: 12 green, 0 skip
+- Dogfood-project: 672 + 16 skip = 688
+- 1 build-fix-cycle (CA1859 file-level pragma — upstream tests deliberately exercise IMutantFilter contract)
+- VsTestHelperTests skipped: belongs in Stryker.TestRunner.VsTest.Tests project (production class lives in Stryker.TestRunner.VsTest assembly), not Dogfood.
+
+## Lessons (NEW)
+- **CA1859 file-level pragma for interface-contract tests**: upstream tests using `IMutantFilter target = new ConcreteFilter()` deliberately verify the interface contract. CA1859 demands concrete type for performance — but that defeats the test's purpose. File-level `#pragma warning disable CA1859` ... `#pragma warning restore CA1859` is the right fix.
