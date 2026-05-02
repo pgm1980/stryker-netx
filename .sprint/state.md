@@ -1,7 +1,7 @@
 ---
-current_sprint: "100"
-sprint_goal: "DashboardClientsTest full upstream port (3 placeholder skips → 14 real green) → v2.86.0"
-branch: "feature/100-dashboardclients-full-port"
+current_sprint: "101"
+sprint_goal: "AzureFileShareBaselineProviderTests full upstream port (3 placeholder skips → 7 real green) → v2.87.0"
+branch: "feature/101-azurefileshare-full-port"
 started_at: "2026-05-02"
 housekeeping_done: false
 memory_updated: false
@@ -11,27 +11,20 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: false
 ---
-# Sprint 100 — DashboardClientsTest full upstream port (defer-skip aufarbeitung)
+# Sprint 101 — AzureFileShareBaselineProviderTests full upstream port
 
-## Outcome — 3 skips → 14 real green
-Sprint 93 placeholder had 3 [Fact(Skip)] stubs. Full upstream port (438 LOC) with all 12
-upstream [TestMethod]s + 2 implicit (Empty Module + RealTime variants) → 14 [Fact]s.
-- Net: +15 green, -3 skip, +12 new tests
-- Dogfood-project: 942 + 79 skip = 1021
+## Outcome — 3 skips → 7 real green
+Sprint 93 placeholder had 3 [Fact(Skip)] stubs (misdiagnosed as "Heavy HttpMessageHandler mock").
+Real production uses Azure.Storage.Files.Shares.ShareClient/ShareDirectoryClient/ShareFileClient
+mocked via Mock.Of pattern — same as upstream. Full port with 4 [Fact]s + 1 [Theory ×3] = 7.
+- Net: +7 green, -3 skip, +4 new tests
+- Dogfood-project: 949 + 76 skip = 1025
 
-## Production matches upstream signatures
-DashboardClient v2.x uses HttpClient + IJsonReport / IJsonMutant abstractions identical
-to upstream. No production drift forced rewrite — direct port via:
-- MSTest → xUnit (constructor + IDisposable for HttpClient cleanup)
-- Shouldly → FluentAssertions
-- HttpMessageHandler mock with `Moq.Protected()` + `ItExpr` preserved verbatim
-- EnableAllLogLevels for [LoggerMessage] source-gen logger (Sprint 96 pattern)
-
-## New helper file
-- `tests/Stryker.Core.Dogfood.Tests/Reporters/Json/MockJsonReport.cs` — port of upstream
-  test stub that constructs JsonReport without invoking the full Build pipeline. Adapted
-  to support nullable thresholds/files (init properties only assigned when not null).
+## Production drift (1 mock-method-name)
+v2.x `AzureFileShareBaselineProvider.Load` line 45 uses `fileClient.DownloadAsync()`,
+upstream test mocked sync `Download(null, default)`. Fixed by mocking `DownloadAsync()`
+with `Task.FromResult(...)`.
 
 ## Files
-- `tests/Stryker.Core.Dogfood.Tests/Clients/DashboardClientsTest.cs` (full port, 14 tests)
-- `tests/Stryker.Core.Dogfood.Tests/Reporters/Json/MockJsonReport.cs` (NEW helper)
+- `tests/Stryker.Core.Dogfood.Tests/Baseline/Providers/AzureFileShareBaselineProviderTests.cs`
+  (full port, 7 tests, MA0051 suppress on Save_Report multi-mock setup)
