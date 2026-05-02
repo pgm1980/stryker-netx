@@ -21,17 +21,20 @@ namespace Stryker.Core.Dogfood.Tests.Baseline.Providers;
 
 /// <summary>Sprint 83 (v2.69.0) port. MSTest → xUnit, Shouldly → FluentAssertions.
 /// Inherits TestBase: JsonReport.Build needs ApplicationLogging.LoggerFactory.
-/// Logger-Verify tests use Mock.Of<ILogger<S3BaselineProvider>>() + Mock.Get pattern;
-/// production uses [LoggerMessage] source-gen which bypasses Moq.Verify (Sprint 72 lesson).</summary>
+/// Sprint 96 (v2.82.0) un-skipped: root cause of "[LoggerMessage] drift" was actually
+/// Mock&lt;ILogger&lt;T&gt;&gt;.IsEnabled returning false by default, which made production guards
+/// `if (logger.IsEnabled(LogLevel.X))` skip the Log call entirely. Fixed by calling
+/// Mock.Get(logger).EnableAllLogLevels() before any Verify(...) on logger mocks.</summary>
 public class S3BaselineProviderTests : TestBase
 {
     private const string BucketName = "my-stryker-bucket";
 
-    [Fact(Skip = "[LoggerMessage] source-gen drift (Sprint 72 lesson) — Mock.Get(logger).Verify(LogLevel.Debug, ...) bypassed by ILogger.Log path.")]
+    [Fact]
     public async Task Load_Returns_Null_When_Object_Not_Found()
     {
         var s3Mock = new Mock<IAmazonS3>();
         var logger = Mock.Of<ILogger<S3BaselineProvider>>();
+        Mock.Get(logger).EnableAllLogLevels();
 
         s3Mock.Setup(s => s.GetObjectAsync(BucketName, "StrykerOutput/v1/stryker-report.json", default))
             .ThrowsAsync(new AmazonS3Exception("Not Found") { StatusCode = HttpStatusCode.NotFound });
@@ -45,11 +48,12 @@ public class S3BaselineProviderTests : TestBase
         Mock.Get(logger).Verify(LogLevel.Debug, "No baseline was found at s3://my-stryker-bucket/StrykerOutput/v1/stryker-report.json");
     }
 
-    [Fact(Skip = "[LoggerMessage] source-gen drift (Sprint 72 lesson).")]
+    [Fact]
     public async Task Load_Returns_Null_On_S3_Error()
     {
         var s3Mock = new Mock<IAmazonS3>();
         var logger = Mock.Of<ILogger<S3BaselineProvider>>();
+        Mock.Get(logger).EnableAllLogLevels();
 
         s3Mock.Setup(s => s.GetObjectAsync(BucketName, "StrykerOutput/v1/stryker-report.json", default))
             .ThrowsAsync(new AmazonS3Exception("Access Denied") { StatusCode = HttpStatusCode.Forbidden, ErrorCode = "AccessDenied" });
@@ -103,11 +107,12 @@ public class S3BaselineProviderTests : TestBase
         s3Mock.VerifyAll();
     }
 
-    [Fact(Skip = "[LoggerMessage] source-gen drift (Sprint 72 lesson) on Save_Uploads_Report logger.Verify.")]
+    [Fact]
     public async Task Save_Uploads_Report()
     {
         var s3Mock = new Mock<IAmazonS3>();
         var logger = Mock.Of<ILogger<S3BaselineProvider>>();
+        Mock.Get(logger).EnableAllLogLevels();
         var options = new StrykerOptions { S3BucketName = BucketName };
 
         s3Mock.Setup(s => s.PutObjectAsync(
@@ -127,11 +132,12 @@ public class S3BaselineProviderTests : TestBase
         Mock.Get(logger).Verify(LogLevel.Debug, "Saved baseline report to s3://my-stryker-bucket/StrykerOutput/v1/stryker-report.json");
     }
 
-    [Fact(Skip = "[LoggerMessage] source-gen drift (Sprint 72 lesson).")]
+    [Fact]
     public async Task Save_Logs_Error_On_Failure()
     {
         var s3Mock = new Mock<IAmazonS3>();
         var logger = Mock.Of<ILogger<S3BaselineProvider>>();
+        Mock.Get(logger).EnableAllLogLevels();
         var options = new StrykerOptions { S3BucketName = BucketName };
 
         s3Mock.Setup(s => s.PutObjectAsync(It.IsAny<PutObjectRequest>(), It.IsAny<CancellationToken>()))
