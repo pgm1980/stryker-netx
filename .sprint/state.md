@@ -1,7 +1,7 @@
 ---
-current_sprint: "104"
-sprint_goal: "BaselineMutantFilterTests full upstream port (3 placeholder skips → 9 real green) → v2.90.0"
-branch: "feature/104-baselinemutantfilter-full-port"
+current_sprint: "105"
+sprint_goal: "GitDiffProviderTests full upstream port (3 placeholder skips → 10 real green) → v2.91.0"
+branch: "feature/105-gitdiffprovider-full-port"
 started_at: "2026-05-02"
 housekeeping_done: false
 memory_updated: false
@@ -11,7 +11,8 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: false
 ---
-# Sprint 104 — BaselineMutantFilterTests full upstream port
-- 3 skips → 9 real green (+ MockJsonReportFileComponent helper)
-- Net: +9 green, -3 skip, +6 new tests
-- Dogfood-project: 980 + 67 skip = 1047
+# Sprint 105 — GitDiffProviderTests full upstream port (with helper extraction)
+- 3 skips → 10 real green via BuildScanDiffTarget helper (collapses 60-LOC mock chain per test to 1 call)
+- Production drift: v2.x ctor (IStrykerOptions, ITestSet, IGitInfoProvider?) — passes new TestSet() instead of upstream null
+- Net: +10 green, -3 skip, +7 new tests
+- Dogfood-project: 990 + 64 skip = 1054
