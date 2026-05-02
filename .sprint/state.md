@@ -1,7 +1,7 @@
 ---
-current_sprint: "83"
-sprint_goal: "Block B start: Baseline batch B (BaselineMutantHelper + S3BaselineProvider, 5 green + 4 skip) → v2.69.0"
-branch: "feature/83-baseline-batch-b"
+current_sprint: "84"
+sprint_goal: "Block B Initialisation pair (ProjectMutator + InitialBuildProcess, 7 green + 4 skip) → v2.70.0"
+branch: "feature/84-initialisation-batch-b"
 started_at: "2026-05-02"
 housekeeping_done: false
 memory_updated: false
@@ -11,14 +11,16 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: false
 ---
-# Sprint 83 — Baseline batch B (5 grün + 4 skip, Block B start)
+# Sprint 84 — Initialisation batch B (7 grün + 4 skip, Block B)
 
 ## Outcome
-- BaselineMutantHelperTests (3 facts) — JsonMutant Location-based source extraction
-- S3BaselineProviderTests (2 facts + 4 skipped) — AWS S3 baseline provider; 4 logger-Verify skipped due to [LoggerMessage] source-gen drift (Sprint 72 lesson)
-- Total: 5 green + 4 skip
-- Dogfood-project: 719 + 21 skip = 740
-- 1 build-fix-cycle (line-ending drift in TestResources/ExampleSourceFile.cs — runtime-detect CRLF vs LF + format expected with $-interpolated newline)
+- ProjectMutatorTests (1 fact) — uses ProjectAnalysisMockBuilder (Sprint 61) for first time in production!
+- InitialBuildProcessTests (6 facts + 4 Windows-only skipped) — IProcessExecutor mock-based dotnet/MSBuild verification
+- TargetFrameworkResolutionTests SKIPPED (upstream file is /* commented out */)
+- Total: 7 green + 4 skip
+- Dogfood-project: 726 + 25 skip = 751
+- 1 build-fix-cycle (CS0234 IStrykerOptions namespace + S1186 empty-method skip placeholders + CA1859 IFileSystem field)
 
 ## Lessons (NEW)
-- **TestResources line-ending drift**: copy-to-output preserves git checkout EOL (Windows CRLF, Linux LF). Tests asserting verbatim multi-line strings need runtime-detect: `var nl = source.Contains("\r\n", Ordinal) ? "\r\n" : "\n"` then interpolate.
+- **xUnit lacks IgnoreIf**: Upstream MSTest's `[TestMethodWithIgnoreIfSupport] [IgnoreIf(nameof(Is.Unix))]` pattern has no clean xUnit equivalent. Convert to `[Fact(Skip = "Windows-only ...")]` with reason. Add `// S1186` placeholder comment in empty methods.
+- **ProjectAnalysisMockBuilder finally productized**: First Initialisation test using Sprint 61's fluent builder. Replaces `TestHelper.SetupProjectAnalyzerResult` for any new Init port — much cleaner.
