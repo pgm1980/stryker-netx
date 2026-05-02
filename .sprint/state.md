@@ -1,7 +1,7 @@
 ---
-current_sprint: "46"
-sprint_goal: "Stryker.Core.UnitTest foundation + 5 leaf tests → v2.33.0"
-branch: "feature/46-core-unittest-foundation"
+current_sprint: "47"
+sprint_goal: "Core.Mutators batch A (14 smallest, ~1013 LOC) → v2.34.0"
+branch: "feature/47-core-mutators-batch-a"
 started_at: "2026-05-02"
 housekeeping_done: true
 memory_updated: true
@@ -11,11 +11,11 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Sprint 46 — Stryker.Core.UnitTest foundation + 32 grün
+# Sprint 47 — 83 new grün + 2 skip; Mutators batch A done
 
 ## Outcome
-- Decomposition document for 11 sub-sprints
-- New tests/Stryker.Core.Dogfood.Tests/ project
-- 32/32 grün across 5 leaf-test files
-- Solution-wide: 848 grün ohne E2E
-- 1 build-fix-cycle (Sprint 2 production drifts)
+- 14 smallest mutator test files ported
+- Dogfood-project total: 115 grün + 2 skip = 117
+- Solution-wide: 931 grün ohne E2E
+- 1 build-fix-cycle
+- Production drift: IMutator.Mutate now requires IStrykerOptions (added 3rd param)
