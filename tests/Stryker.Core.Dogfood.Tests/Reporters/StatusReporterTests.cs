@@ -10,12 +10,17 @@ using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Reporters;
 
-/// <summary>Sprint 56 (v2.42.0) port. MSTest → xUnit, Shouldly → FluentAssertions.</summary>
+/// <summary>Sprint 56 (v2.42.0) port. MSTest → xUnit, Shouldly → FluentAssertions.
+/// Sprint 97 (v2.83.0) un-skipped: same root cause as Sprint 96 — Mock&lt;ILogger&lt;T&gt;&gt;.IsEnabled
+/// returns false by default, so [LoggerMessage] source-gen guard skips Log call. Fixed via
+/// EnableAllLogLevels helper.</summary>
 public class StatusReporterTests : TestBase
 {
     private readonly Mock<ILogger<FilteredMutantsLogger>> _loggerMock = new();
 
-    [Fact(Skip = "Production drift: log message format differs from upstream (defer to dedicated sub-sprint).")]
+    public StatusReporterTests() => _loggerMock.EnableAllLogLevels();
+
+    [Fact]
     public void ShouldPrintNoMutations()
     {
         var target = new FilteredMutantsLogger(_loggerMock.Object);
@@ -26,10 +31,10 @@ public class StatusReporterTests : TestBase
         target.OnMutantsCreated(folder);
 
         _loggerMock.Verify(LogLevel.Information, "0     total mutants will be tested", Times.Once);
-        _loggerMock.VerifyNoOtherCalls();
+        _loggerMock.VerifyNoOtherLogCalls();
     }
 
-    [Fact(Skip = "Production drift: log message format differs from upstream (defer to dedicated sub-sprint).")]
+    [Fact]
     public void ShouldPrintIgnoredStatus()
     {
         var target = new FilteredMutantsLogger(_loggerMock.Object);
@@ -48,10 +53,10 @@ public class StatusReporterTests : TestBase
         _loggerMock.Verify(LogLevel.Information, "1     mutants got status Ignored.      Reason: In excluded file", Times.Once);
         _loggerMock.Verify(LogLevel.Information, "1     total mutants are skipped for the above mentioned reasons", Times.Once);
         _loggerMock.Verify(LogLevel.Information, "0     total mutants will be tested", Times.Once);
-        _loggerMock.VerifyNoOtherCalls();
+        _loggerMock.VerifyNoOtherLogCalls();
     }
 
-    [Fact(Skip = "Production drift: log message format differs from upstream (defer to dedicated sub-sprint).")]
+    [Fact]
     public void ShouldPrintEachReasonWithCount()
     {
         var target = new FilteredMutantsLogger(_loggerMock.Object);
@@ -79,6 +84,6 @@ public class StatusReporterTests : TestBase
         _loggerMock.Verify(LogLevel.Information, "3     mutants got status Ignored.      Reason: Mutator excluded", Times.Once);
         _loggerMock.Verify(LogLevel.Information, "7     total mutants are skipped for the above mentioned reasons", Times.Once);
         _loggerMock.Verify(LogLevel.Information, "1     total mutants will be tested", Times.Once);
-        _loggerMock.VerifyNoOtherCalls();
+        _loggerMock.VerifyNoOtherLogCalls();
     }
 }

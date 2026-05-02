@@ -25,6 +25,33 @@ public static class LoggerMockExtensions
         mock.Setup(x => x.IsEnabled(It.IsAny<LogLevel>())).Returns(true);
 #pragma warning restore CA1873
 
+    /// <summary>Sprint 97: VerifyNoOtherCalls() variant that first marks IsEnabled invocations as
+    /// verified (they are infrastructure noise from [LoggerMessage] source-gen guards, not part of
+    /// the production-message-emission contract under test). Use this in place of
+    /// <c>_loggerMock.VerifyNoOtherCalls()</c> on mocks that called <see cref="EnableAllLogLevels"/>.</summary>
+#pragma warning disable CA1873
+    public static void VerifyNoOtherLogCalls<T>(this Mock<ILogger<T>> mock)
+    {
+        // Mock<T>.Invocations.Any(...) doesn't tag invocations as verified, so we use Verify on
+        // IsEnabled with Times.AtLeastOnce when at least one such call was recorded — this is the
+        // only Moq-supported way to whitelist a method without faking a fixed count.
+        var hasIsEnabledCalls = false;
+        foreach (var invocation in mock.Invocations)
+        {
+            if (string.Equals(invocation.Method.Name, nameof(ILogger.IsEnabled), StringComparison.Ordinal))
+            {
+                hasIsEnabledCalls = true;
+                break;
+            }
+        }
+        if (hasIsEnabledCalls)
+        {
+            mock.Verify(x => x.IsEnabled(It.IsAny<LogLevel>()), Times.AtLeastOnce);
+        }
+        mock.VerifyNoOtherCalls();
+    }
+#pragma warning restore CA1873
+
     /// <summary>Verifies that the given message was logged with the given LogLevel exactly once.</summary>
     public static void Verify<T>(this Mock<ILogger<T>> mock, LogLevel logLevel, string message) =>
         mock.Verify(logLevel, message, Times.Once);
