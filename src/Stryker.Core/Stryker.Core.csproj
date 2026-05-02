@@ -28,6 +28,13 @@
     <EmbeddedResourceUseDependentUponConvention>false</EmbeddedResourceUseDependentUponConvention>
   </PropertyGroup>
 
+  <!-- Sprint 89 (v2.75.0): expose internals to dogfood test project for MutantPlacerTests
+       (orchestrator types like BaseMethodDeclarationOrchestrator are internal). -->
+  <ItemGroup Label="InternalsVisibleTo for test projects">
+    <InternalsVisibleTo Include="Stryker.Core.Dogfood.Tests" />
+    <InternalsVisibleTo Include="Stryker.Core.Tests" />
+  </ItemGroup>
+
   <ItemGroup Label="Embedded resources for runtime injection / HTML report">
     <EmbeddedResource Include="InjectedHelpers\MutantControl.cs" />
     <EmbeddedResource Include="InjectedHelpers\Coverage\MutantContext.cs" />
