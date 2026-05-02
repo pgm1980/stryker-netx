@@ -194,11 +194,46 @@ public class MutantPlacerTests : TestBase
             placer.PlaceStaticContextMarker, syntax => syntax.Kind() == SyntaxKind.NumericLiteralExpression);
     }
 
-    [Fact(Skip = "Bucket-3 (Sprint 62 lesson): orchestrator-driven IDs depend on v2.x mutator-pipeline order — defer to structural-rewrite sprint.")]
+    [Fact]
     public void ShouldRollBackFailedConstructor()
     {
-        // Skipped: ID-drift between upstream 40-mutator pipeline and our 52-mutator pipeline.
-        _ = new CodeInjection();
-        _ = new StrykerOptions { OptimizationMode = OptimizationModes.CoverageBasedTest, MutationLevel = MutationLevel.Complete };
+        // Sprint 113 (v2.99.0): un-skipped. Original Sprint 62 bucket-3 concern was ID-drift, but
+        // this test removes mutants by node-type (BlockSyntax/IfStatement/ConstructorDeclaration),
+        // not by IsActive(N) ID — so it's bucket-2 (single-mutation, type-driven removal) and works
+        // identically on the v2.x 52-mutator pipeline.
+        var codeInjection = new CodeInjection();
+        var placer = new MutantPlacer(codeInjection);
+        var source = "class Test {\nstatic TestClass()=> Value-='a';}";
+
+        var orchestrator = new CsharpMutantOrchestrator(placer, options: new StrykerOptions
+        {
+            OptimizationMode = OptimizationModes.CoverageBasedTest,
+            MutationLevel = MutationLevel.Complete,
+        });
+        var actualNode = orchestrator.Mutate(CSharpSyntaxTree.ParseText(source), null!).GetRoot();
+
+        // Remove marker
+        var node = actualNode.DescendantNodes().First(t => t is BlockSyntax);
+        var restored = MutantPlacer.RemoveMutant(node);
+        actualNode = actualNode.ReplaceNode(node, restored);
+
+        // remove mutation
+        node = actualNode.DescendantNodes().First(t => t.IsKind(SyntaxKind.IfStatement));
+        restored = MutantPlacer.RemoveMutant(node);
+        actualNode = actualNode.ReplaceNode(node, restored);
+
+        // remove expression to body conversion
+        node = actualNode.DescendantNodes().First(t => t is ConstructorDeclarationSyntax);
+        restored = MutantPlacer.RemoveMutant(node);
+        actualNode = actualNode.ReplaceNode(node, restored);
+
+        var expectedNode = CSharpSyntaxTree.ParseText(source.Replace("StrykerNamespace", codeInjection.HelperNamespace, StringComparison.Ordinal));
+
+        var actualNormalized = CSharpSyntaxTree.ParseText(actualNode.ToFullString()).GetRoot().NormalizeWhitespace().ToFullString();
+        var expectedNormalized = expectedNode.GetRoot().NormalizeWhitespace().ToFullString();
+        actualNormalized.Should().Be(expectedNormalized);
+
+        // No syntax errors after rollback
+        actualNode.SyntaxTree.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).Should().BeEmpty();
     }
 }
