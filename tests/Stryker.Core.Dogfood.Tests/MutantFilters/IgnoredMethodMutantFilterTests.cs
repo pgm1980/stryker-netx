@@ -236,6 +236,194 @@ public class IgnoredMethodMutantFilterTests
         filteredMutants.Should().Contain(mutants[2]);
     }
 
-    [Fact(Skip = "ARCHITECTURAL DEFERRAL: remaining ~95 [DataRow] tests cover edge cases (conditional invocation, generic methods, nested chains, special syntax). Sprint 124 ported the most-impactful 31 tests; remaining ~95 defer to dedicated mechanical-conversion sprint.")]
+    [Theory]
+    [InlineData("Where", true)]
+    [InlineData("ToList", true)]
+    [InlineData("Range", false)]
+    public void MutantFilter_WorksWithConditionalInvocation(string ignoredMethodName, bool shouldSkipMutant)
+    {
+        var source = """
+            public class IgnoredMethodMutantFilter_NestedMethodCalls
+            {
+                private void TestMethod()
+                {
+                    Enumerable.Range(0, 9)?.Where(x => x < 5).ToList();
+                }
+            }
+            """;
+        var options = new StrykerOptions
+        {
+            IgnoredMethods = new IgnoreMethodsInput { SuppliedInput = new[] { ignoredMethodName } }.Validate(),
+        };
+        var sut = new IgnoredMethodMutantFilter();
+        var mutant = BuildExpressionMutant(source, "<").Item1;
+        var filteredMutants = sut.FilterMutants(new[] { mutant }, null!, options);
+
+        if (shouldSkipMutant)
+        {
+            filteredMutants.Should().NotContain(mutant);
+        }
+        else
+        {
+            filteredMutants.Should().Contain(mutant);
+        }
+    }
+
+    [Fact]
+    public void MutantFilter_WorksWithGenericMethodCalls()
+    {
+        var source = """
+            public class IgnoredMethodMutantFilter_NestedMethodCalls
+            {
+                private void TestMethod()
+                {
+                    Enumerable.Range(0, 9)?.Where(x => x < 5)?.ToList<int>();
+                }
+            }
+            """;
+        var options = new StrykerOptions
+        {
+            IgnoredMethods = new IgnoreMethodsInput { SuppliedInput = new[] { "ToList" } }.Validate(),
+        };
+        var sut = new IgnoredMethodMutantFilter();
+
+        foreach (var (mutant, label) in BuildMutantsToFilter(source, "ToList"))
+        {
+            var filteredMutants = sut.FilterMutants(new[] { mutant }, null!, options);
+            filteredMutants.Should().NotContain(mutant, $"{label} should have been filtered out.");
+        }
+    }
+
+    [Theory]
+    [InlineData("Dispose")]
+    [InlineData("Dispose*")]
+    [InlineData("*Dispose")]
+    [InlineData("*Dispose*")]
+    [InlineData("*ispose")]
+    [InlineData("Dis*")]
+    [InlineData("*")]
+    public void ShouldFilterStandaloneInvocation(string ignoredMethodName)
+    {
+        var source = """
+            public class IgnoredMethodMutantFilter_NestedMethodCalls
+            {
+                private void TestMethod()
+                {
+                    Dispose();
+                }
+            }
+            """;
+        var mutant = BuildExpressionMutant(source, "Dispose").Item1;
+        var options = new StrykerOptions
+        {
+            IgnoredMethods = new IgnoreMethodsInput { SuppliedInput = new[] { ignoredMethodName } }.Validate(),
+        };
+        var sut = new IgnoredMethodMutantFilter();
+
+        var filteredMutants = sut.FilterMutants(new[] { mutant }, null!, options);
+        filteredMutants.Should().NotContain(mutant);
+    }
+
+    [Theory]
+    [InlineData("Bar.Foo.Dispose", true)]
+    [InlineData("Bar.*.Dispose", true)]
+    [InlineData("Foo.Dispose*", true)]
+    [InlineData("Foo.Dispos*", true)]
+    [InlineData("*Foo.Dispose", true)]
+    [InlineData("F*.Dispose", true)]
+    [InlineData("*o.Dispose", true)]
+    [InlineData("*o.D*se", true)]
+    [InlineData("*.*", true)]
+    [InlineData("Foo.*", true)]
+    [InlineData("Foo*Dispose", false)]
+    [InlineData("Bar.Foo", false)]
+    [InlineData("Bar*", false)]
+    [InlineData("Bar.", false)]
+    [InlineData("Bar.*", false)]
+    [InlineData("Foo", false)]
+    [InlineData("Foo.", false)]
+    [InlineData("*.*.*.*", false)]
+    public void ShouldFilterInvocationWithQualifiedMemberName(string ignoredMethodName, bool shouldSkipMutant)
+    {
+        var source = """
+            public class IgnoredMethodMutantFilter_NestedMethodCalls
+            {
+                private void TestMethod()
+                {
+                    Bar // comment
+                        .Foo.Dispose();
+                }
+            }
+            """;
+        var baseSyntaxTree = CSharpSyntaxTree.ParseText(source).GetRoot();
+        var originalNode = FindEnclosingNode<StatementSyntax>(baseSyntaxTree, "Dispose");
+        var mutant = new Mutant { Mutation = MutationFor(originalNode!) };
+        var options = new StrykerOptions
+        {
+            IgnoredMethods = new IgnoreMethodsInput { SuppliedInput = new[] { ignoredMethodName } }.Validate(),
+        };
+        var sut = new IgnoredMethodMutantFilter();
+
+        var filteredMutants = sut.FilterMutants(new[] { mutant }, null!, options);
+        if (shouldSkipMutant)
+        {
+            filteredMutants.Should().NotContain(mutant);
+        }
+        else
+        {
+            filteredMutants.Should().Contain(mutant);
+        }
+    }
+
+    [Theory]
+    [InlineData("Foo.MyType.ctor", true)]
+    [InlineData("MyType.ctor", true)]
+    [InlineData("Foo.MyType*.ctor", true)]
+    [InlineData("Foo*.MyType*.ctor", true)]
+    [InlineData("*.MyType*.ctor", true)]
+    [InlineData("F*.My*ype*.ctor", true)]
+    [InlineData("MyType*.ctor", true)]
+    [InlineData("*MyType.ctor", true)]
+    [InlineData("*MyType*.ctor", true)]
+    [InlineData("*Type.ctor", true)]
+    [InlineData("My*.ctor", true)]
+    [InlineData("*.ctor", true)]
+    [InlineData("*.*.ctor", true)]
+    [InlineData("MyType.constructor", false)]
+    [InlineData("Type.ctor", false)]
+    [InlineData("Foo.ctor", false)]
+    public void MutantFilter_ShouldIgnoreConstructor(string ignoredMethodName, bool shouldSkipMutant)
+    {
+        var source = """
+            public class IgnoredMethodMutantFilter_NestedMethodCalls
+            {
+                private void TestMethod()
+                {
+                    var t = new Foo
+                                .MyType("Param");
+                }
+            }
+            """;
+        var baseSyntaxTree = CSharpSyntaxTree.ParseText(source).GetRoot();
+        var originalNode = FindEnclosingNode<SyntaxNode>(baseSyntaxTree, "Param");
+        var mutant = new Mutant { Mutation = MutationFor(originalNode!) };
+        var options = new StrykerOptions
+        {
+            IgnoredMethods = new IgnoreMethodsInput { SuppliedInput = new[] { ignoredMethodName } }.Validate(),
+        };
+        var sut = new IgnoredMethodMutantFilter();
+
+        var filteredMutants = sut.FilterMutants(new[] { mutant }, null!, options);
+        if (shouldSkipMutant)
+        {
+            filteredMutants.Should().NotContain(mutant);
+        }
+        else
+        {
+            filteredMutants.Should().Contain(mutant);
+        }
+    }
+
+    [Fact(Skip = "ARCHITECTURAL DEFERRAL: ~50 remaining [DataRow] tests cover advanced edge cases (constructor patterns, async/await constructs, switch expressions, statement+block-only ignored methods). Sprint 124+126 ported 70 most-impactful tests; remaining ~50 defer to dedicated edge-case sprint.")]
     public void IgnoredMethodMutantFilter_RemainingDataRowTests_Deferral() { /* defer */ }
 }
