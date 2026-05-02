@@ -1,7 +1,7 @@
 ---
-current_sprint: "42"
-sprint_goal: "RegexMutators foundation + 4 smallest + Orchestrator → v2.29.0"
-branch: "feature/42-regex-mutators-tests-foundation"
+current_sprint: "43"
+sprint_goal: "RegexMutators 7 medium-tier tests → v2.30.0"
+branch: "feature/43-regex-mutators-medium-tests"
 started_at: "2026-05-02"
 housekeeping_done: true
 memory_updated: true
@@ -11,10 +11,10 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Sprint 42 — RegexMutators foundation, 30/30 grün
+# Sprint 43 — 49 grün + 1 skip, 7 medium-tier mutator tests
 
 ## Outcome
-- New tests/Stryker.RegexMutators.Tests/ project + slnx
-- TestHelpers + Orchestrator (10) + 4 mutator tests (16) = 30 grün
-- Solution-wide: 719 grün ohne E2E
+- 49 new tests grün + 1 [Fact(Skip="...")] preserving upstream [Ignore]
+- RegexMutators-project total: 79 grün + 1 skip = 80
+- Solution-wide: 768 grün ohne E2E
 - 1 build-fix-cycle
