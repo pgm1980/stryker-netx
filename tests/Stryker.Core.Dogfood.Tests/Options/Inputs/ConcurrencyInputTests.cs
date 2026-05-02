@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -34,21 +35,74 @@ public class ConcurrencyInputTests
         act.Should().Throw<InputException>().WithMessage("Concurrency must be at least 1.");
     }
 
-    [Theory(Skip = "Production drift: [LoggerMessage] source-gen bypasses Moq.Verify on ILogger.Log(...) path. Defer to a structured-logging-test sprint.")]
+    [Theory]
     [InlineData(2, LogLevel.Warning)]
     [InlineData(8, LogLevel.Warning)]
     [InlineData(16, LogLevel.Warning)]
     [InlineData(128, LogLevel.Warning)]
     public void WhenGivenValueIsPassedAsMaxConcurrentTestRunnersParam_ExpectedValueShouldBeSet_ExpectedMessageShouldBeLogged(int concurrentTestRunners, LogLevel expectedLoglevel)
     {
-        _ = (concurrentTestRunners, expectedLoglevel, _loggerMock, CultureInfo.InvariantCulture);
+        _loggerMock.EnableAllLogLevels();
+
+        var validatedInput = new ConcurrencyInput { SuppliedInput = concurrentTestRunners }.Validate(_loggerMock.Object);
+
+        validatedInput.Should().Be(concurrentTestRunners);
+
+        var safeProcessorCount = Math.Max(Environment.ProcessorCount / 2, 1);
+
+        var formattedMessage = string.Format(CultureInfo.InvariantCulture, "Stryker will use a max of {0} parallel testsessions.", concurrentTestRunners);
+        _loggerMock.Verify(LogLevel.Information, formattedMessage, Times.Once);
+
+        if (concurrentTestRunners > safeProcessorCount)
+        {
+            formattedMessage = string.Format(CultureInfo.InvariantCulture, "Using a concurrency of {0} which is more than recommended {1} for normal system operation. This might have an impact on performance.", concurrentTestRunners, safeProcessorCount);
+            _loggerMock.Verify(expectedLoglevel, formattedMessage, Times.Once);
+        }
     }
 
-    [Fact(Skip = "Production drift: [LoggerMessage] source-gen bypasses Moq.Verify on ILogger.Log(...) path. Defer to a structured-logging-test sprint.")]
+    [Fact]
     public void WhenGiven1ShouldPrintWarning()
     {
-        _ = _loggerMock;
+        _loggerMock.EnableAllLogLevels();
+
+        var validatedInput = new ConcurrencyInput { SuppliedInput = 1 }.Validate(_loggerMock.Object);
+
+        validatedInput.Should().Be(1);
+
+        _loggerMock.Verify(LogLevel.Information, "Stryker will use a max of 1 parallel testsessions.", Times.Once);
+        _loggerMock.Verify(LogLevel.Warning, "Stryker is running in single threaded mode due to concurrency being set to 1.", Times.Once);
     }
+
+#pragma warning disable CA1873
+    [Fact]
+    public void Debug_CaptureLoggerCalls()
+    {
+        // FIX: ConcurrencyInput.Validate guards Log with `if (logger.IsEnabled(LogLevel.X))` —
+        // Mock<ILogger<T>> returns false by default. Setup IsEnabled to return true.
+        _loggerMock.Setup(x => x.IsEnabled(It.IsAny<LogLevel>())).Returns(true);
+
+        var captured = new System.Collections.Generic.List<(LogLevel level, string rendered)>();
+        _loggerMock.Setup(x => x.Log(
+                It.IsAny<LogLevel>(),
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
+            .Callback(new InvocationAction(invocation =>
+            {
+                var level = (LogLevel)invocation.Arguments[0];
+                var state = invocation.Arguments[2];
+                captured.Add((level, state?.ToString() ?? "<null>"));
+            }));
+
+        var validatedInput = new ConcurrencyInput { SuppliedInput = 1 }.Validate(_loggerMock.Object);
+
+        validatedInput.Should().Be(1);
+        var debug = string.Join("|", captured.Select(c => $"{c.level}={c.rendered}"));
+        captured.Should().Contain(c => c.level == LogLevel.Information && c.rendered.Contains("Stryker will use a max of 1 parallel testsessions", StringComparison.Ordinal), debug);
+        captured.Should().Contain(c => c.level == LogLevel.Warning && c.rendered.Contains("single threaded mode", StringComparison.Ordinal), debug);
+    }
+#pragma warning restore CA1873
 
     [Fact]
     public void WhenGivenNullShouldGetDefault()
