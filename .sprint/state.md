@@ -1,7 +1,7 @@
 ---
-current_sprint: "75"
-sprint_goal: "Options batch K (IgnoreMutationsInput + TestMutator helper, 14 green) → v2.61.0"
-branch: "feature/75-options-batch-k"
+current_sprint: "76"
+sprint_goal: "ProjectComponents batch A (TestFile + TestCase, 4 green) → v2.62.0"
+branch: "feature/76-projectcomponents-batch-a"
 started_at: "2026-05-02"
 housekeeping_done: false
 memory_updated: false
@@ -11,11 +11,13 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: false
 ---
-# Sprint 75 — Options batch K (14 grün, verified-unported)
+# Sprint 76 — ProjectComponents batch A (4 grün, verified-unported)
 
 ## Outcome
-- TestMutator enum (test-only) ported with 2 [MutatorDescription] members
-- IgnoreMutationsInputTests (10 facts + 1 theory ×3 = 13 facts) ported
-- Total: 14 green, 0 skip
-- Dogfood-project: 656 + 16 skip = 672
-- 0 build-fix-cycles (1-shot port)
+- TestFileTests (1 fact) — equality on identical {SyntaxTree, FilePath, Source} + AddTest
+- TestCaseTests (1 fact + 1 theory ×2 = 3 facts) — equality on {Id, Name, Node}
+- Total: 4 green, 0 skip
+- Dogfood-project: 660 + 16 skip = 676
+- 1 build-fix-cycle:
+  1. Production drift: TestFile.SyntaxTree is now `required init` (Sprint 2 modernization). Tests must construct with SyntaxTree assignment.
+  2. Production drift: TestCase moved from `Stryker.Abstractions.Testing` → `Stryker.Core.ProjectComponents.TestProjects` namespace.
