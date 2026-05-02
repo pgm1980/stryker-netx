@@ -530,6 +530,41 @@ gh --version
 - **NICHT** mehrstufige GitHub-Workflows als Bash-Sequenzen manuell zusammenbauen — `gh pr create`, `gh issue create`, `gh release create` nutzen
 - **NICHT** GitHub-API-Calls via `curl` ausführen — `gh api` nutzen
 
+#### Sprint-Tag-Convention (PFLICHT — auch in spawned tasks)
+
+Sprint-Tags MÜSSEN auf den **squash-merge commit auf `main`** zeigen, NIE auf den pre-merge branch HEAD. Begründung: `git log --oneline main` ist self-documenting wenn jeder Sprint-Commit auf main sein eigenes Tag hat (Pattern: Commit-Subject endet auf `(#NNN)`, ein Tag pro Sprint).
+
+**Korrekte Sequenz:**
+```bash
+gh pr merge <N> --squash --delete-branch         # Schritt 1: erst mergen
+git checkout main && git pull --ff-only origin main   # Schritt 2: lokal sync
+git tag -a v<X.Y.Z> -m "v<X.Y.Z> — Sprint <N>: <kurz>"   # Schritt 3: tag den merge-commit
+git push origin v<X.Y.Z>                          # Schritt 4: tag pushen
+gh release create v<X.Y.Z> --title "..." --notes "..."   # Schritt 5: GitHub release
+```
+
+**FALSCH:** `git tag` BEVOR `gh pr merge --squash` — der squash-merge erzeugt einen NEUEN Commit auf main mit anderer SHA als der branch-HEAD; das Tag würde am pre-merge branch-HEAD hängenbleiben (wird nach `--delete-branch` zum unreachable orphan).
+
+**Reparatur falls schon falsch getagged:**
+```bash
+git tag -d v<X.Y.Z>                              # lokales Tag löschen
+git push origin :refs/tags/v<X.Y.Z>              # remote Tag löschen
+gh release delete v<X.Y.Z> --yes                 # falls release schon existiert
+# dann korrekte Sequenz oben durchlaufen
+```
+
+#### Worktree-Conflict bei `gh pr merge --delete-branch`
+
+`gh pr merge --squash --delete-branch` versucht nach dem Merge ein lokales `git fetch + git checkout main`. Wenn `main` bereits in einem ANDEREN Worktree ausgecheckt ist (Standardfall bei spawned tasks im Worktree-Modus, weil die Hauptsession in `C:/claude_code/stryker-netx` schon `main` hält), schlägt der lokale checkout fehl mit *"main is already checked out at ..."*.
+
+**Workaround (funktional äquivalent, ohne lokales git):**
+```bash
+gh api -X PUT repos/<owner>/<repo>/pulls/<N>/merge -f merge_method=squash
+gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch-name>
+```
+
+Diesen Workaround **MUST** jede spawned task verwenden, deren Worktree NICHT auf `main` zeigt — der `gh pr merge` Fehler ist sonst undurchsichtig und wird oft als "Merge fehlgeschlagen" interpretiert.
+
 ---
 
 ## Commands
