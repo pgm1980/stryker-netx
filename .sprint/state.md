@@ -1,7 +1,7 @@
 ---
-current_sprint: "67"
-sprint_goal: "Options batch D (3 verified-unported Inputs tests, 16 green) → v2.53.0"
-branch: "feature/67-options-batch-d"
+current_sprint: "68"
+sprint_goal: "Options batch E (4 verified-unported Inputs tests, 33 green) → v2.54.0"
+branch: "feature/68-options-batch-e"
 started_at: "2026-05-02"
 housekeeping_done: false
 memory_updated: false
@@ -11,16 +11,13 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: false
 ---
-# Sprint 67 — Options batch D (16 grün, verified-unported)
+# Sprint 68 — Options batch E (33 grün, verified-unported)
 
 ## Outcome
-- ProjectVersionInputTests (6 facts) ported
-- TargetFrameworkInputTests (3 facts + 1 theory ×2 = 5 facts) ported
-- SinceTargetInputTests (5 facts) ported
-- Total: 16 green, 0 skip
-- Dogfood-project: 482 + 14 skip = 496
-- 1 build-fix-cycle (IDE0301 collection-expression: `Enumerable.Empty<Reporter>()` → `[]`)
-
-## Lessons (NEW)
-- **Sprint 66 lesson applied**: pre-write Glob check on each target test file caught 0 collisions. 16/16 actual new tests, no overwriting.
-- **IDE0301 prefers `[]` over `Enumerable.Empty<T>()`** in test code that uses target-typing
+- OutputPathInputTests (1 fact + 3 theories ×2/×2/×3 = 8 facts) ported
+- ReportFileNameInputTests (7 facts) ported
+- ThresholdHighInputTests (5 facts + 1 theory ×2 = 7 facts) ported
+- ThresholdLowInputTests (7 facts + 1 theory ×2 = 9 facts) ported
+- Total: 33 green, 0 skip
+- Dogfood-project: 515 + 14 skip = 529
+- 1 build-fix-cycle (CS8625 ReportFileNameInput.SuppliedInput → null!)
