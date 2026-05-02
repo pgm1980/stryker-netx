@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.RegexMutators.Tests — Sprint 42 (v2.29.0) foundation + smallest mutator ports.
+    Port of upstream stryker-net 4.14.1 src/Stryker.RegexMutators/Stryker.RegexMutators.UnitTest/.
+    Framework conversion: MSTest → xUnit, Shouldly → FluentAssertions.
+
+    Sprint 42: foundation + TestHelpers + Orchestrator + 4 smallest mutator tests
+    Sprint 43: 7 medium-tier mutator tests
+    Sprint 44: 5 large mutator tests (closes RegexMutators track)
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.RegexMutators.Tests</AssemblyName>
+    <RootNamespace>Stryker.RegexMutators.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup Label="Test stack (CLAUDE.md test-stack-Pflicht)">
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup Label="Project under test">
+    <ProjectReference Include="..\..\src\Stryker.RegexMutators\Stryker.RegexMutators.csproj" />
+  </ItemGroup>
+
+</Project>

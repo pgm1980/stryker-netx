@@ -1,7 +1,7 @@
 ---
-current_sprint: "41"
-sprint_goal: "CLI StrykerCLITests → v2.28.0 (closes CLI track)"
-branch: "feature/41-cli-stryker-cli-tests-port"
+current_sprint: "42"
+sprint_goal: "RegexMutators foundation + 4 smallest + Orchestrator → v2.29.0"
+branch: "feature/42-regex-mutators-tests-foundation"
 started_at: "2026-05-02"
 housekeeping_done: true
 memory_updated: true
@@ -11,11 +11,10 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Sprint 41 — 51/51 grün; CLI track komplett (Sprints 37-41)
+# Sprint 42 — RegexMutators foundation, 30/30 grün
 
 ## Outcome
-- StrykerCLITests: 51/51 grün
-- CLI-project total: 77 grün across 6 files
-- Solution-wide: 689 grün ohne E2E
-- 1 build-fix-cycle (S2925 Thread.Sleep → Task.Delay)
-- CLI dogfood track CLOSED nach 5 sprints
+- New tests/Stryker.RegexMutators.Tests/ project + slnx
+- TestHelpers + Orchestrator (10) + 4 mutator tests (16) = 30 grün
+- Solution-wide: 719 grün ohne E2E
+- 1 build-fix-cycle
