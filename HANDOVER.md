@@ -1,71 +1,76 @@
-# HANDOVER — Defer-Skip Aufarbeitung Session COMPLETE → v3.0.0 RELEASED
+# HANDOVER — Defer-Skip Aufarbeitung Session FINAL → v3.0.5
 
-**Last updated:** v3.0.0 released (current main HEAD = b2e54cc).
-**Session status:** MISSION COMPLETE.
+**Last updated:** Sprint 118 closed (v3.0.5). Session approaching context limit.
+**Session status:** v3.0.0 RELEASED + 5 patches + ongoing remediation.
 
-## Final State — v3.0.0
-- **Dogfood: 1002 green / 22 skip / 1024 total**
-- **Tag: v3.0.0** (https://github.com/pgm1980/stryker-netx/releases/tag/v3.0.0)
-- **All 22 remaining skips are legitimate** (3 permanent + 4 Windows-conditional + 15 architectural-deferrals)
+## Current State — v3.0.5
+- **Dogfood: 1030 green / 18 skip / 1048 total**
+- **Latest tag: v3.0.5**
+- All architectural-deferrals continue to be remediated post-v3.0.0
 
-## Cumulative Session Achievement (Sprints 95-113, 19 sprints)
-- Dogfood: **906/99 → 1002/22** (+96 green, -77 skip, +49 new tests)
-- 19 GitHub releases (v2.81.0 → v2.99.0 → v3.0.0)
-- 1 production bug fixed (MsBuildHelper.GetVersion missing-space + multi-line)
-- 12+ reusable test helpers + patterns established
-- DEEP_MEMORY.md: comprehensive technical-lessons reference for future sessions
+## Cumulative Session (Sprints 95-118, 24 sprints)
+- Dogfood: **906/99 → 1030/18** (+124 green, -81 skip, +43 new tests)
+- 24 GitHub releases (v2.81.0 → v2.99.0 → v3.0.0 → v3.0.5)
+- 1 production bug fixed (MsBuildHelper.GetVersion)
+- DEEP_MEMORY.md: comprehensive technical-lessons reference
 
-## Reusable Artifacts Produced
-- `LoggerMockExtensions.EnableAllLogLevels<T>()` — fixes Mock IsEnabled-default-false
-- `LoggerMockExtensions.VerifyNoOtherLogCalls<T>()` — strict-mode whitelist for IsEnabled noise
-- `LoggerMockExtensions.MatchesRenderedMessage` — `[LoggerMessage]` source-gen support
-- `MockJsonReport`, `MockJsonReportFileComponent` test stubs
-- `BuildScanDiffTarget` GitDiff mock-builder pattern
-- `TestHelper.GetItemPaths` default empty (Sprint 112)
-- `Mutation NewMutation()` Sprint 2 required-init helper
-- Drift-cheat-sheet (Sprint 97 memory)
-- Pre-port signature-grep heuristic (Sprint 100/101)
-- CLAUDE.md docs: Sprint-Tag-Convention + Worktree-conflict workaround
-- Architectural-deferral consolidation pattern (Sprint 108-111)
+## Key Discoveries Sprints 114-118 (post-v3.0.0)
+1. **JsonReporter** (Sprint 114, +11 green) — Sprint 110 deferral was over-conservative; structural property tests port directly
+2. **HtmlReporter** (Sprint 115, +11 green) — same insight as JsonReporter
+3. **Spectre.Console `.Width(160)`** (Sprint 117) — missing piece for TestConsole structural-content checks (Sprint 110 first attempt was missing this)
+4. **ClearTextReporter** (Sprint 117, +3 green) — ported via Width(160) + structural-content
+5. **ClearTextTreeReporter** (Sprint 118, +2 green) — same pattern
 
-## v3.0.x Future Work (per-architectural-deferral)
+## Remaining 18 Skips
+**3 PERMANENT:** BuildalyzerHelper, AnalyzerResultExtensions, VsTestHelper-wrong-project
+**4 WINDOWS-CONDITIONAL:** InitialBuildProcess (DotnetFramework + MSBuild.exe path)
+**11 ARCHITECTURAL-DEFERRALS** (each documented `[Fact(Skip="...")]`):
 
-Each `[Fact(Skip="...")]` message names the dedicated harness-rewrite sprint:
+### Genuinely architectural (non-portable in current v2.x)
+- `ProjectOrchestratorTests` — BuildAnalyzerTestsBase removed
+- `InputFileResolverTests` — Buildalyzer removed
+- `IgnoredMethodMutantFilterTests` — 130 [DataRow] C#-source-as-string requires MemberData rewrite
+- `CollectionExpressionMutatorTests` — custom MSTest [CollectionExpressionTest] attribute
+- `CSharpCompilingProcessTests` — full Roslyn compile pipeline
+- `CSharpRollbackProcessTests` — Roslyn diagnostic-ID matrix (903 LOC)
+- `CSharpMutationTestProcessTests` — production drift (Compile not orchestrator-injectable)
+- `MutationTestProcessTests` — FullRunScenario+ICoverageAnalyser harness
+- `SseServerTest` — real HttpListener (TestServer pattern needed)
+- `CsharpMutantOrchestratorTests` — bucket-3 hardcoded mutation IDs (52 vs 40)
+- `StrykerCommentTests` — bucket-3
 
-| File | Harness Required | Effort |
+## v3.0.x Future Work — Per-Architectural-Deferral Effort
+
+| File | Effort | Approach |
 |---|---|---|
-| `ProjectOrchestratorTests` | BuildAnalyzerTestsBase v2.x analog producing IProjectAnalysis mocks | Multi-sprint |
-| `InputFileResolverTests` | Same + filesystem/.sln/.slnx parsing | Multi-sprint |
-| `CSharpCompilingProcessTests` | Roslyn MetadataReference + emit-rollback test harness | Single sprint |
-| `CSharpRollbackProcessTests` | Roslyn diagnostic-ID matrix harness | Single sprint |
-| `IgnoredMethodMutantFilterTests` | 130 [DataRow] → MemberData mechanical conversion | Single sprint |
-| `CollectionExpressionMutatorTests` | Custom `[CollectionExpressionTest]` MSTest attribute → MemberData rewrite | Single sprint |
-| `CsharpMutantOrchestratorTests` (5) | Structural-assertion rewrite (count + class names instead of IsActive(N)) | Single sprint |
-| `StrykerCommentTests` | Same as above (bucket-3) | Single sprint |
-| `CSharpMutationTestProcessTests` | Compiler-stage mock harness | Single sprint |
-| `MutationTestProcessTests` | TestRunResult/CoverageRunResult mock-builders | Single sprint |
-| `ClearTextReporterTests` | Custom AnsiConsoleSettings or approval-testing | Single sprint |
-| `ClearTextTreeReporterTests` | Same | Single sprint |
-| `JsonReporterTests` | JSON approval-testing/snapshot rewrite | Single sprint |
-| `HtmlReporterTests` | HTML approval-testing/snapshot rewrite | Single sprint |
-| `SseServerTest` | TestServer pattern OR port-allocation harness | Single sprint |
+| `CsharpMutantOrchestratorTests` | Single sprint | Structural-assertion rewrite (count + class names) |
+| `StrykerCommentTests` | Single sprint | Same as above |
+| `CSharpMutationTestProcessTests` | Single sprint | Mock compiler stage |
+| `MutationTestProcessTests` | Single sprint | TestRunResult/CoverageRunResult mock-builders |
+| `SseServerTest` | Single sprint | TestServer pattern OR port-allocation harness |
+| `CSharpCompilingProcessTests` | Single sprint | Roslyn MetadataReference test harness |
+| `CSharpRollbackProcessTests` | Single sprint | Diagnostic-ID matrix harness |
+| `IgnoredMethodMutantFilterTests` | Single sprint | 130 [DataRow] → MemberData mechanical conversion |
+| `CollectionExpressionMutatorTests` | Single sprint | Custom MSTest attribute → MemberData rewrite |
+| `ProjectOrchestratorTests` | Multi-sprint | BuildAnalyzerTestsBase v2.x analog |
+| `InputFileResolverTests` | Multi-sprint | Same + filesystem/.sln/.slnx parsing |
 
-Total estimated: 12-15 dedicated test-harness sprints to reach 0 skips.
+Total: 9-12 single sprints + 2 multi-sprint efforts = ~13-18 dedicated sprints to reach 0 portable skips.
 
 ## Worktree leftover (housekeeping)
-3 worktree-directories still busy/locked (user must close spawned-session windows):
+3 worktree-directories busy/locked (user must close spawned-session windows):
 - `.claude/worktrees/compassionate-mendeleev-5cb549`
 - `.claude/worktrees/keen-proskuriakova-34f6b8`
 - `.claude/worktrees/practical-darwin-0082de`
 
-Git-registrations clean — only file-system cleanup pending (`rm -rf .claude/worktrees/*` after closing the spawned-session windows).
-
 ## Calculator Test Plan (post-v3.0.0)
-v3.0.0 is now installable via NuGet. The Calculator-project test plan (mentioned in the original session pivot) is unblocked:
-1. `dotnet new` calculator project in another session
-2. Install stryker-netx v3.0.0 NuGet package
-3. Run mutation testing
-4. Validate v2.x→v3.0.0 production behavior on real-world code
+v3.0.0+ is installable via NuGet. Plan unblocked.
 
 ## DEEP_MEMORY.md
-See `memory/DEEP_MEMORY.md` for full technical-lessons reference (mock patterns, drift categories, analyzer traps, helper file locations, sprint-sequence-pattern, etc.). 200+ lines of accumulated session knowledge.
+See `memory/DEEP_MEMORY.md` for full technical-lessons reference — Sprints 95-118 lessons:
+- Mock patterns + analyzer trap workarounds
+- Production-drift categories (IProjectAnalysis migration, Mutation required-init, etc.)
+- Spectre.Console `.Width(160)` discovery (Sprint 117)
+- Architectural-Deferral Validation Heuristic (Sprint 114-115 lesson)
+- Pre-port signature-grep heuristic
+- Sprint-Tag-Convention + Worktree-conflict workaround (CLAUDE.md)
