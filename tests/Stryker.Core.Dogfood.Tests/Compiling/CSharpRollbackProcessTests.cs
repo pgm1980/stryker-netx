@@ -61,9 +61,25 @@ public class CSharpRollbackProcessTests : TestBase
         result.RollbackedIds.Should().BeEmpty();
     }
 
-    [Fact(Skip = "Edge case: real-syntax-error diagnostics inside CSharpRollbackProcess.Start() touch internal mutation-removal logic that requires actual rollback-eligible mutations in the syntax trees. Defer to dedicated diagnostic-ID matrix sprint.")]
+    [Fact]
+    public void Start_ShouldThrowCompilationException_WhenRealSyntaxErrorsHaveNoRollbackableMutations()
+    {
+        // Sprint 135 (v3.0.22): final architectural-deferral attacked. When diagnostics report real
+        // syntax errors but the syntax tree has NO Stryker-injected mutations to roll back, production
+        // correctly throws CompilationException("Internal error due to compile error.").
+        var process = new CSharpRollbackProcess();
+        var badTree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("public class Bad { error syntax");
+        var compilation = Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create("Test")
+            .AddReferences(Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(typeof(object).Assembly.Location))
+            .AddSyntaxTrees(badTree);
+        var realDiagnostics = compilation.GetDiagnostics();
+
+        var act = () => process.Start(compilation, realDiagnostics, lastAttempt: false, devMode: false);
+        act.Should().Throw<Stryker.Abstractions.Exceptions.CompilationException>("real syntax errors with no rollback-eligible mutations cannot be auto-recovered");
+    }
+
 #pragma warning disable S1144, IDE0051
-    public void Start_ShouldHandleDiagnosticsWithNullSourceTree()
+    private static void Start_ShouldHandleDiagnosticsWithNullSourceTree_Reference()
     {
         var process = new CSharpRollbackProcess();
         var syntaxTree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("public class Sample { }");
