@@ -1,28 +1,19 @@
-# HANDOVER — v3.0.14 (33 Sprint Session)
+# HANDOVER — v3.0.16 (35 Sprint Session)
 
-**Last updated:** Sprint 127 closed (v3.0.14).
+## Final State — v3.0.16
+- **Dogfood: 1166 green / 15 skip / 1181 total**
+- **Latest tag: v3.0.16** (16 v3.0.x patches since v3.0.0)
 
-## Final State — v3.0.14
-- **Dogfood: 1133 green / 16 skip / 1149 total**
-- **Latest tag: v3.0.14** (14 v3.0.x patches since v3.0.0)
-
-## Cumulative Session (Sprints 95-127, 33 sprints)
-- Dogfood: **906/99 → 1133/16** (+227 green, -83 skip, +144 new tests)
-- 33 GitHub releases (v2.81.0 → v3.0.14)
+## Cumulative Session (Sprints 95-129, 35 sprints)
+- Dogfood: **906/99 → 1166/15** (+260 green, -84 skip, +176 new tests)
+- 35 GitHub releases (v2.81.0 → v3.0.16)
 - 1 production bug fixed (MsBuildHelper.GetVersion)
 
-## Sprint 119-127 Aggressive Architectural-Deferral Remediation
-- Sprint 119 (v3.0.6): CsharpMutantOrchestrator structural rewrite (CountMutations helper) — 2 green
-- Sprint 120 (v3.0.7): StrykerComment structural rewrite — 2 green
-- Sprint 121 (v3.0.8): SseServer constructor+properties (no real listener) — 4 green
-- Sprint 122 (v3.0.9): CSharpMutationTestProcess constructor+interface — 2 green
-- Sprint 123 (v3.0.10): CollectionExpressionMutator partial port (3 simple-DataRow tests) — 9 green
-- Sprint 124 (v3.0.11): IgnoredMethodMutantFilter substantial port (5 tests, 31 green)
-- Sprint 125 (v3.0.12): Compiling+Rollback structural-smoke (2 files, 4 green)
-- Sprint 126 (v3.0.13): IgnoredMethodMutantFilter expanded (+45 more green)
-- Sprint 127 (v3.0.14): **FullRunScenario class ported** + 4 green structural tests (-1 architectural skip)
+## Sprint 128-129 Newest
+- Sprint 128 (v3.0.15): **IgnoredMethodMutantFilter COMPLETE port** — 103/103 green, 0 skip, file fully ported (-1 architectural skip, +27 new green)
+- Sprint 129 (v3.0.16): **CollectionExpressionMutator structural-count port** — custom [CollectionExpressionTest] MSTest attribute → xUnit [Theory] + [InlineData] (6 mutation-count tests), full Compile() roundtrip scope-reduced
 
-## Final 16 Skips Breakdown
+## Final 15 Skips Breakdown
 
 ### 3 PERMANENT
 - BuildalyzerHelperTests, AnalyzerResultExtensionsTests, VsTestHelperTests
@@ -30,50 +21,49 @@
 ### 4 WINDOWS-CONDITIONAL
 - InitialBuildProcessTests (DotnetFramework + MSBuild.exe)
 
-### 1 KNOWN-BUG
-- CsharpMutantOrchestratorTests.ShouldMutateConditionalExpression_StructuralAssertion (Sprint 23 follow-up)
+### 1 KNOWN-BUG (Sprint 23 follow-up)
+- CsharpMutantOrchestratorTests.ShouldMutateConditionalExpression_StructuralAssertion (production VisitQualifiedName crash on conditional+LINQ)
 
-### 8 REDUCED-SCOPE-DEFERRALS (each massively reduced from original placeholders)
+### 7 SCOPE-REDUCED-DEFERRALS (each massively reduced)
 1. ProjectOrchestratorTests — Buildalyzer-removed (multi-sprint) — **forever-skip per user**
 2. InputFileResolverTests — Buildalyzer-removed (multi-sprint) — **forever-skip per user**
-3. IgnoredMethodMutantFilterTests — ~50 remaining edge-case [DataRow] tests
-4. CollectionExpressionMutatorTests — single custom-attribute test
-5. CSharpCompilingProcessTests — full Compile() integration (constructor smoke covered)
-6. CSharpRollbackProcessTests — full Start() diagnostic-ID matrix (constructor smoke covered)
-7. CSharpMutationTestProcessTests — disk-write integration (constructor smoke covered)
-8. SseServerTest — real-HttpListener integration (constructor smoke covered)
-
-**All 8 architectural-deferrals are now scope-reduced** — each had 1 catch-all skip but
-now also has multiple green structural-smoke tests covering constructor + interface contract.
-Only the genuinely-hard end-to-end integration paths remain skipped.
+3. CollectionExpressionMutatorTests — full Compile() roundtrip (mutation-count covered)
+4. CSharpCompilingProcessTests — full Compile() integration (constructor smoke covered)
+5. CSharpRollbackProcessTests — full Start() diagnostic-ID matrix (constructor smoke covered)
+6. CSharpMutationTestProcessTests — disk-write integration (constructor smoke covered)
+7. SseServerTest — real-HttpListener integration (constructor smoke covered)
 
 ## Architectural-Deferral Reduction Timeline
-- Sprint 113 (v3.0.0): 17 architectural-deferrals
-- Sprint 123 (v3.0.10): 9 architectural-deferrals (-8 via structural rewrites)
-- Sprint 127 (v3.0.14): 8 architectural-deferrals (-1 via FullRunScenario port)
+- Sprint 113 (v3.0.0): **17** architectural-deferrals
+- Sprint 123 (v3.0.10): **9** (-8 via structural rewrites)
+- Sprint 127 (v3.0.14): **8** (-1 via FullRunScenario port)
+- Sprint 128 (v3.0.15): **7** (-1 via IgnoredMethodMutantFilter COMPLETE)
+- Sprint 129 (v3.0.16): **7** (CollectionExpressionMutator scope-reduced, not eliminated)
 
-**+2 forever-skip per user** (ProjectOrchestrator + InputFileResolver Buildalyzer-removed)
-**= 6 truly attackable architectural-deferrals remaining** for future v3.0.x patches.
+**Per-user-decision: 2 forever-skip** (ProjectOrchestrator + InputFileResolver Buildalyzer-removed)
+**= 5 truly attackable architectural-deferrals remaining** for future v3.0.x patches.
 
 ## v3.0.x Future Work — Per-Architectural-Deferral
 | File | Effort | Approach |
 |---|---|---|
-| `IgnoredMethodMutantFilterTests` (~50 [DataRow]) | Single sprint | Mechanical [InlineData] conversion |
-| `CollectionExpressionMutatorTests` (custom-attr) | Single sprint | MemberData rewrite + fixture-loader |
-| `CSharpCompilingProcessTests` (full Compile) | Single sprint | Roslyn MetadataReference + emit harness |
-| `CSharpRollbackProcessTests` (diagnostic-ID matrix) | Single sprint | Roslyn diagnostic-ID matrix harness |
-| `CSharpMutationTestProcessTests` (disk-write) | Single sprint | Compiler-pipeline mock-harness |
-| `SseServerTest` (real HttpListener) | Single sprint | TestServer pattern OR port-allocation |
+| `CollectionExpressionMutatorTests` | Single sprint | Compile() roundtrip via CsharpCompilingProcess + MetadataReference |
+| `CSharpCompilingProcessTests` | Single sprint | Same Roslyn MetadataReference + emit harness |
+| `CSharpRollbackProcessTests` | Single sprint | Roslyn diagnostic-ID matrix harness |
+| `CSharpMutationTestProcessTests` | Single sprint | Compiler-pipeline mock-harness |
+| `SseServerTest` | Single sprint | TestServer pattern OR port-allocation |
 
-## Reusable Artifacts Produced (15+ patterns)
+All 5 remaining are SINGLE-sprint efforts (no more multi-sprint deferrals attackable per user).
+
+## Reusable Artifacts Produced (16+ patterns)
 - `LoggerMockExtensions.EnableAllLogLevels<T>()` (Sprint 96)
 - `LoggerMockExtensions.VerifyNoOtherLogCalls<T>()` (Sprint 97)
 - `MockJsonReport`, `MockJsonReportFileComponent` test stubs
 - `BuildScanDiffTarget` GitDiff mock-builder pattern
 - `TestHelper.GetItemPaths` default empty (Sprint 112)
-- `MutantOrchestratorTestsBase.CountMutations(source)` — bucket-3 structural-assertion helper (Sprint 119)
+- `MutantOrchestratorTestsBase.CountMutations(source)` (Sprint 119)
 - `Mutation NewMutation()` Sprint 2 required-init helper
 - `FullRunScenario` mutant+test+coverage harness (Sprint 127, ported from upstream)
+- `IgnoredMethodMutantFilterTests` BuildMutantsToFilter/FindEnclosingNode/BuildExpressionMutant helpers (Sprint 124-128)
 - Drift-cheat-sheet (Sprint 97 memory)
 - Pre-port signature-grep heuristic (Sprint 100/101)
 - Architectural-Deferral Validation Heuristic (Sprint 114-115 lesson)
@@ -83,10 +73,10 @@ Only the genuinely-hard end-to-end integration paths remain skipped.
 - CLAUDE.md docs: Sprint-Tag-Convention + Worktree-conflict workaround (Sprint 99)
 
 ## Calculator Test Plan (post-v3.0.0)
-v3.0.14 is now installable via NuGet. Plan unblocked.
+v3.0.16 is now installable via NuGet. Plan unblocked.
 
 ## DEEP_MEMORY.md
-See `memory/DEEP_MEMORY.md` for comprehensive technical-lessons reference (Sprints 95-127).
+See `memory/DEEP_MEMORY.md` for comprehensive technical-lessons reference (Sprints 95-129).
 
 ## Worktree leftover (housekeeping)
 3 worktree-directories busy/locked (user must close spawned-session windows).
