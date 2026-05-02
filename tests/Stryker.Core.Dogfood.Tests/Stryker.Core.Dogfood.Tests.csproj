@@ -32,6 +32,18 @@
     <PackageReference Include="TestableIO.System.IO.Abstractions.TestingHelpers" />
   </ItemGroup>
 
+  <!--
+    Sprint 61 (v2.47.0): NuGet.Frameworks at runtime.
+    Directory.Build.props pins NuGet.Frameworks with PrivateAssets="all" ExcludeAssets="runtime"
+    globally so the MSBuildLocator transitive guard does not emit MSBL001 in downstream
+    consumers. Test code that exercises IProjectAnalysisExtensions.TargetsFullFramework /
+    GetNuGetFramework needs the NuGet.Frameworks assembly in bin/ at test time, so the
+    dogfood test project re-declares the reference without the runtime exclusion.
+  -->
+  <ItemGroup Label="Sprint 61: NuGet.Frameworks runtime override for IProjectAnalysisExtensions tests">
+    <PackageReference Update="NuGet.Frameworks" PrivateAssets="all" ExcludeAssets="" />
+  </ItemGroup>
+
   <ItemGroup Label="Project under test + reusable helpers">
     <ProjectReference Include="..\..\src\Stryker.Core\Stryker.Core.csproj" />
     <ProjectReference Include="..\..\src\Stryker.Abstractions\Stryker.Abstractions.csproj" />
