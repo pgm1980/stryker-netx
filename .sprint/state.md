@@ -1,7 +1,7 @@
 ---
-current_sprint: "68"
-sprint_goal: "Options batch E (4 verified-unported Inputs tests, 33 green) → v2.54.0"
-branch: "feature/68-options-batch-e"
+current_sprint: "69"
+sprint_goal: "Mutators batch C remainder (MathMutator subset, 12 green) → v2.55.0"
+branch: "feature/69-mutators-batch-c-remainder"
 started_at: "2026-05-02"
 housekeeping_done: false
 memory_updated: false
@@ -11,13 +11,14 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: false
 ---
-# Sprint 68 — Options batch E (33 grün, verified-unported)
+# Sprint 69 — Mutators batch C remainder MathMutator subset (12 grün)
 
 ## Outcome
-- OutputPathInputTests (1 fact + 3 theories ×2/×2/×3 = 8 facts) ported
-- ReportFileNameInputTests (7 facts) ported
-- ThresholdHighInputTests (5 facts + 1 theory ×2 = 7 facts) ported
-- ThresholdLowInputTests (7 facts + 1 theory ×2 = 9 facts) ported
-- Total: 33 green, 0 skip
-- Dogfood-project: 515 + 14 skip = 529
-- 1 build-fix-cycle (CS8625 ReportFileNameInput.SuppliedInput → null!)
+- MathMutatorTest subset (1 fact + 1 theory ×8 + 1 theory ×2 + 1 fact = 12 facts) ported
+- Skipped: 2 DynamicData [DataMember]-driven tests (need full MethodSwapsTestData enumeration → defer to a "MathMutator structural rewrite" sprint)
+- Total: 12 green, 0 skip
+- Dogfood-project: 527 + 14 skip = 541
+- 0 build-fix-cycles (1-shot port)
+
+## Lessons (NEW)
+- MSTest [DynamicData(nameof(...))] does not have a clean xUnit equivalent; conversion to [MemberData(nameof(...))] needs the data source rewritten as `IEnumerable<object[]>`. Skipping is the cheap option for large enum-table data.
