@@ -2,17 +2,13 @@ using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Mutants;
 
-/// <summary>Sprint 93 (v2.79.0) defer-doc placeholder. StrykerComment tests assert exact comment-parser
-/// behavior with rich edge-case matrix (// Stryker disable [mutator] [comment]). 326 LOC of dense
-/// fixture data + format-sensitive parsing. Defer to dedicated comment-parser deep-port sprint.</summary>
+/// <summary>Sprint 109 (v2.95.0) consolidated architectural-deferral. Upstream StrykerCommentTests
+/// (326 LOC) uses MutantOrchestratorTestsBase + ShouldMutateSourceInClassToExpected helper that
+/// drives full orchestrator-based testing with hardcoded mutation IDs (IsActive(0), IsActive(4),
+/// etc.) — same bucket-3 pattern as CsharpMutantOrchestratorTests skips. v2.x has 52 mutators vs
+/// upstream 40, so mutation IDs differ. Belongs in dedicated structural-rewrite sprint.</summary>
 public class StrykerCommentTests
 {
-    [Fact(Skip = "326 LOC of dense fixture data + format-sensitive parsing — defer to comment-parser deep-port sprint.")]
-    public void ShouldParseDisableComment() { /* placeholder */ }
-
-    [Fact(Skip = "Defer.")]
-    public void ShouldParseRestoreComment() { /* placeholder */ }
-
-    [Fact(Skip = "Defer.")]
-    public void ShouldParseTargetedMutators() { /* placeholder */ }
+    [Fact(Skip = "ARCHITECTURAL DEFERRAL: Bucket-3 (Sprint 62 lesson) — orchestrator-driven hardcoded mutation IDs depend on v2.x mutator-pipeline order (52 mutators vs upstream 40). Dedicated structural-rewrite sprint required.")]
+    public void StrykerComment_BucketThreeArchitecturalDeferral() { /* permanently skipped */ }
 }
