@@ -67,7 +67,22 @@ public class SseServer : ISseServer, IDisposable
             ((IDisposable)_listener).Dispose();
             foreach (var writer in _writers)
             {
-                writer.Dispose();
+                // Sprint 136 fix: best-effort disposal — if the underlying HttpListener response
+                // stream was already closed (client disconnected mid-stream), the StreamWriter's
+                // Dispose() throws ObjectDisposedException or HttpListenerException. We're tearing
+                // down anyway; failure to flush a writer whose stream is already gone is recoverable.
+                try
+                {
+                    writer.Dispose();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // already cleaned up by client disconnect
+                }
+                catch (HttpListenerException)
+                {
+                    // underlying socket already closed
+                }
             }
             _writers.Clear();
         }
