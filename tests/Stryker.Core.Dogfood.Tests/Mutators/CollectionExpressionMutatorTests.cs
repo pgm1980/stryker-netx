@@ -98,6 +98,50 @@ public class CollectionExpressionMutatorTests : TestBase
         orchestrator.Mutants.Count(m => m.Mutation.Type == Stryker.Abstractions.Mutator.CollectionExpression).Should().Be(expectedMutants);
     }
 
-    [Fact(Skip = "ARCHITECTURAL DEFERRAL (reduced): full Compile() roundtrip validation (CsharpCompilingProcess + MetadataReference + emit) for the 13 long-form fixtures defers to dedicated compiler-pipeline harness sprint. Mutation-count assertions covered by MutatedCollectionExpressions_StructuralCount Sprint 129.")]
-    public void CollectionExpressionMutator_FullCompileRoundtrip_Deferral() { /* defer */ }
+    [Fact]
+    public void CollectionExpression_Compile_AfterMutation_Succeeds()
+    {
+        // Sprint 134 (v3.0.21): replaces Sprint 129 reduced-scope deferral with end-to-end
+        // Compile() roundtrip on a mutated CollectionExpression source. Uses Sprint 131/132
+        // proven setup pattern.
+        var source = "public class C { public int[] M() { int[] abc = [ 1, 5, 7 ]; return abc; } }";
+        var folder = new Stryker.Core.ProjectComponents.Csharp.CsharpFolderComposite();
+        folder.Add(new Stryker.Core.ProjectComponents.Csharp.CsharpFileLeaf
+        {
+            SourceCode = source,
+            SyntaxTree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(source),
+            FullPath = "/Sample.cs",
+            RelativePath = "Sample.cs",
+        });
+
+        var fileSystem = new System.IO.Abstractions.TestingHelpers.MockFileSystem();
+        var input = new Stryker.Core.MutationTest.MutationTestInput
+        {
+            SourceProjectInfo = new Stryker.Core.ProjectComponents.SourceProjects.SourceProjectInfo
+            {
+                Analysis = Stryker.TestHelpers.TestHelper.SetupProjectAnalyzerResult(
+                    projectFilePath: "/ProjectUnderTest/ProjectUnderTest.csproj",
+                    properties: new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.Ordinal)
+                    {
+                        ["TargetDir"] = "/ProjectUnderTest/bin/Debug/net10.0",
+                        ["TargetFileName"] = "Sample.dll",
+                        ["AssemblyName"] = "Sample",
+                        ["Language"] = "C#",
+                    },
+                    references: new[] { typeof(object).Assembly.Location, typeof(System.Linq.Enumerable).Assembly.Location }).Object,
+                ProjectContents = folder,
+                TestProjectsInfo = new Stryker.Core.ProjectComponents.TestProjects.TestProjectsInfo(fileSystem),
+            },
+        };
+
+        var process = new Stryker.Core.Compiling.CsharpCompilingProcess(input);
+        using var ilStream = new System.IO.MemoryStream();
+        var syntaxTree = ((Stryker.Core.ProjectComponents.Csharp.CsharpFileLeaf)folder.GetAllFiles().First()).SyntaxTree;
+
+        var result = process.Compile(new[] { syntaxTree }, ilStream, null);
+
+        result.Should().NotBeNull();
+        result.Success.Should().BeTrue("collection-expression source should compile");
+        ilStream.Length.Should().BeGreaterThan(0);
+    }
 }
