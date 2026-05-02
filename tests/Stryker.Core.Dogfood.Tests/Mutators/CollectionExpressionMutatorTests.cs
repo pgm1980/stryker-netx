@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Stryker.Abstractions;
 using Stryker.Core.Mutators;
+using Stryker.TestHelpers;
 using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Mutators;
@@ -13,7 +14,7 @@ namespace Stryker.Core.Dogfood.Tests.Mutators;
 /// First 3 upstream tests use simple [DataRow]/[InlineData] patterns and port directly to xUnit.
 /// 4th upstream test uses custom [CollectionExpressionTest] MSTest attribute with multi-line C#
 /// fixture data — that one defers to dedicated MemberData rewrite sprint.</summary>
-public class CollectionExpressionMutatorTests
+public class CollectionExpressionMutatorTests : TestBase
 {
     [Fact]
     public void ShouldBeMutationLevelAdvanced()
@@ -60,6 +61,43 @@ public class CollectionExpressionMutatorTests
         replacement.Elements.Should().BeEmpty();
     }
 
-    [Fact(Skip = "ARCHITECTURAL DEFERRAL: custom [CollectionExpressionTest] MSTest attribute with multi-line C# fixture inputs (e.g. 'Should mutate collection expression with spread elements' / 'with explicit cast' / 'with conditional element'). Re-port = MemberData rewrite + fixture-loader helper. Defer to dedicated CollectionExpression deep-port sprint.")]
-    public void CollectionExpressionMutator_CustomAttribute_FixtureDeferral() { /* defer */ }
+    /// <summary>Sprint 129 (v3.0.16): structural-port of the custom [CollectionExpressionTest]
+    /// MSTest attribute (just a [DataRow]-derived class taking testName + inputCode + mutationCount).
+    /// Converted to standard xUnit [Theory] + [InlineData(inputCode, expectedMutants)] — testName
+    /// is documentation-only and dropped. Verifies mutation COUNT only (not full Compile()
+    /// integration which still defers to compiler-pipeline harness sprint).</summary>
+    [Theory]
+    [InlineData("class C { void M() { int[] abc = [ 1, 5, 7 ]; int[] bcd = [ 1, ..abc, 3 ]; } }", 2)]
+    [InlineData("class C { void M() { int[] abc = [ 1, 5, 7 ]; var bcd = (int[])[ 1, ..abc, 3 ]; } }", 2)]
+    [InlineData("class C { void M() { int[][] abc = [ [ 1, 5 ], [ 7 ] ]; } }", 3)]
+    [InlineData("class C { void M() { int[][] abc = [ [ 1, 5 ], new [] { 7 } ]; } }", 2)]
+    [InlineData("class C { void M() { int[] abc = []; } }", 1)]
+    [InlineData("class C { static int[][][][][] Deep => [[[[[]]]]]; }", 5)]
+    public void MutatedCollectionExpressions_StructuralCount(string inputText, int expectedMutants)
+    {
+        var syntaxTree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(inputText);
+        var compilation = Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create("TestAssembly")
+            .WithOptions(new Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(
+                Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: Microsoft.CodeAnalysis.NullableContextOptions.Enable))
+            .AddReferences(Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(typeof(object).Assembly.Location))
+            .AddSyntaxTrees(syntaxTree);
+        var semanticModel = compilation.GetSemanticModel(syntaxTree);
+
+        var injector = new Stryker.Core.InjectedHelpers.CodeInjection();
+        var orchestrator = new Stryker.Core.Mutants.CsharpMutantOrchestrator(
+            new Stryker.Core.Mutants.MutantPlacer(injector),
+            options: new Stryker.Configuration.Options.StrykerOptions
+            {
+                MutationLevel = MutationLevel.Complete,
+                OptimizationMode = Stryker.Abstractions.Options.OptimizationModes.CoverageBasedTest,
+                ExcludedMutations = System.Enum.GetValues<Stryker.Abstractions.Mutator>()
+                    .Except(new[] { Stryker.Abstractions.Mutator.CollectionExpression }),
+            });
+        _ = orchestrator.Mutate(syntaxTree, semanticModel);
+        orchestrator.Mutants.Count(m => m.Mutation.Type == Stryker.Abstractions.Mutator.CollectionExpression).Should().Be(expectedMutants);
+    }
+
+    [Fact(Skip = "ARCHITECTURAL DEFERRAL (reduced): full Compile() roundtrip validation (CsharpCompilingProcess + MetadataReference + emit) for the 13 long-form fixtures defers to dedicated compiler-pipeline harness sprint. Mutation-count assertions covered by MutatedCollectionExpressions_StructuralCount Sprint 129.")]
+    public void CollectionExpressionMutator_FullCompileRoundtrip_Deferral() { /* defer */ }
 }
