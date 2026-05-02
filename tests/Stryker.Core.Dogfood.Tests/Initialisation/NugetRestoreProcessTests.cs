@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using FluentAssertions;
@@ -10,13 +11,13 @@ using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Initialisation;
 
-/// <summary>Sprint 98 (v2.84.0) v2.x-shape rewrite of upstream NugetRestoreProcessTests
-/// (replaces Sprint 93 placeholder). PRODUCTION DRIFT: stryker-netx uses
-/// `MsBuildHelper.GetVersion()` which calls <c>dotnet msbuild-version /nologo</c>
-/// directly instead of upstream's where.exe + vswhere.exe + MSBuild.exe -version flow.
-/// 2 happy-path tests (HappyFlow + ShouldThrowOnNugetNotInstalled) are portable as v2.x-shape;
-/// 4 upstream tests covering vswhere.exe orchestration are not relevant in v2.x and skipped
-/// with documented reason.</summary>
+/// <summary>Sprint 98 (v2.84.0) v2.x-shape rewrite of upstream NugetRestoreProcessTests.
+/// Sprint 99 corrects the production-mock contract: <c>MsBuildHelper.GetVersion()</c> now
+/// invokes <c>dotnet msbuild -version /nologo</c> (with a space) and
+/// <c>NugetRestoreProcess.FindMsBuildShortVersion</c> extracts the last non-empty line of the
+/// output so the multi-line .NET-SDK-MSBuild banner does not leak into the
+/// <c>nuget.exe -MsBuildVersion</c> argument. Upstream tests covering the dropped
+/// vswhere.exe + MSBuild.exe orchestration remain skipped per ADR-010.</summary>
 public class NugetRestoreProcessTests : TestBase
 {
     private const string SolutionPath = @"..\MySolution.sln";
@@ -30,16 +31,10 @@ public class NugetRestoreProcessTests : TestBase
         var nugetDirectory = Path.GetDirectoryName(nugetPath)!;
 
         var processExecutorMock = new Mock<IProcessExecutor>(MockBehavior.Strict);
-        // v2.x: MsBuildHelper.GetVersion() runs `dotnet msbuild-version /nologo` from cwd ""
-        // NOTE: production GetMsBuildExeAndCommand() returns ("dotnet","msbuild") with no trailing space,
-// so the resulting GetVersion args are "msbuild-version /nologo" (no space between msbuild and -version).
-// Matching production exactly here.
-            processExecutorMock.Setup(x => x.Start("", "dotnet", "msbuild-version /nologo", null, It.IsAny<int>()))
+        processExecutorMock.Setup(x => x.Start("", "dotnet", "msbuild -version /nologo", null, It.IsAny<int>()))
             .Returns(new ProcessResult { ExitCode = 0, Output = msBuildVersion });
-        // where.exe nuget.exe → returns nuget path
         processExecutorMock.Setup(x => x.Start(_solutionDir, "where.exe", "nuget.exe", null, It.IsAny<int>()))
             .Returns(new ProcessResult { ExitCode = 0, Output = nugetPath });
-        // nuget.exe restore solution.sln -MsBuildVersion 16.0.0 → success
         processExecutorMock.Setup(x => x.Start(nugetDirectory, nugetPath,
                 $"restore \"{Path.GetFullPath(SolutionPath)}\" -MsBuildVersion \"{msBuildVersion}\"", null, It.IsAny<int>()))
             .Returns(new ProcessResult { ExitCode = 0, Output = "Packages restored" });
@@ -48,7 +43,34 @@ public class NugetRestoreProcessTests : TestBase
 
         target.RestorePackages(SolutionPath);
 
-        // exactly 3 IProcessExecutor.Start calls in v2.x happy-path
+        processExecutorMock.Verify(p => p.Start(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<IEnumerable<KeyValuePair<string, string>>>(), It.IsAny<int>()), Times.Exactly(3));
+    }
+
+    [Fact]
+    public void HappyFlow_WithMultiLineMsBuildVersionOutput_ExtractsNumericVersionForNugetRestore()
+    {
+        var nugetPath = @"C:\choco\bin\NuGet.exe";
+        var numericVersion = "18.0.11.21808";
+        // Real .NET SDK output from `dotnet msbuild -version /nologo`:
+        // line 1 = locale-dependent banner, line 2 = numeric version. Strict mock below
+        // asserts that nuget.exe receives only the numeric version — never the full blob.
+        var multiLineOutput = "MSBuild-Version 18.0.11+b16286c22 für .NET" + Environment.NewLine + numericVersion;
+        var nugetDirectory = Path.GetDirectoryName(nugetPath)!;
+
+        var processExecutorMock = new Mock<IProcessExecutor>(MockBehavior.Strict);
+        processExecutorMock.Setup(x => x.Start("", "dotnet", "msbuild -version /nologo", null, It.IsAny<int>()))
+            .Returns(new ProcessResult { ExitCode = 0, Output = multiLineOutput });
+        processExecutorMock.Setup(x => x.Start(_solutionDir, "where.exe", "nuget.exe", null, It.IsAny<int>()))
+            .Returns(new ProcessResult { ExitCode = 0, Output = nugetPath });
+        processExecutorMock.Setup(x => x.Start(nugetDirectory, nugetPath,
+                $"restore \"{Path.GetFullPath(SolutionPath)}\" -MsBuildVersion \"{numericVersion}\"", null, It.IsAny<int>()))
+            .Returns(new ProcessResult { ExitCode = 0, Output = "Packages restored" });
+
+        var target = new NugetRestoreProcess(processExecutorMock.Object, TestLoggerFactory.CreateLogger<NugetRestoreProcess>());
+
+        target.RestorePackages(SolutionPath);
+
         processExecutorMock.Verify(p => p.Start(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
             It.IsAny<IEnumerable<KeyValuePair<string, string>>>(), It.IsAny<int>()), Times.Exactly(3));
     }
@@ -59,24 +81,18 @@ public class NugetRestoreProcessTests : TestBase
         var msBuildVersion = "16.0.0";
 
         var processExecutorMock = new Mock<IProcessExecutor>(MockBehavior.Strict);
-        // dotnet msbuild-version succeeds — production needs MSBuild version BEFORE nuget lookup
-        // NOTE: production GetMsBuildExeAndCommand() returns ("dotnet","msbuild") with no trailing space,
-// so the resulting GetVersion args are "msbuild-version /nologo" (no space between msbuild and -version).
-// Matching production exactly here.
-            processExecutorMock.Setup(x => x.Start("", "dotnet", "msbuild-version /nologo", null, It.IsAny<int>()))
+        processExecutorMock.Setup(x => x.Start("", "dotnet", "msbuild -version /nologo", null, It.IsAny<int>()))
             .Returns(new ProcessResult { ExitCode = 0, Output = msBuildVersion });
-        // where.exe nuget.exe → not found
         processExecutorMock.Setup(x => x.Start(_solutionDir, "where.exe", "nuget.exe", null, It.IsAny<int>()))
             .Returns(new ProcessResult { ExitCode = 0, Output = "INFO: Could not find files for the given pattern(s)." });
-        // The fallback `where.exe /R <root> nuget.exe` is also not setup → would fail strict mock if reached.
-        // But on `msbuildPath = null` (default), Path.GetPathRoot(null) returns null → the production
-        // fallback is `where.exe /R  nuget.exe` (extra space) — let's setup that match too as catch-all:
+        // Default ctor → msbuildPath = null → Path.GetPathRoot(null) → null, so the production
+        // fallback emits `where.exe /R  nuget.exe` (extra space). Match any /R-prefixed lookup.
         processExecutorMock.Setup(x => x.Start(_solutionDir, "where.exe",
-                It.Is<string>(s => s.Contains("/R", System.StringComparison.Ordinal) && s.EndsWith("nuget.exe", System.StringComparison.Ordinal)), null, It.IsAny<int>()))
+                It.Is<string>(s => s.Contains("/R", StringComparison.Ordinal) && s.EndsWith("nuget.exe", StringComparison.Ordinal)), null, It.IsAny<int>()))
             .Returns(new ProcessResult { ExitCode = 0, Output = "INFO: Could not find files for the given pattern(s)." });
 
         var target = new NugetRestoreProcess(processExecutorMock.Object, TestLoggerFactory.CreateLogger<NugetRestoreProcess>());
-        System.Action act = () => target.RestorePackages(SolutionPath);
+        Action act = () => target.RestorePackages(SolutionPath);
         act.Should().Throw<InputException>().WithMessage("*Nuget.exe should be installed*");
     }
 }

@@ -48,7 +48,8 @@ public sealed partial class MsBuildHelper
     public string GetVersion()
     {
         var (exe, command) = GetMsBuildExeAndCommand();
-        var msBuildVersionOutput = _executor.Start("", exe, $"{command}-version /nologo");
+        var args = string.IsNullOrWhiteSpace(command) ? "-version /nologo" : $"{command.TrimEnd()} -version /nologo";
+        var msBuildVersionOutput = _executor.Start("", exe, args);
         return msBuildVersionOutput.ExitCode != ExitCodes.Success ? string.Empty : msBuildVersionOutput.Output.Trim();
     }
 

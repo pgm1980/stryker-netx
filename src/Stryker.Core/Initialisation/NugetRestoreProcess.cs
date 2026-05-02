@@ -111,7 +111,14 @@ public partial class NugetRestoreProcess : INugetRestoreProcess
         }
         else
         {
-            msBuildVersion = msBuildVersionOutput.Trim();
+            // `dotnet msbuild -version /nologo` emits two lines on .NET SDK installs:
+            // a locale-dependent banner ("MSBuild-Version ... für .NET" on de-DE, etc.)
+            // followed by the numeric version. nuget.exe's -MsBuildVersion only accepts
+            // the numeric form, so pick the last non-empty line.
+            msBuildVersion = msBuildVersionOutput
+                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(static line => line.Trim())
+                .LastOrDefault(static line => line.Length > 0) ?? string.Empty;
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 var msBuildPath = helper.GetMsBuildPath() ?? string.Empty;
