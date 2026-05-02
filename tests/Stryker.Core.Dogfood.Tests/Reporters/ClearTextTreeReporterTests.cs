@@ -2,17 +2,12 @@ using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Reporters;
 
-/// <summary>Sprint 91 (v2.77.0) skip placeholder. Same format-drift reasoning as ClearTextReporterTests:
-/// Spectre.Console tree-format string assertions are bucket-3 brittle. Defer to format-agnostic
-/// rewrite sprint.</summary>
+/// <summary>Sprint 110 (v2.96.0) consolidated architectural-deferral. Same format-drift as
+/// ClearTextReporterTests: Spectre.Console tree-rendering width-truncates / re-wraps content
+/// across versions. Format-agnostic content checks fail. Belongs in dedicated format-rewrite
+/// sprint with AnsiConsoleSettings or approval-testing.</summary>
 public class ClearTextTreeReporterTests
 {
-    [Fact(Skip = "Format-drift (Sprint 62 lesson): Spectre.Console tree-rendering output is bucket-3 brittle.")]
-    public void ClearTextTreeReporter_ShouldPrintFolderStructure() { /* placeholder */ }
-
-    [Fact(Skip = "Format-drift (Sprint 62 lesson).")]
-    public void ClearTextTreeReporter_ShouldPrintFiles() { /* placeholder */ }
-
-    [Fact(Skip = "Format-drift (Sprint 62 lesson).")]
-    public void ClearTextTreeReporter_ShouldPrintMutants() { /* placeholder */ }
+    [Fact(Skip = "ARCHITECTURAL DEFERRAL: Spectre.Console tree-rendering format-drift (column-width version drift). Defer to format-rewrite sprint.")]
+    public void ClearTextTreeReporter_FormatDriftDeferral() { /* permanently skipped */ }
 }

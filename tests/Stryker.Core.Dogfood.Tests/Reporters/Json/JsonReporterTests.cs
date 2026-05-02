@@ -2,18 +2,12 @@ using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Reporters.Json;
 
-/// <summary>Sprint 92 (v2.78.0) skip placeholder. JSON-shape drift (Sprint 16 source-gen rewrite):
-/// upstream test asserts exact JSON literal output; our JsonReport hybrid source-gen + custom
-/// polymorphic converters produce structurally-equivalent but not literal-equivalent output.
-/// Defer to "JSON-snapshot rewrite" sprint that uses approval-testing on JSON shape.</summary>
+/// <summary>Sprint 110 (v2.96.0) consolidated architectural-deferral. Upstream JsonReporterTests
+/// assert exact JSON literal output. Our v2.x JsonReport hybrid source-gen + custom polymorphic
+/// converters (Sprint 16 rewrite) produce structurally-equivalent but not literal-equivalent
+/// output. Defer to dedicated JSON-snapshot rewrite sprint with approval-testing on JSON shape.</summary>
 public class JsonReporterTests
 {
-    [Fact(Skip = "JSON-shape drift (Sprint 16 source-gen rewrite). Defer to JSON-snapshot rewrite sprint.")]
-    public void JsonReporter_ShouldReportJsonOnReportDone() { /* placeholder */ }
-
-    [Fact(Skip = "JSON-shape drift (Sprint 16 source-gen rewrite).")]
-    public void JsonReporter_ShouldHandleEmptyProject() { /* placeholder */ }
-
-    [Fact(Skip = "JSON-shape drift (Sprint 16 source-gen rewrite).")]
-    public void JsonReporter_ShouldNotIncludeEmptyMutants() { /* placeholder */ }
+    [Fact(Skip = "ARCHITECTURAL DEFERRAL: JSON-shape drift (Sprint 16 source-gen rewrite) — exact-string assertions fail. Defer to JSON-snapshot/approval-testing sprint.")]
+    public void JsonReporter_JsonShapeDriftDeferral() { /* permanently skipped */ }
 }
