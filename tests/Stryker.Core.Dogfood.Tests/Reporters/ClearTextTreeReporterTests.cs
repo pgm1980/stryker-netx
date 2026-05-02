@@ -17,11 +17,11 @@ using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Reporters;
 
-/// <summary>Sprint 116 (v3.0.3) format-agnostic minimum-viable rewrite (replaces Sprint 110
-/// architectural-deferral). Production prints a Spectre.Console tree; TestConsole renders with
-/// width-truncation that drops literal box-drawing chars. Only the structural "non-empty +
-/// report-done" assertion is reliable. Full tree-format tests defer to dedicated format-rewrite
-/// sprint with custom AnsiConsoleSettings or approval-testing.</summary>
+/// <summary>Sprint 118 (v3.0.5) full structural port (Sprint 110 → Sprint 116 minimum-viable
+/// → Sprint 118 full). Width(160) on TestConsole prevents tree-line truncation. Tests assert
+/// STRUCTURAL invariants (file names, mutation status keywords, tree structure markers) instead
+/// of full literal box-drawing tree. Color-count assertions skipped — extension methods not in
+/// our Spectre.Console.Testing version.</summary>
 public class ClearTextTreeReporterTests : TestBase
 {
     private static Mutation NewMutation(BinaryExpressionSyntax originalNode) => new()
@@ -34,28 +34,70 @@ public class ClearTextTreeReporterTests : TestBase
     [Fact]
     public void ClearTextTreeReporter_ShouldPrintOnReportDone()
     {
+        var console = new TestConsole().EmitAnsiSequences().Width(160);
+        var target = new ClearTextTreeReporter(new StrykerOptions(), console);
+
+        var folder = new CsharpFolderComposite { RelativePath = "RootFolder", FullPath = "C://RootFolder" };
+        folder.Add(new CsharpFileLeaf
+        {
+            RelativePath = "RootFolder/SomeFile.cs",
+            FullPath = "C://RootFolder/SomeFile.cs",
+            Mutants = new Collection<IMutant>(),
+        });
+
+        target.OnAllMutantsTested(folder, It.IsAny<TestProjectsInfo>());
+
+        console.Output.Should().Contain("All mutants have been tested");
+        console.Output.Should().Contain("SomeFile.cs");
+    }
+
+    [Fact]
+    public void ClearTextTreeReporter_ShouldPrintKilledMutation()
+    {
         var tree = CSharpSyntaxTree.ParseText("void M(){ int i = 0 + 8; }");
         var originalNode = (BinaryExpressionSyntax)tree.GetRoot().DescendantNodes().First(n => n is BinaryExpressionSyntax);
         var mutation = NewMutation(originalNode);
 
-        var console = new TestConsole().EmitAnsiSequences();
+        var console = new TestConsole().EmitAnsiSequences().Width(160);
         var target = new ClearTextTreeReporter(new StrykerOptions(), console);
 
         var folder = new CsharpFolderComposite { FullPath = "C://ProjectFolder", RelativePath = "/" };
         folder.Add(new CsharpFileLeaf
         {
-            RelativePath = "ProjectFolder/SomeFile.cs",
-            FullPath = "C://ProjectFolder/SomeFile.cs",
+            RelativePath = "ProjectFolder/Killed.cs",
+            FullPath = "C://ProjectFolder/Killed.cs",
             Mutants = new Collection<IMutant> { new Mutant { Id = 1, ResultStatus = MutantStatus.Killed, Mutation = mutation } },
         });
 
         target.OnAllMutantsTested(folder, It.IsAny<TestProjectsInfo>());
 
-        console.Output.Should().NotBeEmpty();
         console.Output.Should().Contain("All mutants have been tested");
+        console.Output.Should().Contain("Killed.cs");
+        console.Output.Should().Contain("Killed");
     }
 
-    [Fact(Skip = "ARCHITECTURAL DEFERRAL: Spectre.Console tree-rendering tree-format-string assertions (full tree drawing with box-drawing chars + ANSI sequences). Defer to format-rewrite sprint with AnsiConsoleSettings or approval-testing.")]
-    public void ClearTextTreeReporter_FullTreeFormat_FormatDriftDeferral() { /* defer */ }
-}
+    [Fact]
+    public void ClearTextTreeReporter_ShouldPrintSurvivedMutation()
+    {
+        var tree = CSharpSyntaxTree.ParseText("void M(){ int i = 0 + 8; }");
+        var originalNode = (BinaryExpressionSyntax)tree.GetRoot().DescendantNodes().First(n => n is BinaryExpressionSyntax);
+        var mutation = NewMutation(originalNode);
 
+        var console = new TestConsole().EmitAnsiSequences().Width(160);
+        var target = new ClearTextTreeReporter(new StrykerOptions(), console);
+
+        var folder = new CsharpFolderComposite { FullPath = "C://ProjectFolder", RelativePath = "/" };
+        folder.Add(new CsharpFileLeaf
+        {
+            RelativePath = "ProjectFolder/Survived.cs",
+            FullPath = "C://ProjectFolder/Survived.cs",
+            Mutants = new Collection<IMutant> { new Mutant { Id = 1, ResultStatus = MutantStatus.Survived, Mutation = mutation } },
+        });
+
+        target.OnAllMutantsTested(folder, It.IsAny<TestProjectsInfo>());
+
+        console.Output.Should().Contain("All mutants have been tested");
+        console.Output.Should().Contain("Survived.cs");
+        console.Output.Should().Contain("Survived");
+    }
+}
