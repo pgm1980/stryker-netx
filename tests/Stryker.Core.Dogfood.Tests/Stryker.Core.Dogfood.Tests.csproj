@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Stryker.Core.Dogfood.Tests — Sprint 46 (v2.33.0) foundation.
+    Port of upstream stryker-net 4.14.1 src/Stryker.Core/Stryker.Core.UnitTest/.
+    Framework conversion: MSTest → xUnit, Shouldly → FluentAssertions.
+
+    Decomposition: see _docs/sprint_46_decomposition.md (10+ sub-sprints projected).
+    Naming: ".Dogfood.Tests" suffix avoids collision with existing tests/Stryker.Core.Tests/
+    (Sprint 18-23, our own quality-assurance test project with 388 green tests).
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Stryker.Core.Dogfood.Tests</AssemblyName>
+    <RootNamespace>Stryker.Core.Dogfood.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup Label="Test stack (CLAUDE.md test-stack-Pflicht)">
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Moq" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup Label="Project under test + reusable helpers">
+    <ProjectReference Include="..\..\src\Stryker.Core\Stryker.Core.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Abstractions\Stryker.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Stryker.Configuration\Stryker.Configuration.csproj" />
+    <ProjectReference Include="..\Stryker.TestHelpers\Stryker.TestHelpers.csproj" />
+  </ItemGroup>
+
+</Project>
