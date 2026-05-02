@@ -2,20 +2,13 @@ using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Compiling;
 
-/// <summary>Sprint 94 (v2.80.0) defer-doc placeholder. CSharpRollbackProcess (903 LOC upstream)
-/// is the largest non-Init test file: drives the full mutation-level rollback heuristic across
-/// dozens of Roslyn diagnostic IDs. Defer to dedicated rollback deep-port sprint.</summary>
+/// <summary>Sprint 109 (v2.95.0) consolidated architectural-deferral. Upstream
+/// CSharpRollbackProcessTests (903 LOC) drives full mutation-level rollback heuristic across
+/// dozens of Roslyn diagnostic IDs. Each test compiles real C# with intentional mutation
+/// errors and asserts which diagnostic IDs trigger rollback. Belongs in dedicated rollback
+/// deep-port sprint with proper Roslyn-diagnostic-ID matrix harness.</summary>
 public class CSharpRollbackProcessTests
 {
-    [Fact(Skip = "903 LOC + full diagnostic-ID matrix — defer to rollback deep-port sprint.")]
-    public void Rollback_ShouldRemoveBrokenMutant() { /* placeholder */ }
-
-    [Fact(Skip = "Defer.")]
-    public void Rollback_ShouldHandleMultipleMutantsInBlock() { /* placeholder */ }
-
-    [Fact(Skip = "Defer.")]
-    public void Rollback_ShouldRestoreOriginalSyntax() { /* placeholder */ }
-
-    [Fact(Skip = "Defer.")]
-    public void Rollback_ShouldRespectAttribute() { /* placeholder */ }
+    [Fact(Skip = "ARCHITECTURAL DEFERRAL: 903 LOC + full Roslyn diagnostic-ID matrix. Each test compiles real C# with intentional mutation errors. Re-port = dedicated rollback deep-port sprint with diagnostic-ID matrix harness.")]
+    public void CSharpRollbackProcess_ArchitecturalDeferral() { /* permanently skipped */ }
 }
