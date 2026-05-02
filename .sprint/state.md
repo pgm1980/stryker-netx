@@ -1,35 +1,35 @@
 ---
-current_sprint: "98"
-sprint_goal: "NugetRestoreProcess v2.x-shape rewrite (2 skips → 2 real) → v2.84.0"
-branch: "feature/98-nugetrestoreprocess-v2-rewrite"
+current_sprint: "99"
+sprint_goal: "MSBuild -version space + multi-line nuget-restore version parse → v2.85.0"
+branch: "feature/99-nuget-restore-msbuild-version-multiline"
 started_at: "2026-05-02"
-housekeeping_done: false
-memory_updated: false
-github_issues_closed: false
+housekeeping_done: true
+memory_updated: true
+github_issues_closed: true
 sprint_backlog_written: true
-semgrep_passed: false
+semgrep_passed: true
 tests_passed: true
-documentation_updated: false
+documentation_updated: true
 ---
-# Sprint 98 — NugetRestoreProcess v2.x-shape rewrite (defer-skip aufarbeitung)
+# Sprint 99 — NugetRestoreProcess MSBuild -version space + multi-line parse
 
-## Outcome — 2 skips → 2 real
-- HappyFlow + ShouldThrowOnNugetNotInstalled (v2.x-shape rewrites, NOT direct upstream ports)
-- 4 upstream tests covering vswhere.exe + MSBuild.exe orchestration NOT relevant in v2.x (silently dropped — v2.x uses `dotnet msbuild` directly)
-- Net: +2 green, -2 skip
-- Dogfood-project: 927 + 82 skip = 1009
+## Spawned from Sprint 98 closing note
+Sprint 98 (`.sprint/state.md` previous content): "Spawned task: fix production bug + update test mock back to spaced."
 
-## CRITICAL discovery — production drift forces rewrite (not port)
-Upstream NugetRestoreProcess uses where.exe + vswhere.exe + MSBuild.exe -version flow.
-stryker-netx v2.x uses `dotnet msbuild` directly via MsBuildHelper.GetVersion() →
-upstream's full where.exe-orchestration test setup is irrelevant. Tests rewritten in
-v2.x shape with 3 mock setups instead of 6 (dotnet msbuild-version + where.exe nuget +
-nuget restore).
+## Outcome — 2 coupled production bugs + 1 new test + 2 mock-fixups
+1. **`MsBuildHelper.GetVersion()`** built `dotnet msbuild-version /nologo` (no space) → dotnet driver treats `msbuild-version` as a tool name → "command not found" → ExitCode != Success → `GetVersion` silently returned `string.Empty`. Production never got a version string; `RestorePackages` skipped the `-MsBuildVersion` flag entirely. **Silent malfunction.**
+2. **Once #1 is fixed**, .NET-SDK MSBuild emits a two-line response (locale-dependent banner + numeric version). Previous `FindMsBuildShortVersion` `.Trim()`-ed the whole blob and passed it to `nuget.exe -MsBuildVersion`, failing the first restore and recovering via the no-version fallback while emitting a misleading `LogFailedNugetRestore` error.
 
-## Production bug discovered + spawned task
-`MsBuildHelper.GetVersion()` line 51 builds `$"{command}-version /nologo"` without
-space → produces `"msbuild-version /nologo"` (broken). Tests match production exactly
-to remain green. Spawned task: fix production bug + update test mock back to spaced.
+Both fixed in single commit. Sprint 98 mocks updated to assert the corrected `"msbuild -version /nologo"` form. New test mocks the real two-line SDK output and asserts `nuget.exe` receives ONLY the numeric version.
+
+## Verification
+- Build: 0 warnings, 0 errors
+- Targeted tests: 3/3 green (HappyFlow, ShouldThrowOnNugetNotInstalled, HappyFlow_WithMultiLineMsBuildVersionOutput_ExtractsNumericVersionForNugetRestore)
+- Initialisation namespace sanity sweep: 15 green, 0 fail (16 pre-existing dogfood-skips)
+- Semgrep on all 3 changed files: 0 findings, 80 rules
+- SonarAnalyzer S2971 caught initial `.Where().LastOrDefault()` draft — refactored to `LastOrDefault(predicate)` per TreatWarningsAsErrors
 
 ## Files
-- `tests/Stryker.Core.Dogfood.Tests/Initialisation/NugetRestoreProcessTests.cs` (full v2.x rewrite)
+- `src/Stryker.Core/Helpers/MsBuildHelper.cs` (line 51: spacing fix + `TrimEnd()` for pre-existing trailing-space case in non-.exe configured MSBuild path)
+- `src/Stryker.Core/Initialisation/NugetRestoreProcess.cs` (`FindMsBuildShortVersion`: `Split(['\r','\n'], RemoveEmptyEntries) → Select(Trim) → LastOrDefault(predicate)`)
+- `tests/Stryker.Core.Dogfood.Tests/Initialisation/NugetRestoreProcessTests.cs` (full rewrite: docstring + 2 existing mock-fixups + new multi-line test)
