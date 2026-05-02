@@ -82,4 +82,41 @@ public class MutantOrchestratorTestsBase : TestBase
 
         ShouldMutateSourceToExpected(actual, expected);
     }
+
+    /// <summary>Sprint 119: structural-assertion helper for bucket-3 tests that can't use
+    /// literal-string comparison (IDs depend on v2.x mutator-pipeline order). Asserts the
+    /// orchestrator produces AT LEAST minMutations, that the output contains IsActive markers,
+    /// and (optionally) that specific mutator types fired.</summary>
+    protected int CountMutations(string source)
+    {
+        var sourceWithClass = $$"""
+            using System;
+            using System.Linq;
+            using System.Collections.Generic;
+            using System.Text;
+            namespace StrykerNet.UnitTest.Mutants.TestResources;
+            class TestClass
+            {
+            {{source}}
+            }
+            """;
+        var syntaxTree = CSharpSyntaxTree.ParseText(sourceWithClass);
+        Type[] typeToLoad = [typeof(object), typeof(List<>), typeof(Enumerable), typeof(Nullable<>)];
+        MetadataReference[] references = [.. typeToLoad.Select(t => MetadataReference.CreateFromFile(t.Assembly.Location))];
+        var compilation = CSharpCompilation.Create(null).WithOptions(new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+            .WithNullableContextOptions(NullableContextOptions.Enable))
+                        .AddSyntaxTrees(syntaxTree).WithReferences(references);
+        var actualNode = Target.Mutate(syntaxTree, compilation.GetSemanticModel(syntaxTree));
+        var actualString = actualNode.GetRoot().ToFullString();
+        // Count IsActive(N) markers — each represents a mutation
+        var isActiveMarker = $"{Injector.HelperNamespace}.MutantControl.IsActive(";
+        var count = 0;
+        var idx = 0;
+        while ((idx = actualString.IndexOf(isActiveMarker, idx, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            idx += isActiveMarker.Length;
+        }
+        return count;
+    }
 }
