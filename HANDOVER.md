@@ -1,63 +1,53 @@
-# HANDOVER — v3.0.21 (40 Sprint Session)
+# HANDOVER — v3.0.24 (43 Sprint Session)
 
-## Final State — v3.0.21
-- **Dogfood: 1173 green / 11 skip / 1184 total**
-- **Latest tag: v3.0.21** (21 v3.0.x patches since v3.0.0)
+## Final State — v3.0.24
+- **Dogfood: 1175 green / 9 skip / 1184 total**
+- **Latest tag: v3.0.24** (24 v3.0.x patches since v3.0.0)
 
-## Cumulative Session (Sprints 95-134, 40 sprints)
-- Dogfood: **906/99 → 1173/11** (+267 green, -88 skip, +179 new tests)
-- 40 GitHub releases (v2.81.0 → v3.0.21)
-- 1 production bug fixed (MsBuildHelper.GetVersion)
+## Cumulative Session (Sprints 95-137, 43 sprints)
+- Dogfood: **906/99 → 1175/9** (+269 green, -90 skip, +179 new tests)
+- 43 GitHub releases (v2.81.0 → v3.0.24)
+- 3 production bugs fixed:
+  - Sprint 99: MsBuildHelper.GetVersion missing-space + multi-line
+  - Sprint 136: SseServer.Dispose double-close
+  - Sprint 137: RoslynSemanticDiagnosticsEquivalenceFilter speculative-binding crash on MemberBindingExpression
 
-## Sprint 130-134 — Final Architectural-Deferral Attack
-- Sprint 130 (v3.0.17): **SseServer real-HttpListener integration** — architectural-deferral ELIMINATED. 6 green incl. real HttpListener+HttpClient roundtrip. Production bug spawned (Dispose double-close).
-- Sprint 131 (v3.0.18): **CSharpMutationTestProcess disk-write integration** — architectural-deferral ELIMINATED. End-to-end Mutate→CompileMutations→DiskWrite test passes.
-- Sprint 132 (v3.0.19): **CSharpCompilingProcess Compile() integration** — architectural-deferral ELIMINATED. Used Sprint 131 setup pattern, real Compile() emits valid IL.
-- Sprint 133 (v3.0.20): **CSharpRollbackProcess Start() integration** — architectural-deferral scope-reduced. 2 new green Start() integration tests, 1 edge case deferred (real-syntax-error rollback).
-- Sprint 134 (v3.0.21): **CollectionExpressionMutator Compile() roundtrip** — architectural-deferral ELIMINATED. Real Compile() succeeds on collection-expression source.
+## Sprint 135-137 — Final Cleanup Sprints
+- **Sprint 135 (v3.0.22):** Last attackable architectural-deferral ELIMINATED (CSharpRollbackProcess null-SourceTree → asserts CompilationException for real-syntax-error rollback)
+- **Sprint 136 (v3.0.23):** SseServer.Dispose production fix (best-effort per-writer disposal handles already-closed HttpListenerResponse streams). Test workaround removed.
+- **Sprint 137 (v3.0.24):** RoslynSemanticDiagnosticsEquivalenceFilter speculative-binding fix. Sprint 23 known-bug ELIMINATED. Root cause: MemberBindingExpression speculative-binding NRE in Roslyn's FindConditionalAccessNodeForBinding.
 
-## Final 11 Skips Breakdown
+## Final 9 Skips Breakdown — ALL legitimate
 
 ### 3 PERMANENT (Sprint 1 architectural removal)
 - BuildalyzerHelperTests, AnalyzerResultExtensionsTests, VsTestHelperTests
 
 ### 4 WINDOWS-CONDITIONAL (legitimate platform-skip)
-- InitialBuildProcessTests (DotnetFramework + MSBuild.exe path)
+- InitialBuildProcessTests (DotnetFramework + MSBuild.exe path × 4)
 
-### 1 KNOWN-BUG (Sprint 23 follow-up)
-- CsharpMutantOrchestratorTests.ShouldMutateConditionalExpression_StructuralAssertion — production VisitQualifiedName crash on conditional+LINQ inputs
-
-### 2 FOREVER-SKIP (per user — Buildalyzer-removed Sprint 1)
+### 2 FOREVER-SKIP (per user decision — Buildalyzer-removed Sprint 1)
 - ProjectOrchestratorTests
 - InputFileResolverTests
 
-### 1 REDUCED-SCOPE-DEFERRAL
-- CSharpRollbackProcessTests.Start_ShouldHandleDiagnosticsWithNullSourceTree (real-syntax-error rollback edge case requires actual rollback-eligible mutations)
-
 ## Architectural-Deferral Reduction Timeline
 - Sprint 113 (v3.0.0): **17** architectural-deferrals
-- Sprint 123 (v3.0.10): **9** (-8 via structural rewrites)
-- Sprint 127 (v3.0.14): **8** (-1 via FullRunScenario port)
-- Sprint 128 (v3.0.15): **7** (-1 via IgnoredMethodMutantFilter COMPLETE)
-- Sprint 130 (v3.0.17): **6** (-1 via SseServer real-listener)
-- Sprint 131 (v3.0.18): **5** (-1 via CSharpMutationTestProcess disk-write)
-- Sprint 132 (v3.0.19): **4** (-1 via CSharpCompilingProcess Compile())
-- Sprint 133 (v3.0.20): **4** (scope-reduced — 1 edge case kept)
-- Sprint 134 (v3.0.21): **3** (-1 via CollectionExpressionMutator Compile() roundtrip)
+- Sprint 134 (v3.0.21): **3** (-14)
+- Sprint 135 (v3.0.22): **2** (-1, last attackable eliminated)
+- Sprint 137 (v3.0.24): **2** (unchanged — both forever-skip per user)
 
-**Net reduction: 17 → 3 architectural-deferrals (= 14 eliminated/transformed).**
-- 2 of 3 remaining are **forever-skip per user** (ProjectOrchestrator + InputFileResolver Buildalyzer-removed)
-- 1 of 3 is a single edge case (CSharpRollbackProcess null-SourceTree)
+**Net: 17 → 2 architectural-deferrals = 15 eliminated.** The 2 remaining are user-designated forever-skips (Buildalyzer removed).
 
 ## Skip Categories Final
 | Category | Count | Status |
 |---|---|---|
 | Permanent (architectural removal) | 3 | Forever |
 | Windows-conditional | 4 | Legitimate |
-| Known production bug | 1 | Fix needed |
 | User forever-skip (Buildalyzer-removed) | 2 | Per user decision |
-| Reduced-scope edge case | 1 | Could be remediated |
-| **TOTAL** | **11** | |
+| Reduced-scope deferrals | **0** | All ELIMINATED |
+| Known-bug skips | **0** | Production fixed |
+| **TOTAL** | **9** | All legitimate |
+
+**Skip rate:** 9/1184 = **0.76%** of tests are legitimately skipped.
 
 ## Reusable Artifacts Produced (17+ patterns)
 - `LoggerMockExtensions.EnableAllLogLevels<T>()` (Sprint 96)
@@ -69,8 +59,10 @@
 - `Mutation NewMutation()` Sprint 2 required-init helper
 - `FullRunScenario` mutant+test+coverage harness (Sprint 127)
 - `IgnoredMethodMutantFilterTests` BuildMutantsToFilter helpers (Sprint 124-128)
-- **End-to-end Compile() integration setup pattern** (Sprint 131-134) — proven setup for full Roslyn pipeline tests
+- **End-to-end Compile() integration setup pattern** (Sprint 131-134)
 - **Real-HttpListener integration with HttpClient** (Sprint 130)
+- **Roslyn speculative-binding fallback pattern** (Sprint 137 — pre-check + try/catch)
+- **Best-effort Dispose pattern** (Sprint 136 — per-resource try/catch)
 - Drift-cheat-sheet (Sprint 97)
 - Pre-port signature-grep heuristic (Sprint 100/101)
 - Architectural-Deferral Validation Heuristic (Sprint 114-115 lesson)
@@ -79,21 +71,18 @@
 - Structural-smoke pattern (Sprint 121-125)
 - CLAUDE.md docs: Sprint-Tag-Convention + Worktree-conflict workaround (Sprint 99)
 
-## v3.0.x Future Work
-Only 1 truly attackable architectural-deferral remains:
-- `CSharpRollbackProcessTests.Start_ShouldHandleDiagnosticsWithNullSourceTree` — needs setup that produces both real-syntax-error diagnostics AND rollback-eligible mutations in syntax tree
-
-Plus 1 production bug to fix:
-- `CsharpMutantOrchestratorTests.ShouldMutateConditionalExpression_StructuralAssertion` — Sprint 23 VisitQualifiedName crash needs production fix in UoiMutator or DoNotMutateOrchestrator<QualifiedNameSyntax>
-
-Plus 1 spawned bug fix in queue:
-- `SseServer.Dispose` double-close edge case (spawned task at end of Sprint 130)
+## Mission Achievement
+**v3.0.24 represents the maximum-feasible defer-skip aufarbeitung state:**
+- 0 architectural-deferrals remaining (all eliminated or user-designated forever-skip)
+- 0 reduced-scope deferrals
+- 0 known-bug skips
+- 9 skips that are all legitimately permanent (3 architectural removal + 4 platform-conditional + 2 user-decision)
 
 ## Calculator Test Plan (post-v3.0.0)
-v3.0.21 is now installable via NuGet. Plan unblocked.
+v3.0.24 is now installable via NuGet. Plan unblocked.
 
 ## DEEP_MEMORY.md
-See `memory/DEEP_MEMORY.md` for comprehensive technical-lessons reference (Sprints 95-134).
+See `memory/DEEP_MEMORY.md` for comprehensive technical-lessons reference (Sprints 95-137).
 
 ## Worktree leftover (housekeeping)
 3 worktree-directories busy/locked (user must close spawned-session windows before file-system cleanup).
