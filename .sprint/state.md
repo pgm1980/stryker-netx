@@ -1,7 +1,7 @@
 ---
-current_sprint: "66"
-sprint_goal: "Misc cleanup batch (StrykerRunResult + ExclusionPattern + ExcludeMutationMutantFilter, 12 green) → v2.52.0"
-branch: "feature/66-misc-cleanup-batch"
+current_sprint: "67"
+sprint_goal: "Options batch D (3 verified-unported Inputs tests, 16 green) → v2.53.0"
+branch: "feature/67-options-batch-d"
 started_at: "2026-05-02"
 housekeeping_done: false
 memory_updated: false
@@ -11,14 +11,16 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: false
 ---
-# Sprint 66 — Misc cleanup batch (12 grün)
+# Sprint 67 — Options batch D (16 grün, verified-unported)
 
 ## Outcome
-- StrykerRunResultTests (2 theories ×3 = 6 facts) ported
-- ExclusionPatternTests (3 facts) ported
-- ExcludeMutationMutantFilterTests (1 fact + 1 theory ×2 = 3 facts) ported
-- Total: 12 green
-- Dogfood-project: 478 + 14 skip = 492
-- Solution-wide: 1294 + 32 skip ohne E2E
-- Production rename: ExcludeMutationMutantFilter → IgnoreMutationMutantFilter (already noted in earlier sprints)
-- Mutation required-members placeholders (OriginalNode, ReplacementNode, DisplayName) needed (Sprint 2)
+- ProjectVersionInputTests (6 facts) ported
+- TargetFrameworkInputTests (3 facts + 1 theory ×2 = 5 facts) ported
+- SinceTargetInputTests (5 facts) ported
+- Total: 16 green, 0 skip
+- Dogfood-project: 482 + 14 skip = 496
+- 1 build-fix-cycle (IDE0301 collection-expression: `Enumerable.Empty<Reporter>()` → `[]`)
+
+## Lessons (NEW)
+- **Sprint 66 lesson applied**: pre-write Glob check on each target test file caught 0 collisions. 16/16 actual new tests, no overwriting.
+- **IDE0301 prefers `[]` over `Enumerable.Empty<T>()`** in test code that uses target-typing
