@@ -160,22 +160,13 @@ public class CsharpMutantOrchestratorTests : MutantOrchestratorTestsBase
     //   - Rewrite as STRUCTURAL assertions (count mutations + verify mutator-class names) instead of literal-string match.
     //   - Or recompute v2.x-specific expected strings against current orchestrator output.
 
-    private const string BucketThreeSkipReason =
-        "Bucket-3 (multi-mutation hardcoded IDs) deferred — IDs depend on mutator-pipeline ordering and "
-        + "v2.x has 52 mutators vs upstream 40. Future remediation: rewrite as structural assertions.";
-
-    [Fact(Skip = "Bucket-3 (multi-mutation hardcoded IDs) deferred — IDs depend on mutator-pipeline ordering and v2.x has 52 mutators vs upstream 40.")]
-    public void ShouldMutateDefaultImplementationInterfaces() { _ = BucketThreeSkipReason; }
-
-    [Fact(Skip = "Bucket-3 (multi-mutation hardcoded IDs) deferred — IDs depend on mutator-pipeline ordering and v2.x has 52 mutators vs upstream 40.")]
-    public void ShouldMutatePatterns() { _ = BucketThreeSkipReason; }
-
-    [Fact(Skip = "Bucket-3 (multi-mutation hardcoded IDs) deferred — IDs depend on mutator-pipeline ordering and v2.x has 52 mutators vs upstream 40.")]
-    public void ShouldMutateBlockStatements() { _ = BucketThreeSkipReason; }
-
-    [Fact(Skip = "Bucket-3 (multi-mutation hardcoded IDs) deferred — IDs depend on mutator-pipeline ordering and v2.x has 52 mutators vs upstream 40.")]
-    public void ShouldNotMutateMethodsWithStringNameMethodsOnCustomClass() { _ = BucketThreeSkipReason; }
-
-    [Fact(Skip = "Bucket-3 (multi-mutation hardcoded IDs) deferred — IDs depend on mutator-pipeline ordering and v2.x has 52 mutators vs upstream 40.")]
-    public void ShouldMutateConditionalExpression() { _ = BucketThreeSkipReason; }
+    /// <summary>Sprint 111 (v2.97.0): consolidated 5 individual bucket-3 [Fact(Skip)] tests
+    /// (ShouldMutateDefaultImplementationInterfaces, ShouldMutatePatterns, ShouldMutateBlockStatements,
+    /// ShouldNotMutateMethodsWithStringNameMethodsOnCustomClass, ShouldMutateConditionalExpression)
+    /// into 1 architectural-deferral. Each upstream test asserted exact mutated-source-strings with
+    /// hardcoded IsActive(N) IDs; v2.x has 52 mutators vs upstream 40 → IDs differ → strings drift.
+    /// Future remediation: rewrite as STRUCTURAL assertions (count + mutator-class names) instead of
+    /// literal-string match. Belongs in dedicated bucket-3 structural-rewrite sprint.</summary>
+    [Fact(Skip = "ARCHITECTURAL DEFERRAL: bucket-3 hardcoded mutation IDs (5 upstream tests consolidated). v2.x mutator pipeline (52 mutators) differs from upstream (40) — IsActive(N) IDs drift. Re-port = structural-assertion rewrite. Bucket-3 structural-rewrite sprint required.")]
+    public void CsharpMutantOrchestrator_BucketThreeArchitecturalDeferral() { /* permanently skipped */ }
 }
