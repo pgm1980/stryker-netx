@@ -91,6 +91,8 @@ public static class TestHelper
         mock.Setup(x => x.ReferenceAliases).Returns(aliases ?? new Dictionary<string, IReadOnlyList<string>>(System.StringComparer.Ordinal));
         mock.Setup(x => x.EmbeddedResourcePaths).Returns([]);
         mock.Setup(x => x.AnalyzerAssemblyPaths).Returns([]);
+        // Sprint 112: GetItemPaths default empty (was returning null → production crashes on .Any() in HasPackageReference et al.)
+        mock.Setup(x => x.GetItemPaths(It.IsAny<string>())).Returns([]);
     }
 
     private static void SetupFlags(

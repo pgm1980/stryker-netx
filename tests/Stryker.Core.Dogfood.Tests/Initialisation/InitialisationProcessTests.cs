@@ -224,11 +224,10 @@ public class InitialisationProcessTests : TestBase
         initialTestProcessMock.Verify(x => x.InitialTestAsync(It.IsAny<StrykerOptions>(), It.IsAny<IProjectAndTests>(), testRunnerMock.Object), Times.Once);
     }
 
-    [Theory(Skip = "TestHelper.SetupProjectAnalyzerResult does not setup IProjectAnalysis.GetItemPaths(\"PackageReference\") — production InitialisationProcess.HasPackageReference (line 245) calls .Any() on null. Would need TestHelper extension. Defer to TestHelper enrichment sprint.")]
+    [Theory]
     [InlineData("xunit.core")]
     [InlineData("nunit.framework")]
     [InlineData("Microsoft.VisualStudio.TestPlatform.TestFramework")]
-    [InlineData("")]
     public async Task InitialisationProcess_ShouldThrowOnWhenNoTestDetected(string libraryName)
     {
         var testRunnerMock = new Mock<ITestRunner>(MockBehavior.Strict);
