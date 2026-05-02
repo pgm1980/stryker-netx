@@ -1,20 +1,38 @@
 ---
-current_sprint: "48"
-sprint_goal: "Core.Mutators batch B1 (Abstract + String) → v2.35.0"
-branch: "feature/48-core-mutators-batch-b1"
+current_sprint: "61"
+sprint_goal: "IProjectAnalysis Mock Builder (unblock Initialisation/Buildalyzer ports) → v2.47.0"
+branch: "feature/61-iprojectanalysis-mock-builder"
 started_at: "2026-05-02"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
 sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
-documentation_updated: true
+documentation_updated: false
 ---
-# Sprint 48 — 14 new grün, scope reduced to 2 files
+# Sprint 61 — IProjectAnalysis Mock Builder
 
 ## Outcome
-- AbstractMutatorTests (5) + StringMutatorTests (9) = 14 grün
-- Dogfood-project total: 129 grün + 2 skip
-- Solution-wide: 945 grün ohne E2E
-- Scope-reduced from 5 files to 2 (Sprint 25 lesson: honest reduction over ambitious-fail)
+- New `tests/Stryker.TestHelpers/ProjectAnalysisMockBuilder.cs` — 18 fluent
+  methods, 17/17 IProjectAnalysis members covered + composables
+  (WithProperty / WithItemPaths / WithReferenceAlias)
+- 11 builder unit tests + 14 IProjectAnalysisExtensions integration tests
+  (validation port: real production extension methods consume the builder)
+- Dogfood-project total: 411 grün + 9 skip = 420
+- Solution-wide: 1227 grün + 27 skip ohne E2E
+- Existing `TestHelper.SetupProjectAnalyzerResult` (Sprint 25-26 helper)
+  unchanged — back-compat preserved
+
+## Lessons (NEW)
+- **Maxential branches A vs B for design decisions**: param-bag-extend
+  (Branch A) vs fluent-builder (Branch B) — Branch B won on composability
+  of WithProperty/WithItemPaths and avoids 12+ optional-parameter signatures
+- **NuGet.Frameworks runtime override pattern for dogfood tests**: 
+  Directory.Build.props pins `<PackageReference Include="NuGet.Frameworks"
+  PrivateAssets="all" ExcludeAssets="runtime" />` globally for MSBuildLocator
+  transitive guard; tests calling `IProjectAnalysisExtensions.TargetsFullFramework`
+  / `GetNuGetFramework` need the assembly at runtime → re-declare in test
+  csproj with `<PackageReference Update="NuGet.Frameworks" PrivateAssets="all"
+  ExcludeAssets="" />` (Update + empty ExcludeAssets re-enables runtime flow
+  without changing PrivateAssets semantics for downstream).
