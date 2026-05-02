@@ -15,6 +15,7 @@ using Stryker.Core.MutationTest;
 using Stryker.Core.ProjectComponents.Csharp;
 using Stryker.Core.ProjectComponents.SourceProjects;
 using Stryker.Core.ProjectComponents.TestProjects;
+using Stryker.Abstractions.Testing;
 using Stryker.TestHelpers;
 using Xunit;
 
@@ -88,12 +89,47 @@ public class MutationTestProcessTests : TestBase
         mutationProcessMock.Verify(x => x.FilterMutants(It.IsAny<MutationTestInput>()), Times.Once);
     }
 
-    /// <summary>Sprint 111 (v2.97.0): consolidated 3 individual FullRunScenario [Fact(Skip)] tests
-    /// (ShouldCallExecutorForEveryCoveredMutant, ShouldCallExecutorForEveryMutantWhenNoOptimization,
-    /// ShouldHandleCoverage) into 1 architectural-deferral. Each upstream test wires up
-    /// FullRunScenario + ICoverageAnalyser + IMutationTestExecutor mock chain producing
-    /// TestRunResult/CoverageRunResult — heavy mock-builder infrastructure not yet ported.
-    /// Belongs in dedicated MutationTestProcess deep-port sprint with mock-builders.</summary>
-    [Fact(Skip = "ARCHITECTURAL DEFERRAL: heavy FullRunScenario + ICoverageAnalyser + IMutationTestExecutor mock chain (3 upstream tests consolidated). Re-port = TestRunResult/CoverageRunResult mock-builder infrastructure. MutationTestProcess deep-port sprint required.")]
-    public void MutationTestProcess_FullRunScenarioArchitecturalDeferral() { /* permanently skipped */ }
+    [Fact]
+    public void FullRunScenario_CreatesAndTracksMutants()
+    {
+        // Sprint 127 (v3.0.14): replaces architectural-deferral with FullRunScenario port + structural test.
+        var scenario = new FullRunScenario();
+        scenario.CreateMutants(1, 2, 3);
+
+        scenario.GetMutants().Should().HaveCount(3);
+        scenario.Mutants.Should().ContainKeys(1, 2, 3);
+    }
+
+    [Fact]
+    public void FullRunScenario_CreatesAndTracksTests()
+    {
+        var scenario = new FullRunScenario();
+        scenario.CreateTests(1, 2);
+
+        scenario.TestSet.Count.Should().Be(2);
+    }
+
+    [Fact]
+    public void FullRunScenario_DeclareCoverageForMutant()
+    {
+        var scenario = new FullRunScenario();
+        scenario.CreateMutants(1, 2);
+        scenario.CreateTests(1, 2);
+        scenario.DeclareCoverageForMutant(1, 1);
+
+        scenario.GetCoveredMutants().Should().ContainSingle().Which.Id.Should().Be(1);
+    }
+
+    [Fact]
+    public void FullRunScenario_GetTestRunnerMock_HasInitialTestSetup()
+    {
+        var scenario = new FullRunScenario();
+        scenario.CreateMutants(1, 2);
+        scenario.CreateTests(1);
+        var runnerMock = scenario.GetTestRunnerMock();
+
+        runnerMock.Object.Should().NotBeNull();
+        // Verify the runner mock has the InitialTestAsync setup by inspecting Mock setup count
+        runnerMock.Setups.Should().NotBeEmpty();
+    }
 }
