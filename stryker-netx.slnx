@@ -25,6 +25,7 @@
   <Project Path="tests/Stryker.CLI.Tests/Stryker.CLI.Tests.csproj" />
   <Project Path="tests/Stryker.Core.Tests/Stryker.Core.Tests.csproj" />
   <Project Path="tests/Stryker.E2E.Tests/Stryker.E2E.Tests.csproj" />
+  <Project Path="tests/Stryker.RegexMutators.Tests/Stryker.RegexMutators.Tests.csproj" />
   <Project Path="tests/Stryker.Solutions.Tests/Stryker.Solutions.Tests.csproj" />
   <Project Path="tests/Stryker.TestHelpers/Stryker.TestHelpers.csproj" />
   <Project Path="tests/Stryker.TestRunner.MicrosoftTestPlatform.Tests/Stryker.TestRunner.MicrosoftTestPlatform.Tests.csproj" />
