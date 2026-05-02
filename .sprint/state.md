@@ -1,7 +1,7 @@
 ---
-current_sprint: "47"
-sprint_goal: "Core.Mutators batch A (14 smallest, ~1013 LOC) → v2.34.0"
-branch: "feature/47-core-mutators-batch-a"
+current_sprint: "48"
+sprint_goal: "Core.Mutators batch B1 (Abstract + String) → v2.35.0"
+branch: "feature/48-core-mutators-batch-b1"
 started_at: "2026-05-02"
 housekeeping_done: true
 memory_updated: true
@@ -11,11 +11,10 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Sprint 47 — 83 new grün + 2 skip; Mutators batch A done
+# Sprint 48 — 14 new grün, scope reduced to 2 files
 
 ## Outcome
-- 14 smallest mutator test files ported
-- Dogfood-project total: 115 grün + 2 skip = 117
-- Solution-wide: 931 grün ohne E2E
-- 1 build-fix-cycle
-- Production drift: IMutator.Mutate now requires IStrykerOptions (added 3rd param)
+- AbstractMutatorTests (5) + StringMutatorTests (9) = 14 grün
+- Dogfood-project total: 129 grün + 2 skip
+- Solution-wide: 945 grün ohne E2E
+- Scope-reduced from 5 files to 2 (Sprint 25 lesson: honest reduction over ambitious-fail)
