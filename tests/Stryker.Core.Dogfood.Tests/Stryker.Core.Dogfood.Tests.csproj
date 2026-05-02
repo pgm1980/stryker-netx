@@ -49,6 +49,15 @@
     <ProjectReference Include="..\..\src\Stryker.Abstractions\Stryker.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Stryker.Configuration\Stryker.Configuration.csproj" />
     <ProjectReference Include="..\Stryker.TestHelpers\Stryker.TestHelpers.csproj" />
+    <!-- Sprint 79 (v2.65.0): MutationTestExecutorTests references VsTestDescription. -->
+    <ProjectReference Include="..\..\src\Stryker.TestRunner.VsTest\Stryker.TestRunner.VsTest.csproj" />
+  </ItemGroup>
+
+  <!-- Sprint 79 (v2.65.0): TestResources files are read at runtime by File.ReadAllText.
+       Pattern from Sprint 28 (VsTestContextInformationTests). -->
+  <ItemGroup Label="Test resources copied to output">
+    <Compile Remove="TestResources\**\*.cs" />
+    <None Include="TestResources\**\*.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
