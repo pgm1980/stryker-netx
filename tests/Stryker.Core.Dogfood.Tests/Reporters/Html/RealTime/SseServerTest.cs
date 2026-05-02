@@ -28,19 +28,9 @@ public class SseServerTest : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            _sut.Dispose();
-        }
-        catch (ObjectDisposedException)
-        {
-            // Production SseServer.Dispose tries to dispose StreamWriters that may have already
-            // been closed by the HttpClient disconnecting — pre-existing edge case, not under test.
-        }
-        catch (System.Net.HttpListenerException)
-        {
-            // Same — listener may have already closed underlying socket
-        }
+        // Sprint 136: production SseServer.Dispose now handles per-writer disposal safely
+        // (try/catch around already-closed HttpListenerResponse streams). Workaround removed.
+        _sut.Dispose();
         GC.SuppressFinalize(this);
     }
 
