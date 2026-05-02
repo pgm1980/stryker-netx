@@ -59,21 +59,70 @@ public class CSharpMutationTestProcessTests : TestBase
         mutants[0].Mutation.DisplayName.Should().Be("test");
     }
 
-    [Fact(Skip = "ARCHITECTURAL DEFERRAL: end-to-end Mutate→CompileMutations→DiskWrite test deferred — production v2.x runs full compiler pipeline (CsharpCompilingProcess + IProjectAnalysisExtensions.GetResources) not orchestrator-injectable. Belongs in dedicated compiler-pipeline mock-harness sprint.")]
-#pragma warning disable S1144, MA0051
+    [Fact]
     public void MutateShouldWriteToDisk_IfCompilationIsSuccessful()
     {
-        // Sprint 122: deferred body retained as documentation of the upstream test shape that needs
-        // dedicated compiler-pipeline mock-harness for re-enablement. Not actually executed.
-        var (input, fileSystem) = BuildMutationTestInput();
-        var options = new StrykerOptions();
-        var mockMutants = BuildMockMutants();
-        _ = BuildOrchestratorMock(options, mockMutants);
-        _ = new CsharpMutationProcess(fileSystem, TestLoggerFactory.CreateLogger<CsharpMutationProcess>());
-        _ = input;
-    }
-#pragma warning restore S1144, MA0051
+        // Sprint 131 (v3.0.18): replaces architectural-deferral with end-to-end integration test.
+        // Production v2.x doesn't allow orchestrator injection → use REAL orchestrator + REAL
+        // CsharpCompilingProcess on simple C# source that compiles cleanly.
+        var simpleSource = "public class Sample { public int Add(int a, int b) => a + b; }";
+        var folder = new CsharpFolderComposite();
+        folder.Add(new CsharpFileLeaf
+        {
+            SourceCode = simpleSource,
+            SyntaxTree = CSharpSyntaxTree.ParseText(simpleSource),
+            FullPath = Path.Combine(FilesystemRoot, "Sample.cs"),
+            RelativePath = "Sample.cs",
+        });
 
+        var fileSystem = new MockFileSystem();
+        // Pre-create test assembly directory (production CompileMutations writes the injected DLL there)
+        var testAssemblyDir = Path.Combine(FilesystemRoot, "TestProject", "bin", "Debug", "net10.0");
+        fileSystem.AddDirectory(testAssemblyDir);
+
+        var input = new MutationTestInput
+        {
+            SourceProjectInfo = new SourceProjectInfo
+            {
+                Analysis = TestHelper.SetupProjectAnalyzerResult(
+                    projectFilePath: Path.Combine(FilesystemRoot, "ProjectUnderTest", "ProjectUnderTest.csproj"),
+                    properties: new Dictionary<string, string>(System.StringComparer.Ordinal)
+                    {
+                        ["TargetDir"] = Path.Combine(FilesystemRoot, "ProjectUnderTest", "bin", "Debug", "net10.0"),
+                        ["TargetFileName"] = "ProjectUnderTest.dll",
+                        ["AssemblyName"] = "ProjectUnderTest",
+                        ["Language"] = "C#",
+                    },
+                    references: [typeof(object).Assembly.Location, typeof(System.Linq.Enumerable).Assembly.Location]).Object,
+                ProjectContents = folder,
+                TestProjectsInfo = new TestProjectsInfo(fileSystem)
+                {
+                    TestProjects = new List<TestProject>
+                    {
+                        new(fileSystem, TestHelper.SetupProjectAnalyzerResult(
+                            properties: new Dictionary<string, string>(System.StringComparer.Ordinal)
+                            {
+                                ["TargetDir"] = testAssemblyDir,
+                                ["TargetFileName"] = "TestProject.dll",
+                                ["Language"] = "C#",
+                            },
+                            references: [typeof(object).Assembly.Location]).Object),
+                    },
+                },
+            },
+        };
+
+        var target = new CsharpMutationProcess(fileSystem, TestLoggerFactory.CreateLogger<CsharpMutationProcess>());
+
+        // Act — REAL Mutate invocation runs orchestrator + compile + disk-write
+        target.Mutate(input, new StrykerOptions());
+
+        // Assert — production writes the injected mutant assembly to test-project bin dir
+        var expectedPath = Path.Combine(testAssemblyDir, "ProjectUnderTest.dll");
+        fileSystem.FileExists(expectedPath).Should().BeTrue($"production CompileMutations should have written {expectedPath}");
+    }
+
+#pragma warning disable S1144, IDE0051 // Sprint 122 unused-private-method retained for documentation; superseded by Sprint 131 inline integration test
     private (MutationTestInput input, MockFileSystem fileSystem) BuildMutationTestInput()
     {
         var folder = new CsharpFolderComposite();
@@ -145,4 +194,5 @@ public class CSharpMutationTestProcessTests : TestBase
         orchestratorMock.Setup(x => x.GetLatestMutantBatch()).Returns(mockMutants);
         return orchestratorMock;
     }
+#pragma warning restore S1144, IDE0051
 }
