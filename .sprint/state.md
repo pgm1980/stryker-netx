@@ -1,35 +1,37 @@
 ---
-current_sprint: "99"
-sprint_goal: "MSBuild -version space + multi-line nuget-restore version parse → v2.85.0"
-branch: "feature/99-nuget-restore-msbuild-version-multiline"
+current_sprint: "100"
+sprint_goal: "DashboardClientsTest full upstream port (3 placeholder skips → 14 real green) → v2.86.0"
+branch: "feature/100-dashboardclients-full-port"
 started_at: "2026-05-02"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
 sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
-documentation_updated: true
+documentation_updated: false
 ---
-# Sprint 99 — NugetRestoreProcess MSBuild -version space + multi-line parse
+# Sprint 100 — DashboardClientsTest full upstream port (defer-skip aufarbeitung)
 
-## Spawned from Sprint 98 closing note
-Sprint 98 (`.sprint/state.md` previous content): "Spawned task: fix production bug + update test mock back to spaced."
+## Outcome — 3 skips → 14 real green
+Sprint 93 placeholder had 3 [Fact(Skip)] stubs. Full upstream port (438 LOC) with all 12
+upstream [TestMethod]s + 2 implicit (Empty Module + RealTime variants) → 14 [Fact]s.
+- Net: +15 green, -3 skip, +12 new tests
+- Dogfood-project: 942 + 79 skip = 1021
 
-## Outcome — 2 coupled production bugs + 1 new test + 2 mock-fixups
-1. **`MsBuildHelper.GetVersion()`** built `dotnet msbuild-version /nologo` (no space) → dotnet driver treats `msbuild-version` as a tool name → "command not found" → ExitCode != Success → `GetVersion` silently returned `string.Empty`. Production never got a version string; `RestorePackages` skipped the `-MsBuildVersion` flag entirely. **Silent malfunction.**
-2. **Once #1 is fixed**, .NET-SDK MSBuild emits a two-line response (locale-dependent banner + numeric version). Previous `FindMsBuildShortVersion` `.Trim()`-ed the whole blob and passed it to `nuget.exe -MsBuildVersion`, failing the first restore and recovering via the no-version fallback while emitting a misleading `LogFailedNugetRestore` error.
+## Production matches upstream signatures
+DashboardClient v2.x uses HttpClient + IJsonReport / IJsonMutant abstractions identical
+to upstream. No production drift forced rewrite — direct port via:
+- MSTest → xUnit (constructor + IDisposable for HttpClient cleanup)
+- Shouldly → FluentAssertions
+- HttpMessageHandler mock with `Moq.Protected()` + `ItExpr` preserved verbatim
+- EnableAllLogLevels for [LoggerMessage] source-gen logger (Sprint 96 pattern)
 
-Both fixed in single commit. Sprint 98 mocks updated to assert the corrected `"msbuild -version /nologo"` form. New test mocks the real two-line SDK output and asserts `nuget.exe` receives ONLY the numeric version.
-
-## Verification
-- Build: 0 warnings, 0 errors
-- Targeted tests: 3/3 green (HappyFlow, ShouldThrowOnNugetNotInstalled, HappyFlow_WithMultiLineMsBuildVersionOutput_ExtractsNumericVersionForNugetRestore)
-- Initialisation namespace sanity sweep: 15 green, 0 fail (16 pre-existing dogfood-skips)
-- Semgrep on all 3 changed files: 0 findings, 80 rules
-- SonarAnalyzer S2971 caught initial `.Where().LastOrDefault()` draft — refactored to `LastOrDefault(predicate)` per TreatWarningsAsErrors
+## New helper file
+- `tests/Stryker.Core.Dogfood.Tests/Reporters/Json/MockJsonReport.cs` — port of upstream
+  test stub that constructs JsonReport without invoking the full Build pipeline. Adapted
+  to support nullable thresholds/files (init properties only assigned when not null).
 
 ## Files
-- `src/Stryker.Core/Helpers/MsBuildHelper.cs` (line 51: spacing fix + `TrimEnd()` for pre-existing trailing-space case in non-.exe configured MSBuild path)
-- `src/Stryker.Core/Initialisation/NugetRestoreProcess.cs` (`FindMsBuildShortVersion`: `Split(['\r','\n'], RemoveEmptyEntries) → Select(Trim) → LastOrDefault(predicate)`)
-- `tests/Stryker.Core.Dogfood.Tests/Initialisation/NugetRestoreProcessTests.cs` (full rewrite: docstring + 2 existing mock-fixups + new multi-line test)
+- `tests/Stryker.Core.Dogfood.Tests/Clients/DashboardClientsTest.cs` (full port, 14 tests)
+- `tests/Stryker.Core.Dogfood.Tests/Reporters/Json/MockJsonReport.cs` (NEW helper)
