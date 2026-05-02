@@ -182,8 +182,23 @@ public class CsharpMutantOrchestratorTests : MutantOrchestratorTestsBase
         count.Should().BeGreaterThan(0, "block statement should produce at least 1 mutation (block-statement mutator)");
     }
 
-    [Fact(Skip = "Sprint 23 known issue: Complete+All profile crashes inside CSharpSyntaxRewriter.VisitQualifiedName for some inputs. See Sprint 23 Sub-task 1 — partial fix in v2.10.0 but conditional-expression-with-LINQ still hits an edge case. Defer to Sprint 23 follow-up.")]
-    public void ShouldMutateConditionalExpression_StructuralAssertion() { /* defer */ }
+    [Fact]
+    public void ShouldMutateConditionalExpression_StructuralAssertion()
+    {
+        // Sprint 137 (v3.0.24): Sprint 23 known-bug investigation. Reproduces upstream bucket-3
+        // ShouldMutateConditionalExpression input to verify VisitQualifiedName crash status.
+        var source = """
+            void TestMethod()
+            {
+                string SomeLocalFunction()
+                {
+                    return string.Empty?.All(x => !string.IsNullOrEmpty(x));
+                }
+            }
+            """;
+        var count = CountMutations(source);
+        count.Should().BeGreaterThan(2, "conditional + linq + string + boolean should produce multiple mutations");
+    }
 
     [Fact]
     public void ShouldMutateDefaultImplementationInterfaces_StructuralAssertion()
