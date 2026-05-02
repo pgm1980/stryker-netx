@@ -1,3 +1,4 @@
+using System;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -57,10 +58,35 @@ public sealed class RoslynSemanticDiagnosticsEquivalenceFilter : IEquivalentMuta
         }
 
         var position = mutation.OriginalNode.SpanStart;
-        var info = semanticModel.GetSpeculativeSymbolInfo(
-            position,
-            replacementExpression,
-            SpeculativeBindingOption.BindAsExpression);
+
+        // Sprint 137 (v3.0.24): Roslyn's GetSpeculativeSymbolInfo crashes with NRE when binding
+        // a MemberBindingExpression (the `.X` part of `obj?.X`) in isolation — the binder calls
+        // FindConditionalAccessNodeForBinding which returns null and dereferences. Wrap in
+        // try/catch to stay conservative (treat as non-equivalent — keep mutant).
+        // Sprint 137: pre-check to skip MemberBindingExpression (`.X` part of `obj?.X`) — these
+        // cannot be speculatively bound in isolation; Roslyn's binder dereferences a null in
+        // FindConditionalAccessNodeForBinding. Treat as non-equivalent (conservative).
+        if (replacementExpression is MemberBindingExpressionSyntax)
+        {
+            return false;
+        }
+
+        Microsoft.CodeAnalysis.SymbolInfo info;
+        try
+        {
+            info = semanticModel.GetSpeculativeSymbolInfo(
+                position,
+                replacementExpression,
+                SpeculativeBindingOption.BindAsExpression);
+        }
+#pragma warning disable S1696, CA1031 // Roslyn speculative-binding throws across many exception types — best-effort conservative fallback
+        catch (Exception)
+        {
+            // Roslyn binder crashed on speculative binding (NRE in FindConditionalAccessNodeForBinding,
+            // IOE for invalid context, etc) — can't determine equivalence, conservatively keep the mutant.
+            return false;
+        }
+#pragma warning restore S1696, CA1031
 
         // CandidateReason != None means "binder tried but failed" — the most reliable
         // signal that the replacement is semantically invalid in this context. Symbol
