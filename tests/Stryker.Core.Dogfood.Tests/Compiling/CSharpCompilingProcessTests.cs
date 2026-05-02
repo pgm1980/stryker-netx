@@ -1,6 +1,7 @@
 #pragma warning disable IDE0028, IDE0300, CA1859, MA0051
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using FluentAssertions;
 using Stryker.Configuration.Options;
 using Stryker.Core.Compiling;
@@ -60,6 +61,50 @@ public class CSharpCompilingProcessTests : TestBase
         process.Should().BeAssignableTo<ICSharpCompilingProcess>();
     }
 
-    [Fact(Skip = "ARCHITECTURAL DEFERRAL: end-to-end Compile() integration tests need MetadataReference setup + emit pipeline harness. Defer to dedicated compiler-pipeline harness sprint.")]
-    public void CsharpCompilingProcess_FullCompilePipeline_IntegrationDeferral() { /* defer */ }
+    [Fact]
+    public void Compile_ShouldEmit_ForValidSimpleSource()
+    {
+        // Sprint 132 (v3.0.19): replaces architectural-deferral with end-to-end Compile() integration.
+        // Uses Sprint 131's proven setup pattern (SourceProjectInfo + Analysis + TestProjectsInfo
+        // with proper TargetDir/AssemblyName/references).
+        var simpleSource = "public class Sample { public int Add(int a, int b) => a + b; }";
+        var folder = new CsharpFolderComposite();
+        folder.Add(new CsharpFileLeaf
+        {
+            SourceCode = simpleSource,
+            SyntaxTree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(simpleSource),
+            FullPath = "/Sample.cs",
+            RelativePath = "Sample.cs",
+        });
+
+        var fileSystem = new System.IO.Abstractions.TestingHelpers.MockFileSystem();
+        var input = new MutationTestInput
+        {
+            SourceProjectInfo = new SourceProjectInfo
+            {
+                Analysis = TestHelper.SetupProjectAnalyzerResult(
+                    projectFilePath: "/ProjectUnderTest/ProjectUnderTest.csproj",
+                    properties: new Dictionary<string, string>(System.StringComparer.Ordinal)
+                    {
+                        ["TargetDir"] = "/ProjectUnderTest/bin/Debug/net10.0",
+                        ["TargetFileName"] = "Sample.dll",
+                        ["AssemblyName"] = "Sample",
+                        ["Language"] = "C#",
+                    },
+                    references: new[] { typeof(object).Assembly.Location, typeof(System.Linq.Enumerable).Assembly.Location }).Object,
+                ProjectContents = folder,
+                TestProjectsInfo = new TestProjectsInfo(fileSystem),
+            },
+        };
+
+        var process = new CsharpCompilingProcess(input);
+        using var ilStream = new System.IO.MemoryStream();
+        var syntaxTree = ((CsharpFileLeaf)folder.GetAllFiles().First()).SyntaxTree;
+
+        var result = process.Compile(new[] { syntaxTree }, ilStream, null);
+
+        result.Should().NotBeNull();
+        result.Success.Should().BeTrue();
+        ilStream.Length.Should().BeGreaterThan(0);
+    }
 }
