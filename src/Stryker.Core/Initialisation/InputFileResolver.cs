@@ -506,9 +506,13 @@ public partial class InputFileResolver : IInputFileResolver
             throw new InputException($"No valid project analysis results could be found for '{projectName}'.");
         }
 
-        if (targetFramework is null)
+        if (string.IsNullOrEmpty(targetFramework))
         {
-            // we try to avoid desktop versions
+            // Sprint 139 (Bug #5 from real-life Calculator-tester report): empty-string
+            // targetFramework was previously slipping past the null-check and producing
+            // log noise like "Could not find a valid analysis for target  for project ..."
+            // (note the doubled space — empty {TargetFramework} placeholder). Treat empty
+            // as the same "no target requested" case as null.
             return PickFrameworkVersion();
         }
 

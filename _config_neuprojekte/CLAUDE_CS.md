@@ -402,16 +402,19 @@ cd tests/<Projekt>.Tests
 dotnet stryker-netx --reporter "html" --reporter "progress" --coverage-analysis perTest
 ```
 
-**Mutation Profile (orthogonal zu `--mutation-level`):**
+**Mutation Profile × Level (PFLICHT — conjunctive Filter, BEIDE Werte zusammen setzen):**
+
+`--mutation-profile` und `--mutation-level` sind **orthogonal aber conjunctive** — ein Mutator feuert nur, wenn er beide Filter passiert. Profile-only-Setzung (häufiger Anwender-Fehler) ist schweigsam wirkungslos. Vollständige Erklärung in [_config/Stryker_NetX_Installation.md](_config/Stryker_NetX_Installation.md) Sektion „Mutation Profile × Level".
+
 ```bash
-# Drop-in v1.x-Parität (26 Default-Mutatoren)
-dotnet stryker-netx --mutation-profile Defaults
+# Drop-in v1.x-Parität (26 Defaults-Mutatoren bei Standard-Level)
+dotnet stryker-netx --mutation-profile Defaults --mutation-level Standard
 
-# Defaults + 18 type-aware/cargo-mutants/PIT-Operatoren (44 total)
-dotnet stryker-netx --mutation-profile Stronger
+# EMPFEHLUNG: 44 Stronger-Mutatoren mit type-aware Operatoren wirklich aktivieren
+dotnet stryker-netx --mutation-profile Stronger --mutation-level Advanced
 
-# Maximaler Katalog inkl. UoiMutator, NakedReceiver, MethodBodyReplacement etc. (52 total)
-dotnet stryker-netx --mutation-profile All
+# Maximaler Operator-Set (52 Mutatoren) — nur in Code-Kern-Modulen sinnvoll
+dotnet stryker-netx --mutation-profile All --mutation-level Complete
 ```
 
 **VERBOTEN:**

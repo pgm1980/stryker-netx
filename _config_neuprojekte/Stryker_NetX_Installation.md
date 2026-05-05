@@ -177,51 +177,89 @@ Im Test-Projektverzeichnis ablegen. Vollständiges Schema 1:1 kompatibel mit [up
 ```json
 {
   "stryker-config": {
-    "mutation-profile": "Stronger"
+    "mutation-profile": "Stronger",
+    "mutation-level": "Advanced"
   }
 }
 ```
 
-`mutation-profile` ist orthogonal zu `mutation-level`. Erlaubte Werte: `Defaults` (default), `Stronger`, `All`. Siehe Sektion "Mutation Profile" unten.
+`mutation-profile` und `mutation-level` sind **zwei orthogonale Filter, die conjunctive zusammenwirken** — siehe nächste Sektion. Setze immer beide Werte zusammen, sonst entfaltet das Profile keine Wirkung.
 
 ---
 
-## Mutation Level (1:1 von upstream)
+## Mutation Profile × Level — der conjunctive Filter (PFLICHT-LESSON)
 
-`--mutation-level` steuert *welche Mutationen* ein gegebener Mutator emittiert.
+**Wichtigste Stryker-netx-Lesson, die häufig falsch verstanden wird.**
 
-| Level | Verhalten |
+### Konzept
+
+Beim Mutationslauf entscheidet stryker-netx pro Mutator-Klasse, ob sie aktiv ist, anhand von **zwei orthogonalen Filtern**:
+
+| Filter | Was er steuert |
 |---|---|
-| `Basic` (0) | Nur die fundamentalsten Mutationen pro Mutator |
-| `Standard` (25) | **Default.** Standard-Mutationen, gute Balance Aussagekraft/Noise |
-| `Advanced` (50) | Erweiterte Mutationen inkl. typaware Operatoren (TypeDrivenReturn etc.) |
-| `Complete` (100) | Alle Mutationen inkl. der aggressivsten (UoiMutator, ConstructorNull, NakedReceiver, ROR-Vollmatrix etc.) |
+| `--mutation-profile` (Defaults / Stronger / All) | **Welche Mutatoren überhaupt im Pool sind.** Per `[MutationProfileMembership(...)]`-Attribut auf der Mutator-Klasse. |
+| `--mutation-level` (Basic / Standard / Advanced / Complete) | **Wie aggressiv die einzelnen Mutatoren mutieren.** Per `MutationLevel`-Property pro Mutator-Klasse. |
+
+**Beide Filter werden als UND-Verknüpfung angewendet:** ein Mutator feuert nur, wenn er **sowohl** im Profile-Pool ist **als auch** ein `MutationLevel ≤ --mutation-level` hat.
+
+### Konsequenz: Profile alleine reicht nicht
+
+Die meisten Stronger- und All-only-Mutatoren haben `MutationLevel = Advanced (50)` oder `Complete (100)`. Bei Default `--mutation-level Standard (25)` werden sie also **vom Level-Filter blockiert**, **selbst wenn das Profile sie passieren lassen würde**.
+
+### Häufiger Anwender-Fehler
 
 ```bash
-dotnet stryker-netx --mutation-level Advanced
-```
-
----
-
-## Mutation Profile (stryker-netx v2.0.0+)
-
-`--mutation-profile` steuert *welche Mutatoren überhaupt aktiv sind*. Orthogonal zu `--mutation-level`.
-
-| Profile | Aktive Mutatoren | Use-Case |
-|---|---|---|
-| `Defaults` (default) | 26 v1.x-Mutatoren (BinaryExpression, Boolean, String, Linq, Math, Regex, etc.) | Drop-in v1.x-Parität. Identisches Verhalten wie upstream Stryker.NET. |
-| `Stronger` | Defaults + 18 type-aware/cargo-mutants/PIT-Operatoren = **44 Mutatoren** (Aod, RorMatrix, ConstantReplacement, MatchGuard, WithExpression, MemberVariable, AsyncAwait, DateTime, SpanMemory, GenericConstraintLoosen, ConstructorNull, SwitchArmDeletion, ConfigureAwait, TaskWhenAllToWhenAny, DateTimeAddSign, AsyncAwaitResult, TypeDrivenReturn, InlineConstants) | Mehr Bugs fangen, Noise managen. |
-| `All` | Stronger + 8 aggressivste Operatoren = **52 Mutatoren** (UoiMutator, NakedReceiver, MethodBodyReplacement, ArgumentPropagation, AsSpanAsMemory, SpanReadOnlySpanDeclaration, ExceptionSwap, GenericConstraint) | Maximaler Operator-Katalog. Mutation-Volume und Runtime wachsen ~3-5×. |
-
-```bash
-# CLI
+# WIRKUNGSLOS auf Codebase mit nur "Standard"-Mutationen
 dotnet stryker-netx --mutation-profile Stronger
-
-# Config
-{ "stryker-config": { "mutation-profile": "Stronger" } }
 ```
 
-**Empfehlung für Projekte:** Start mit `Defaults`. Nach Erreichen einer hohen Mutation Score (>80%) → Umstieg auf `Stronger` für weitere Test-Verschärfung. `All` nur in spezifischen Code-Kern-Modulen.
+Tatsächliche Mutanten-Anzahl identisch zu `--mutation-profile Defaults`. Grund: alle 18 Stronger-only-Mutatoren (Aod, RorMatrix, ConstantReplacement, MatchGuard, WithExpression, MemberVariable, AsyncAwait, DateTime, SpanMemory, GenericConstraintLoosen, ConstructorNull, SwitchArmDeletion, ConfigureAwait, TaskWhenAllToWhenAny, DateTimeAddSign, AsyncAwaitResult, TypeDrivenReturn, InlineConstants) haben `MutationLevel = Advanced`. Bei `--mutation-level Standard` werden sie weggefiltert.
+
+### Empfohlene Kombinationen
+
+| Use-Case | Empfehlung |
+|---|---|
+| Drop-in v1.x-Parität (= upstream Stryker.NET-Verhalten) | `--mutation-profile Defaults --mutation-level Standard` |
+| **Mehr Bugs fangen, Noise managen** | **`--mutation-profile Stronger --mutation-level Advanced`** |
+| Maximaler Operator-Set (~3-5× Mutanten-Volume) | `--mutation-profile All --mutation-level Complete` |
+| Nur die fundamentalsten Mutationen (= Smoke-Test) | `--mutation-profile Defaults --mutation-level Basic` |
+
+### Mutation-Profile-Pool (welche Mutatoren sind im Pool?)
+
+| Profile | Mutatoren-Pool | Use-Case |
+|---|---|---|
+| `Defaults` (default) | 26 v1.x-Mutatoren (BinaryExpression, Boolean, String, Linq, Math, Regex, ConditionalExpression, etc.) | Drop-in v1.x-Parität. Identisches Pool wie upstream Stryker.NET. |
+| `Stronger` | Defaults + 18 type-aware/cargo-mutants/PIT-Operatoren = **44 Mutatoren** | Mehr Bugs fangen, Noise managen. |
+| `All` | Stronger + 8 aggressivste Operatoren = **52 Mutatoren** (UoiMutator, NakedReceiver, MethodBodyReplacement, ArgumentPropagation, AsSpanAsMemory, SpanReadOnlySpanDeclaration, ExceptionSwap, GenericConstraint) | Maximaler Operator-Katalog. |
+
+### Mutation-Level-Wirkung (was setzt jedes Level "frei"?)
+
+| Level | Was es freischaltet (cumulativ — alle Levels darunter inkl.) |
+|---|---|
+| `Basic` (0) | Nur fundamentale Mutationen (`BinaryExpression`, `BlockMutator`, `BinaryPattern`, `IsPattern`, `NullCoalescing`, `RelationalPattern`) |
+| `Standard` (25) | **Default.** + alle Standard-Level-Mutators (`Boolean`, `String*`, `Linq`, `Statement`, `Conditional`, `NegateCondition`, `PostfixUnary`, `PrefixUnary`, `Checked`, `Initializer`, `ObjectCreation`, `ArrayCreation`, `InterpolatedString`) |
+| `Advanced` (50) | + die meisten Stronger-only-Mutatoren (`Aod`, `MatchGuard`, `WithExpression`, `MemberVariable`, `AsyncAwait*`, `ConfigureAwait`, `TaskWhenAllToWhenAny`, `DateTime*`, `SpanMemory`, `TypeDrivenReturn`, `SwitchArmDeletion`, `Math`, `StringMethod*`, `Regex`, `CollectionExpression`, `InlineConstants`, `ConstantReplacement`, `GenericConstraintLoosen`) |
+| `Complete` (100) | + die aggressivsten All-only-Mutatoren (`UoiMutator`, `RorMatrix`, `ConstructorNull`, `NakedReceiver`, `MethodBodyReplacement`, `ArgumentPropagation`, `AsSpanAsMemory`, `SpanReadOnlySpanDeclaration`, `ExceptionSwap`, `GenericConstraint`) |
+
+### Strategie für Projekte
+
+1. **Starte mit `Defaults`+`Standard`**. Schreibe Tests bis Mutation-Score >80 %.
+2. **Steige um auf `Stronger`+`Advanced`**, sobald `Defaults`+`Standard` Score saturiert ist. Das deckt zusätzliche Off-by-One-Fehler, Async-Korrektheit und Type-Driven-Bugs auf.
+3. **`All`+`Complete`** nur in Code-Kern-Modulen (Domain-Logik, Algorithmen). Auf UI/Plumbing-Code erzeugt es vor allem False-Positives.
+
+### Out-of-the-box-Konfiguration in deinem `stryker-config.json`
+
+```json
+{
+  "stryker-config": {
+    "mutation-profile": "Stronger",
+    "mutation-level": "Advanced",
+    "coverage-analysis": "perTest"
+  }
+}
+```
+
+**Sprint 140 (geplant):** Eine Warnung wird ausgegeben, wenn `mutation-profile != Defaults` aber `mutation-level == Standard` oder niedriger gesetzt wird — diese Kombination ist heute schweigsam wirkungslos und ein häufiger Bug-Report-Source.
 
 ---
 

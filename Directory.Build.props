@@ -35,8 +35,19 @@
   </PropertyGroup>
 
   <PropertyGroup Label="Versioning (ADR-003)">
-    <VersionPrefix>1.0.0</VersionPrefix>
-    <VersionSuffix>preview.1</VersionSuffix>
+    <!--
+      Sprint 139 (Bug #2 from Calculator-tester report): the previous baseline
+      (1.0.0-preview.1) was a Sprint-1-Phase-0 placeholder that never got
+      updated and consequently leaked into every released NuGet's Banner via
+      AssemblyInformationalVersion. release.yml only set PackageVersion, not
+      Version/InformationalVersion, so the Banner read 1.0.0-preview.1 even
+      after v3.0.24 was on NuGet. Lessons learnt:
+        - Local dev builds use 0.0.0-localdev (clearly *not* a release).
+        - release.yml MUST set Version/AssemblyVersion/FileVersion/InformationalVersion
+          explicitly from the tag (see .github/workflows/release.yml).
+    -->
+    <VersionPrefix>0.0.0</VersionPrefix>
+    <VersionSuffix>localdev</VersionSuffix>
     <Authors>stryker-netx contributors (port of Stryker.NET by Richard Werkman, Rouke Broersma et al.)</Authors>
     <Company>stryker-netx</Company>
     <Product>stryker-netx</Product>

@@ -68,11 +68,31 @@ jobs:
       # address the pre-existing _references/stryker-net path-dependency in
       # Stryker.Solutions.Tests separately.
 
+      - name: Build (Release) — re-build with full version properties
+        # Sprint 139 (Bug #2): we previously only set PackageVersion at pack-time,
+        # which left Version/AssemblyVersion/FileVersion/InformationalVersion at
+        # the Directory.Build.props baseline (0.0.0-localdev). Banner therefore
+        # showed the wrong version. Re-build here with all four properties set
+        # from the tag — the previous Build step provided fast feedback for
+        # compile failures, this second one bakes the version into the assembly.
+        run: |
+          version="${{ steps.ref.outputs.version }}"
+          # AssemblyVersion / FileVersion must be 4-part dotted numerics; strip
+          # any pre-release suffix (e.g. 3.1.0-rc.1 -> 3.1.0) and append .0.
+          asm_version="$(echo "$version" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+).*$/\1.0/')"
+          dotnet build stryker-netx.slnx --no-restore --configuration Release \
+            -p:Version="$version" \
+            -p:AssemblyVersion="$asm_version" \
+            -p:FileVersion="$asm_version" \
+            -p:InformationalVersion="$version"
+
       - name: Pack
         run: |
           dotnet pack src/Stryker.CLI/Stryker.CLI.csproj \
             --no-build --configuration Release \
             -p:PackageVersion=${{ steps.ref.outputs.version }} \
+            -p:Version=${{ steps.ref.outputs.version }} \
+            -p:InformationalVersion=${{ steps.ref.outputs.version }} \
             --output ./publish
 
       - name: Verify package
