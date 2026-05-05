@@ -1,7 +1,7 @@
 ---
-current_sprint: "139"
-sprint_goal: "Bug-Report-Batch — #2 Version-Sync, #3 Update-Hinweis (Folge), #5 IsNullOrEmpty, #1 Stufe 1 Profile×Level Doku"
-branch: "feature/139-bug-batch"
+current_sprint: "140"
+sprint_goal: "Bug #1 Stufe 2 (Code-Side) — Profile×Level Mismatch erkennen und auf User reagieren. ToT-Exploration + Maxential-Decision + Implementation."
+branch: "chore/139-closing-and-140-setup"
 started_at: "2026-05-06"
 housekeeping_done: false
 memory_updated: false
@@ -11,63 +11,55 @@ semgrep_passed: false
 tests_passed: false
 documentation_updated: false
 ---
-# Session State — Sprint 139 (active)
+# Session State — Sprint 140 (active)
 
-## Goal
-Bug-Report-Batch (4 von 6 Bugs). Die verbleibenden zwei (Bug #1 Code, Bug #4) gehen in Sprint 140/141.
+## Sprint 139 closed cleanly
+- Bug-Report-Batch (4 of 6 bugs from Calculator-tester) released as v3.0.25 on 2026-05-06
+- Banner-version correct in production (`Version: 3.0.25`)
+- Push-tag-auto-trigger verified
+- 4.6 min NuGet-indexing-lag (vs. 14 min for v3.0.24 first-push — second push faster because package skeleton exists)
 
-## Bug-Fixes in diesem Sprint
+## Sprint 140 Goal — Bug #1 Stufe 2 (Code-Side)
 
-### Bug #5 (NIEDRIG) — Log-Rauschen "Could not find a valid analysis for target  for project ..."
-**File:** `src/Stryker.Core/Initialisation/InputFileResolver.cs:509`
-**Fix:** `if (targetFramework is null)` → `if (string.IsNullOrEmpty(targetFramework))` mit Begründung-Kommentar verweisend auf Sprint 139 Bug #5
+**Problem:** `--mutation-profile Stronger` (oder `All`) ohne entsprechendes `--mutation-level Advanced/Complete` ist schweigsam wirkungslos. Sprint 139 hat das via Doku adressiert, aber das Tool selbst gibt keine Rückmeldung — Anwender, die nur Profile setzen, glauben es wirkt, aber es tut nichts. Calculator-Tester war exakt dieser Fall.
 
-### Bug #2 (MITTEL) — Banner zeigt 1.0.0-preview.1 statt aktueller Version
-**Files:**
-- `Directory.Build.props` Z.37-50: `VersionPrefix=1.0.0`/`VersionSuffix=preview.1` → `VersionPrefix=0.0.0`/`VersionSuffix=localdev` (sinnvoller Local-Default, klar erkennbar als Non-Release)
-- `.github/workflows/release.yml` Pack-Step: zusätzlicher Pre-Pack-Build-Step der ALLE Version-Properties aus dem Tag setzt (`-p:Version=$VERSION -p:AssemblyVersion=$ASMVERSION -p:FileVersion=$FILEVERSION -p:InformationalVersion=$VERSION`); der Pack-Step zusätzlich auch noch defensiv
+**Sprint 140 angehen via:**
 
-**Wirkung:** Banner zeigt ab v3.0.25 die korrekte Version aus dem Tag. Local-Builds zeigen `0.0.0-localdev` was klar nicht-released ist.
+### Phase 1 — ToT (User-Direktive)
+Tree-of-Thoughts-Exploration der Lösungsvarianten. Mindestens 4 Branches:
 
-### Bug #3 (MITTEL) — Update-Hinweis "neue Version verfügbar (= installierte Version)"
-**Auto-behoben durch Bug #2.** Der Update-Check `StrykerCli.cs:181-191` vergleicht `currentVersion` (aus AssemblyInformationalVersion) mit `latestVersion` (NuGet-API). Mit Bug #2 fixed sind beide identisch → keine falsche Warnung.
+| Branch | Strategie |
+|---|---|
+| **A** | Status-quo + Warning-Log bei Mismatch (`profile != Defaults && level <= Standard`) |
+| **B** | Auto-Bump: Profile setzt impliziten Default für Level wenn nicht explizit gesetzt |
+| **C** | Profile-Default-Level-Bundles (kombinierte Werte: "StrongerStandard", "StrongerAdvanced", "AllComplete" als ein einziger Flag-Wert) |
+| **D** | Hybrid: Auto-Bump als Default, opt-out via `--no-auto-mutation-level` oder explizit gesetztes `mutation-level` |
 
-### Bug #1 Stufe 1 (HOCH) — Profile-Flag ohne sichtbaren Effekt — Doku-Lücke
-**Files:**
-- `_config_neuprojekte/Stryker_NetX_Installation.md`: zwei alte Sektionen "Mutation Level" + "Mutation Profile" zusammengefasst zu einer neuen, größeren "Mutation Profile × Level — der conjunctive Filter (PFLICHT-LESSON)" mit:
-  - Klarer Erklärung der Filter-Logik
-  - Konsequenz: Profile alleine reicht nicht
-  - Anwender-Fehler-Beispiel
-  - Empfohlene Kombinationen (Defaults+Standard / **Stronger+Advanced** / All+Complete / Defaults+Basic für Smoke)
-  - Mutation-Profile-Pool-Tabelle
-  - Mutation-Level-Wirkung-Tabelle
-  - Strategie für Projekte
-  - Out-of-the-box stryker-config.json
-  - Vorgriff auf Sprint 140 Code-Fix (geplante Warning)
-- `_config_neuprojekte/CLAUDE_CS.md`: Mutation-Profile-Beispiele auf empfohlene Kombination upgedatet, mit Verweis auf vollständige Erklärung
+Pro Branch: Pros, Cons, Breaking-Change-Charakter, User-Experience, Implementation-Aufwand.
 
-**Sprint 140 (Stufe 2):** Code-Warning bei `profile != Defaults && level <= Standard`. ToT + Maxential vorab.
+### Phase 2 — Maxential mit den Top-Ranking ToT-Branches
+Mindestens 10 Denkschritte für Architektur-Entscheidung. Branch-Merge-Strategie `full_integration`. Tags: `decision`, `tradeoff`, `risk`. ADR-026 ableiten.
 
-## Tag-Strategy für Sprint 139
-**v3.0.25** — erster echter Sprint nach Sprint 138 (CI-fix-only). Push triggers automatisch release.yml dank push-tag-trigger; verifiziert auch den Auto-Trigger-Path (Sprint 138 hatte nur workflow_dispatch verifiziert).
+### Phase 3 — ADR-026 schreiben + Implementation
 
-Sprint-Tag-Convention beachten:
-1. `gh pr merge --squash --delete-branch`
-2. `git checkout main && git pull --ff-only`
-3. `git tag -a v3.0.25 -m "..."`
-4. `git push origin v3.0.25`
+### Phase 4 — Tests + Doku-Update + Tag
 
-## Test plan
-- [ ] Lokaler Build mit `-p:Version=3.0.25-rc.1 -p:InformationalVersion=3.0.25-rc.1` — verifiziert Bug #2 Fix (Banner sollte 3.0.25-rc.1 zeigen)
-- [ ] Lokaler Pack-Test
-- [ ] Tests grün
-- [ ] Semgrep grün
-- [ ] PR + squash-merge
-- [ ] Tag v3.0.25 → release.yml auto-trigger → NuGet-push
-- [ ] NuGet.org `dotnet-stryker-netx 3.0.25` öffentlich
+**Tag:**
+- Wenn Code-Behavior unverändert (nur Warning) → v3.0.26 (Patch)
+- Wenn Code-Behavior ändert (Auto-Bump) → v3.1.0 (Minor, Breaking-leicht)
+- Wenn neue Profile-Bundles als Optionen → v3.1.0 (additive Features)
 
-## Out of scope (für Sprint 140/141)
-- Bug #1 Stufe 2 (Code-Warning bei mismatch)
-- Bug #4 (`--version` Tool-Convention)
-- Hinweis #7 (NuGet-Indexing-Doku)
-- Hinweis #8 (Multi-Source-Project-UX)
+## Sprint 140 — Test plan
+- [ ] ToT mit mind. 4 Branches durchgespielt (A/B/C/D + ggf. weitere), Top 2 für Maxential
+- [ ] Maxential mit mind. 10 Thoughts, mit Branches + Revisions wenn nötig, full_integration merge
+- [ ] ADR-026 in `_docs/architecture spec/architecture_specification.md` ergänzt
+- [ ] Implementation laut ADR-026
+- [ ] Unit-Tests in `tests/Stryker.Core.Tests/` für die neue Behavior
+- [ ] Doku-Update in `_config_neuprojekte/Stryker_NetX_Installation.md` (Stripe der "Sprint 140 (geplant)"-Forward-Reference, ersetze durch tatsächliches Verhalten)
+- [ ] Build + Test + Semgrep grün
+- [ ] PR + Squash-Merge + Tag + push-tag-trigger → NuGet
+
+## Sprint 141+ Roadmap (Bugs verbleibend)
+- Bug #4 (`--version` Tool-Convention) — additiv `--tool-version` ODER Breaking zu v3.1
+- Hinweis #7 — NuGet-Indexing-Doku in Stryker_NetX_Installation.md
+- Hinweis #8 — Multi-Source-Project `--all-source-projects` Feature (eigener Sprint-Größe)

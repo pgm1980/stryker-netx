@@ -1,26 +1,29 @@
-# HANDOVER — v3.0.24 + Sprint 138 Closing
+# HANDOVER — v3.0.25 + Sprint 139 Closing
 
-## Final State — v3.0.24 (echt released auf NuGet.org)
-- **Dogfood: 1175 green / 9 skip / 1184 total**
-- **Latest tag: v3.0.24** (24 v3.0.x patches since v3.0.0)
-- **NuGet.org: `dotnet-stryker-netx 3.0.24` öffentlich auffindbar und installierbar** ✓ (seit Sprint 138 / 2026-05-06)
-- **GitHub Release v3.0.24:** `dotnet-stryker-netx.3.0.24.nupkg` (44 MB) als Asset attached ✓
+## Final State — v3.0.25 (Bug-Report-Batch released)
+- **Dogfood: 1175 green / 9 skip / 1184 total** (unchanged — Sprint 139 hatte minimal src/-Diff: 1 line in InputFileResolver)
+- **Latest tag: v3.0.25** (4 of 6 Calculator-tester bugs closed)
+- **NuGet.org: `dotnet-stryker-netx 3.0.25` öffentlich auffindbar und installierbar** ✓ (seit Sprint 139 / 2026-05-06)
+- **GitHub Release v3.0.25:** `.nupkg` Asset attached via auto-trigger (Sprint 138 hatte das nur via workflow_dispatch verifiziert; Sprint 139 verifiziert push-tag-Auto-Trigger zusätzlich) ✓
+- **Banner zeigt jetzt korrekte Version** (Bug #2 fix production-verified): `Version: 3.0.25` (statt vorher `1.0.0-preview.1`)
 - Repo `pgm1980/stryker-netx`: **public** (Apache-2.0, NOTICE-attributed, "independent community fork")
 
-## Cumulative Session (Sprints 95-138, 44 sprints)
+## Cumulative Session (Sprints 95-139, 45 sprints)
 - Dogfood: **906/99 → 1175/9** (+269 green, -90 skip, +179 new tests)
-- 43 GitHub releases (v2.81.0 → v3.0.24); Sprint 138 had no version-bump (CI-reparation only)
-- 4 production bugs fixed:
+- 44 GitHub releases (v2.81.0 → v3.0.25); Sprint 138 had no version-bump (CI-reparation only)
+- 5 production bugs fixed:
   - Sprint 99: MsBuildHelper.GetVersion missing-space + multi-line
   - Sprint 136: SseServer.Dispose double-close
   - Sprint 137: RoslynSemanticDiagnosticsEquivalenceFilter speculative-binding crash on MemberBindingExpression
-  - Sprint 138: release.yml CI-reparation (Quota + permissions + NUGET_API_KEY + workflow_dispatch hardening) → **erstmaliger erfolgreicher NuGet.org-Push**
+  - Sprint 138: release.yml CI-reparation → **erstmaliger erfolgreicher NuGet.org-Push** (v3.0.24)
+  - Sprint 139: Calculator-tester Bug-Report-Batch → 4 of 6 bugs closed in v3.0.25
 
-## Sprint 135-138 — Final Cleanup + Release Pipeline
+## Sprint 135-139 — Final Cleanup + Release Pipeline + Bug-Report-Batch
 - **Sprint 135 (v3.0.22):** Last attackable architectural-deferral ELIMINATED (CSharpRollbackProcess null-SourceTree)
 - **Sprint 136 (v3.0.23):** SseServer.Dispose production fix (best-effort per-writer disposal)
 - **Sprint 137 (v3.0.24):** RoslynSemanticDiagnosticsEquivalenceFilter speculative-binding fix (Sprint 23 known-bug ELIMINATED)
 - **Sprint 138 (no tag):** Release workflow + first NuGet.org push. CI-reparation only, no `src/` diff.
+- **Sprint 139 (v3.0.25):** Calculator-tester real-life bug report batch — 4 of 6 bugs closed (Bug #5 IsNullOrEmpty + Bug #2 version-sync + Bug #3 auto-resolved + Bug #1 Stufe 1 Profile×Level conjunctive doc). Auto-trigger via push-tag verified (Sprint 138 only verified workflow_dispatch path).
 
 ## Sprint 138 (CI-Reparatur + erster echter NuGet-Push)
 
@@ -46,11 +49,11 @@ Nach erfolgreicher Installation hat Calculator-Tester einen extrem strukturierte
 
 | # | Schwere | Status | Sprint |
 |---|---|---|---|
-| #1 | 🔴 HOCH | Profile-Flag ohne sichtbaren Effekt | Doku-Lücke (Profile × Level conjunctive) — Stufe 1: **Sprint 139 Doku**, Stufe 2: **Sprint 140 Code** (ToT + Maxential für Auto-Bump-Entscheidung) |
-| #2 | 🟡 MITTEL | Banner zeigt 1.0.0-preview.1 statt 3.0.24 | **Sprint 139** — Directory.Build.props + release.yml Version-Properties komplett setzen |
-| #3 | 🟡 MITTEL | "Update verfügbar" obwohl bereits aktuell | **Sprint 139** (auto-behoben durch #2) |
+| #1 | 🔴 HOCH | Profile-Flag ohne sichtbaren Effekt | Doku-Lücke (Profile × Level conjunctive) — Stufe 1 (Doku): **Sprint 139 ✓**, Stufe 2 (Code): **Sprint 140** (ToT + Maxential für Auto-Bump-Entscheidung) |
+| #2 | 🟡 MITTEL | Banner zeigt 1.0.0-preview.1 statt 3.0.24 | **Sprint 139** ✓ — Directory.Build.props + release.yml Version-Properties komplett gesetzt; production-verified |
+| #3 | 🟡 MITTEL | "Update verfügbar" obwohl bereits aktuell | **Sprint 139** ✓ (auto-behoben durch #2) |
 | #4 | 🟡 NIEDRIG | `--version` = Project-Version statt Tool-Version (upstream-Erbe) | **Sprint 141** (additiv `--tool-version` oder Breaking-Change zu v3.1) |
-| #5 | 🟡 NIEDRIG | Log-Rauschen "Could not find a valid analysis for target  for project" | **Sprint 139** — IsNullOrEmpty-Check in InputFileResolver:524 |
+| #5 | 🟡 NIEDRIG | Log-Rauschen "Could not find a valid analysis for target  for project" | **Sprint 139** ✓ — IsNullOrEmpty-Check in InputFileResolver:509 |
 | #6 | 🟡 NIEDRIG | `--reporters` plural in unserer Doku, Tool akzeptiert nur `--reporter` singular | **Sprint 138 Closing** ✓ (3 Stellen in `_config_neuprojekte/` korrigiert) |
 | Hinweis #7 | 🟢 INFO | NuGet-Indexing-Latenz | **Sprint 141** — Doku-Hinweis |
 | Hinweis #8 | 🟢 NIEDRIG | Multi-Source-Project-Setup verlangt manuelles `--project` | **Sprint 141+** — `--all-source-projects` Feature |
@@ -69,14 +72,12 @@ Nach erfolgreicher Installation hat Calculator-Tester einen extrem strukturierte
 
 ## Roadmap — Sprints 139-141 (Bug-Report-Aufarbeitung)
 
-### Sprint 139 — Doku + Quick-Fixes (Tag v3.0.25)
-- **Bug #2:** release.yml + `Directory.Build.props` Version-Properties komplett — Banner zeigt korrekte Version
-- **Bug #3:** auto-behoben durch #2
-- **Bug #5:** `IsNullOrEmpty(targetFramework)`-Check in `InputFileResolver.cs:509-524`
-- **Bug #1 Stufe 1 (Doku):** `Stryker_NetX_Installation.md` Sektion "Mutation Level + Profile" neu schreiben mit klarer Conjunctive-Erklärung + konkrete Befehlsbeispiele:
-  - `--mutation-profile Stronger --mutation-level Advanced` für volle Wirkung
-  - `--mutation-profile All --mutation-level Complete` für maximalen Operator-Set
-- Tag v3.0.25 → release.yml auto-trigger (verifiziert push-tag-Auto-Path)
+### Sprint 139 — Doku + Quick-Fixes (Tag v3.0.25) ✓ DONE
+- **Bug #2 ✓:** release.yml + `Directory.Build.props` Version-Properties komplett — Banner zeigt korrekte Version (production-verified: `Version: 3.0.25` aus public NuGet)
+- **Bug #3 ✓:** auto-behoben durch #2
+- **Bug #5 ✓:** `IsNullOrEmpty(targetFramework)`-Check in `InputFileResolver.cs:509`
+- **Bug #1 Stufe 1 (Doku) ✓:** `Stryker_NetX_Installation.md` Sektion "Mutation Profile × Level" mit Filter-Logik, Empfehlungs-Tabellen, Anwender-Fehler-Beispiel, Strategie für Projekte
+- **Tag v3.0.25 → release.yml auto-trigger via push-tag verified** ✓ (Sprint 138 hatte nur workflow_dispatch verifiziert)
 
 ### Sprint 140 — Bug #1 Code-Strategie (ToT + Maxential, Tag v3.0.26 oder v3.1.0)
 - **ToT first** (User-direktive): Multi-Branch-Exploration der Profile/Level-Kopplung
