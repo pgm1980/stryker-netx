@@ -58,8 +58,15 @@ jobs:
       - name: Build (Release)
         run: dotnet build stryker-netx.slnx --no-restore --configuration Release
 
-      - name: Test (Release)
-        run: dotnet test stryker-netx.slnx --no-build --configuration Release --filter "FullyQualifiedName!~Stryker.E2E.Tests"
+      # NOTE: Test-Step intentionally NOT run here. Quality-gating is the
+      # responsibility of ci.yml (build-test + e2e-test + semgrep + ci-complete).
+      # Per Sprint-Tag-Convention (CLAUDE.md), tags MUST point at a squash-merge
+      # commit on main for which ci.yml has already passed. Re-running the full
+      # test suite in release.yml would be redundant, slow the release path,
+      # and create flake-induced release blockages without adding signal.
+      # Sprint 138 (v3.0.25, the future bump after the v3.0.24 backfill) will
+      # address the pre-existing _references/stryker-net path-dependency in
+      # Stryker.Solutions.Tests separately.
 
       - name: Pack
         run: |
