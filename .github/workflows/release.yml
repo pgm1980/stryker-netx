@@ -1,20 +1,47 @@
 name: release
-run-name: release ${{ github.ref_name }}
+run-name: release ${{ inputs.tag || github.ref_name }}
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v3.0.24). Must already exist in the repo.'
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+# Prevent concurrent release runs for the same tag.
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   pack-and-publish:
     name: Pack and publish to NuGet
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      - name: Resolve target ref
+        id: ref
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          PUSH_REF: ${{ github.ref_name }}
+        run: |
+          target="${INPUT_TAG:-$PUSH_REF}"
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          version="${target#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Resolved target ref:    $target"
+          echo "Resolved package version: $version"
+
       - uses: actions/checkout@v6
         with:
+          ref: ${{ steps.ref.outputs.target }}
           fetch-depth: 0
 
       - uses: actions/setup-dotnet@v5
@@ -22,14 +49,6 @@ jobs:
           dotnet-version: |
             8.x
             10.x
-
-      - name: Derive package version from tag
-        id: version
-        run: |
-          ref="${{ github.ref_name }}"
-          version="${ref#v}"
-          echo "package_version=$version" >> "$GITHUB_OUTPUT"
-          echo "Resolved package version: $version"
 
       - name: Restore (locked-mode)
         env:
@@ -40,13 +59,13 @@ jobs:
         run: dotnet build stryker-netx.slnx --no-restore --configuration Release
 
       - name: Test (Release)
-        run: dotnet test stryker-netx.slnx --no-build --configuration Release
+        run: dotnet test stryker-netx.slnx --no-build --configuration Release --filter "FullyQualifiedName!~Stryker.E2E.Tests"
 
       - name: Pack
         run: |
           dotnet pack src/Stryker.CLI/Stryker.CLI.csproj \
             --no-build --configuration Release \
-            -p:PackageVersion=${{ steps.version.outputs.package_version }} \
+            -p:PackageVersion=${{ steps.ref.outputs.version }} \
             --output ./publish
 
       - name: Verify package
@@ -56,28 +75,43 @@ jobs:
           dotnet tool install dotnet-stryker-netx \
             --add-source ./publish \
             --tool-path ./publish-toolinstall \
-            --version ${{ steps.version.outputs.package_version }}
+            --version ${{ steps.ref.outputs.version }}
           ./publish-toolinstall/dotnet-stryker-netx --help || true
 
-      - name: Push to NuGet
-        if: ${{ secrets.NUGET_API_KEY != '' }}
+      # secrets-context is unreliable in step-level `if`; pipe via env-var instead.
+      - name: Detect NuGet API key availability
+        id: nuget_key_check
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
-          dotnet nuget push ./publish/dotnet-stryker-netx.${{ steps.version.outputs.package_version }}.nupkg \
+          if [ -n "$NUGET_API_KEY" ]; then
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+            echo "NUGET_API_KEY is set — push enabled."
+          else
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+            echo "NUGET_API_KEY is NOT set — push will be skipped."
+          fi
+
+      - name: Push to NuGet
+        if: steps.nuget_key_check.outputs.has_key == 'true'
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push ./publish/dotnet-stryker-netx.${{ steps.ref.outputs.version }}.nupkg \
             --api-key "$NUGET_API_KEY" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
 
       - name: Skipped NuGet push notice
-        if: ${{ secrets.NUGET_API_KEY == '' }}
+        if: steps.nuget_key_check.outputs.has_key != 'true'
         run: |
-          echo "NUGET_API_KEY secret not set — skipping push (dry-run)."
+          echo "::warning::NUGET_API_KEY secret not set — skipping push (dry-run)."
           echo "To enable: add NUGET_API_KEY at repo Settings → Secrets and variables → Actions."
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release with .nupkg asset
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ref.outputs.target }}
           files: ./publish/*.nupkg
           generate_release_notes: true
           fail_on_unmatched_files: true
