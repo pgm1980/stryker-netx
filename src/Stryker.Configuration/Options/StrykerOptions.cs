@@ -36,6 +36,14 @@ public class StrykerOptions : IStrykerOptions
     public bool IsSolutionContext => SolutionPath != null && string.Equals(FilePathUtils.NormalizePathSeparators(WorkingDirectory), FilePathUtils.NormalizePathSeparators(Path.GetDirectoryName(SolutionPath)), StringComparison.Ordinal);
 
     /// <summary>
+    /// Sprint 150 (ADR-031, Bug #8 from Calculator-Tester Bug-Report 4): when true,
+    /// Stryker mutates ALL source projects referenced by the test project. Set via
+    /// <c>--all-projects</c>. Triggers the new branch in
+    /// <c>Stryker.Core.Initialisation.InputFileResolver.ResolveSourceProjectInfos</c>.
+    /// </summary>
+    public bool IsAllProjectsMode { get; init; }
+
+    /// <summary>
     /// The path of the root of the scope of stryker.
     /// In the context of a solution run this will be the root of the solution.
     /// In the context of a project run this will be the root of the project under test

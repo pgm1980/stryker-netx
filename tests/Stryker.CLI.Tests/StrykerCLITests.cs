@@ -406,6 +406,32 @@ public class StrykerCLITests
         _inputs.SolutionInput.SuppliedInput.Should().Be("SomeSolutionPath.sln");
     }
 
+    // ----- Sprint 150 (Bug #8 from Calculator-Tester Bug-Report 4) — --all-projects flag wiring -----
+
+    [Fact]
+    public async Task ShouldSetAllProjectsModeWhenPassed()
+    {
+        // --all-projects is a NoValue flag; passing it should set AllProjectsInput.SuppliedInput to true.
+        await _target.RunAsync(["--all-projects"]);
+
+        _strykerRunnerMock.VerifyAll();
+
+        _inputs.AllProjectsInput.SuppliedInput.Should().BeTrue(
+            "the --all-projects flag must populate AllProjectsInput.SuppliedInput so that StrykerOptions.IsAllProjectsMode resolves to true");
+    }
+
+    [Fact]
+    public async Task ShouldDefaultAllProjectsModeToFalseWhenNotPassed()
+    {
+        // Without --all-projects the SuppliedInput stays at default (null), and Validate() returns false.
+        await _target.RunAsync([]);
+
+        _strykerRunnerMock.VerifyAll();
+
+        _inputs.AllProjectsInput.SuppliedInput.Should().BeNull(
+            "without --all-projects the input is not supplied; AllProjectsInput.Validate() falls back to default false");
+    }
+
     [Theory]
     [InlineData("--test-project")]
     [InlineData("-tp")]

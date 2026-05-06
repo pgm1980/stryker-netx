@@ -36,6 +36,13 @@ public interface IStrykerInputs
     ReportFileNameInput ReportFileNameInput { get; init; }
     ProjectNameInput ProjectNameInput { get; init; }
     SourceProjectNameInput SourceProjectNameInput { get; init; }
+
+    /// <summary>
+    /// Sprint 150 (ADR-031, Bug #8 from Calculator-Tester Bug-Report 4):
+    /// <c>--all-projects</c> flag — mutate ALL source projects referenced by
+    /// the test project sequentially in a single run.
+    /// </summary>
+    AllProjectsInput AllProjectsInput { get; init; }
     ProjectVersionInput ProjectVersionInput { get; init; }
     ReportersInput ReportersInput { get; init; }
     SinceInput SinceInput { get; init; }

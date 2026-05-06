@@ -229,6 +229,8 @@ public sealed class ConfigBuilderTests : IDisposable
         inputs.Setup(x => x.SolutionInput).Returns(new SolutionInput());
         inputs.Setup(x => x.ConfigurationInput).Returns(new ConfigurationInput());
         inputs.Setup(x => x.SourceProjectNameInput).Returns(new SourceProjectNameInput());
+        // Sprint 150 (ADR-031, Bug #8): mock the new --all-projects input.
+        inputs.Setup(x => x.AllProjectsInput).Returns(new AllProjectsInput());
         inputs.Setup(x => x.TestProjectsInput).Returns(new TestProjectsInput());
         inputs.Setup(x => x.MsBuildPathInput).Returns(new MsBuildPathInput());
         inputs.Setup(x => x.DiagModeInput).Returns(new DiagModeInput());
