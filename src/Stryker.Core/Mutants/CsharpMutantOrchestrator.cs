@@ -52,13 +52,13 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         // enum values
         new DoNotMutateOrchestrator<EnumMemberDeclarationSyntax>(),
         new DoNotMutateOrchestrator<UsingDirectiveSyntax>(),
-        // Sprint 23: NameSyntax-typed slots (QualifiedName like `Sample.Library` in
-        // namespace decls / type references) must not be mutated — Roslyn's
-        // QualifiedNameSyntax visitor casts children strictly to NameSyntax, which
-        // crashes once the conditional placer has wrapped a mutated identifier in
-        // a ParenthesizedExpression. Belt-and-suspenders complement to per-mutator
-        // QualifiedName-parent skips (UoiMutator etc.).
+        // Sprint 23 + 142: TypeSyntax-typed slots crash Roslyn's typed visitor when the
+        // ConditionalInstrumentationEngine wraps mutations in ParenthesizedExpression.
+        // Belt-and-suspenders for per-mutator skips. ADR-026 has the full story.
         new DoNotMutateOrchestrator<QualifiedNameSyntax>(),
+        new DoNotMutateOrchestrator<SimpleNameSyntax>(t =>
+            (t.Parent is MemberAccessExpressionSyntax ma && ma.Name == t)
+            || (t.Parent is MemberBindingExpressionSyntax mb && mb.Name == t)),
         // constants and constant fields
         new DoNotMutateOrchestrator<FieldDeclarationSyntax>(
             t => t.Modifiers.Any(x => x.IsKind(SyntaxKind.ConstKeyword))),

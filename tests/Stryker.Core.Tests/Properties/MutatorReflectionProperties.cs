@@ -34,15 +34,33 @@ public class MutatorReflectionProperties
                 $"{t.Name} must carry [MutationProfileMembership(...)] per CLAUDE.md profile-discipline"));
     }
 
+    /// <summary>
+    /// Sprint 142 (ADR-026): mutators that are intentionally disabled across all
+    /// profiles via Profile.None because their target slot is incompatible with
+    /// the current ConditionalInstrumentationEngine. Re-enabling tracked in ADR-026.
+    /// </summary>
+    private static readonly HashSet<string> IntentionallyDisabledMutators = new(StringComparer.Ordinal)
+    {
+        "SpanReadOnlySpanDeclarationMutator", // Sprint 142, ADR-026: TypeSyntax-slot conditional-instrumentation crash
+    };
+
     [Fact]
-    public void AllConcreteMutators_HaveNonNoneProfile()
+    public void AllConcreteMutators_HaveNonNoneProfile_ExceptIntentionallyDisabled()
     {
         AllConcreteMutators.Should().AllSatisfy(t =>
         {
             var attr = t.GetCustomAttribute<MutationProfileMembershipAttribute>();
             attr.Should().NotBeNull();
-            attr!.Profiles.Should().NotBe(MutationProfile.None,
-                $"{t.Name}'s profile membership must include at least one profile flag");
+            if (IntentionallyDisabledMutators.Contains(t.Name))
+            {
+                attr!.Profiles.Should().Be(MutationProfile.None,
+                    $"{t.Name} is on the intentionally-disabled list (ADR-026); its profile must be None");
+            }
+            else
+            {
+                attr!.Profiles.Should().NotBe(MutationProfile.None,
+                    $"{t.Name}'s profile membership must include at least one profile flag (or add to IntentionallyDisabledMutators with an ADR reference)");
+            }
         });
     }
 
@@ -55,12 +73,13 @@ public class MutatorReflectionProperties
     }
 
     [Property(MaxTest = 50)]
-    public bool RandomMutatorIndex_AlwaysReturnsValidProfile(int rawIndex)
+    public bool RandomMutatorIndex_AlwaysReturnsValidProfileOrIntentionallyDisabled(int rawIndex)
     {
         if (AllConcreteMutators.Count == 0) return true;
         var idx = Math.Abs(rawIndex) % AllConcreteMutators.Count;
         var t = AllConcreteMutators[idx];
         var attr = t.GetCustomAttribute<MutationProfileMembershipAttribute>();
-        return attr is not null && attr.Profiles != MutationProfile.None;
+        if (attr is null) return false;
+        return attr.Profiles != MutationProfile.None || IntentionallyDisabledMutators.Contains(t.Name);
     }
 }

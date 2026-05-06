@@ -77,8 +77,15 @@ public sealed class UoiMutator : MutatorBase<IdentifierNameSyntax>
             return false;
         }
 
-        // Skip member-access heads / invocation targets — wrapping there changes call semantics.
-        if (parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Expression == node)
+        // Skip member-access heads / invocation targets — wrapping changes call semantics.
+        // Sprint 142 Bug #9: skip MemberAccess.Name and MemberBinding.Name as well (right-hand
+        // member-name slots). Wrapping yields ParenthesizedExpression in a SimpleNameSyntax slot.
+        if (parent is MemberAccessExpressionSyntax memberAccess
+            && (memberAccess.Expression == node || memberAccess.Name == node))
+        {
+            return false;
+        }
+        if (parent is MemberBindingExpressionSyntax memberBinding && memberBinding.Name == node)
         {
             return false;
         }

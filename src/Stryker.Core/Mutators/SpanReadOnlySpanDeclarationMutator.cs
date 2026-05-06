@@ -27,9 +27,21 @@ namespace Stryker.Core.Mutators;
 /// explicit cast at the call site that won't be present. The runner
 /// classifies non-compiling mutants as killed.
 ///
-/// Profile membership: All only — high compile-failure rate.
+/// <para><b>v3.1.2 (Sprint 142, Bug #9 from Calculator-tester report):</b>
+/// disabled from all profiles via <see cref="MutationProfile.None"/>. The
+/// mutator targets GenericNameSyntax exclusively in TypeSyntax positions
+/// (parameter type, field type, etc.). The Conditional-Instrumentation
+/// engine wraps every emitted mutation in a <c>ParenthesizedExpressionSyntax</c>
+/// (the <c>(MutantControl.IsActive(N) ? mutated : original)</c> envelope),
+/// which Roslyn's typed visitor refuses to accept in a TypeSyntax slot →
+/// <c>InvalidCastException(ParenthesizedExpressionSyntax → TypeSyntax)</c>.
+/// Re-enabling this mutator requires either (a) a type-position-aware
+/// instrumentation variant in the engine, or (b) emitting the mutation
+/// directly without conditional-control. Tracked in ADR-026.</para>
+///
+/// Profile membership: <see cref="MutationProfile.None"/> (was: All only).
 /// </summary>
-[MutationProfileMembership(MutationProfile.All)]
+[MutationProfileMembership(MutationProfile.None)]
 public sealed class SpanReadOnlySpanDeclarationMutator : MutatorBase<GenericNameSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Complete;

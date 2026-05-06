@@ -1,13 +1,35 @@
-# Bug-Report: `dotnet-stryker-netx` 3.0.24 — nicht produktionsreif
+# Bug-Report: `dotnet-stryker-netx` (v3.0.24 → v3.1.1) — Verlaufs-Dokumentation
 
 **An:** stryker-netx Maintainer-Team
 **Von:** Calculator-Testbed-Projekt (.NET 10 / C# 14)
-**Datum:** 2026-05-06
-**Status:** Empfehlung — **nicht produktionsreif** in dieser Version
+**Datum:** 2026-05-06 (Erstausgabe für v3.0.24), 2026-05-06 (Update für v3.1.1)
+**Status (v3.1.1):** **noch nicht produktionsreif** — 4 von 6 testbaren Bugs gefixt, 2 kosmetische Bugs offen, **1 neuer kritischer Crash-Bug** im `All`-Profile
 
 ---
 
-## TL;DR
+## ⚡ Update für v3.1.1 (2026-05-06, ~3 h nach Erstausgabe)
+
+Das Maintainer-Team hat reagiert und v3.1.1 veröffentlicht. Alle Befunde unten wurden mit dieser Version erneut getestet auf identischer Codebase und identischem Repro-Pfad. Ergebnis-Status:
+
+| Bug | Status in v3.1.1 | Belege |
+|-----|------------------|--------|
+| **#1** Profile-Flag ohne Effekt | ✅ **GEFIXT** | Defaults erzeugt 271 Mutanten / 203 tested / Score 72,91 %; Stronger erzeugt **420 tested / Score 69,10 %**. Klare und plausibel höhere Mutator-Anzahl bei Stronger. |
+| **#2** Banner-Version inkonsistent | ✅ **GEFIXT** | Banner zeigt jetzt korrekt `Version: 3.1.1`. |
+| **#3** Falscher Update-Hinweis | ✅ **GEFIXT** | "A new version is available" verschwunden, wenn die installierte Version aktuell ist. |
+| **#4** `--version` braucht Argument | ❌ unverändert | `dotnet stryker-netx --version` antwortet weiterhin mit `Missing value for option 'version'`. |
+| **#5** `Could not find a valid analysis for target` | ✅ **GEFIXT** | Warning aus dem Standard-Log entfernt; sauberer Run-Output. |
+| **#6** `--reporters` (plural) unbekannt | ❌ unverändert | `--reporters html` weiterhin abgelehnt mit `Unrecognized option '--reporters'`. |
+| **#7** NuGet-Publishing-Verzögerung | n/a | Beobachtung im Erstreport, nicht reproduzierbar prüfbar (3.1.1 war direkt verfügbar). |
+| **#8** Multi-Source-Project-UX | ❌ unverändert | Manuelles `--project` weiterhin nötig. |
+| **#9** _NEU_ — Crash mit `--mutation-profile All` | 🔴 **NEU** | `System.InvalidCastException: Unable to cast object of type 'ParenthesizedExpressionSyntax' to type 'TypeSyntax'`. Tool bricht ab, kein Report. Trifft sowohl auf Calculator.Domain als auch auf Calculator.Infrastructure. Details siehe **Bug #9** weiter unten. |
+
+**Bilanz:** 4 von 6 testbaren Bugs gefixt. Aber **Bug #9 ist gravierender als die meisten gefixten Bugs zusammen**, weil das `All`-Profile-Feature jetzt komplett unbenutzbar ist — vorher hat es zumindest "etwas" produziert (auch wenn falsch).
+
+**Aktualisierte Empfehlung:** Tool ist mit `Defaults` und `Stronger` brauchbar (das sollten die meisten Anwender aktivieren). `--mutation-profile All` ist **kaputt** und sollte vor Produktiv-Einsatz nicht eingestellt werden. Ein Hot-Fix v3.1.2 wäre wünschenswert.
+
+---
+
+## TL;DR (Original, 2026-05-06 Erstausgabe, gilt für v3.0.24)
 
 Wir haben `dotnet-stryker-netx` 3.0.24 als Mutation-Testing-Tool auf einer realistischen .NET-10-Codebase (1.700 LOC src, 357 xUnit-Tests, 92,34 % Coverage, `.slnx`-Solution) eingesetzt. Das Tool **läuft grundsätzlich**, **liefert aber an mehreren Stellen falsches oder widersprüchliches Verhalten**. Der gravierendste Befund ist, dass das beworbene Feature `--mutation-profile` (Defaults / Stronger / All) auf unserer Codebase keinerlei Differenzierung zeigt. Daneben gibt es eine Reihe kleinerer, kosmetischer und UX-Schwächen, die in Summe ein unrundes Tool-Erlebnis ergeben.
 
@@ -240,6 +262,68 @@ Der Anwender muss pro Layer einen separaten Run starten — das ist umständlich
 **Vorschlag:**
 - Zusätzliche Option `--all-projects` o.ä., die alle gefundenen References sequenziell mutiert und einen kombinierten Report generiert.
 - Oder eine Mehrfach-`--project`-Angabe (`--project A.csproj --project B.csproj`).
+
+---
+
+### 🔴 Bug #9 — _NEU in v3.1.1_ — `--mutation-profile All` crasht mit `InvalidCastException`
+
+**Schweregrad:** HOCH (komplettes Profile-Feature unbenutzbar)
+
+**Erwartung:** `--mutation-profile All` aktiviert den maximalen Mutator-Set (laut Doku 52 Operatoren) und produziert mehr Mutanten als `Stronger`.
+
+**Beobachtung:** Tool bricht mit Stack-Trace ab, kein Report wird generiert:
+
+```
+[ERR] An error occurred during the mutation test run
+System.AggregateException: One or more errors occurred. (Unable to cast object
+of type 'Microsoft.CodeAnalysis.CSharp.Syntax.ParenthesizedExpressionSyntax'
+to type 'Microsoft.CodeAnalysis.CSharp.Syntax.TypeSyntax'.)
+ ---> System.InvalidCastException: Unable to cast object of type
+'Microsoft.CodeAnalysis.CSharp.Syntax.ParenthesizedExpressionSyntax' to type
+'Microsoft.CodeAnalysis.CSharp.Syntax.TypeSyntax'.
+
+Unhandled exception. ...
+   at Stryker.Core.Mutants.CsharpNodeOrchestrators.NodeSpecificOrchestrator`2
+      .OrchestrateChildrenMutation(...)
+   at Stryker.Core.Mutants.MutationContext.Mutate(SyntaxNode node, SemanticModel model)
+   at Stryker.Core.Mutants.CsharpMutantOrchestrator.Mutate(SyntaxTree input, ...)
+   at Stryker.Core.MutationTest.CsharpMutationProcess.Mutate(...)
+   at Stryker.Core.Initialisation.ProjectMutator.MutateProject(...)
+   at Stryker.Core.Initialisation.ProjectOrchestrator.MutateProjectsAsync(...)
+   at Stryker.Core.StrykerRunner.RunMutationTestAsync(...)
+   at Stryker.CLI.StrykerCli.RunStrykerAsync(...)
+```
+
+**Reproduzierbarkeit:** 100 % auf zwei verschiedenen Source-Projekten (`Calculator.Domain` mit ~150 LOC, `Calculator.Infrastructure` mit ~1.300 LOC) — also kein code-spezifischer Edge-Case, sondern ein genereller Bug in einem oder mehreren der zusätzlichen `All`-Mutatoren.
+
+**Repro:**
+```bash
+dotnet stryker-netx --project Calculator.Domain.csproj --mutation-profile All
+# Crasht mit obigem Stack-Trace.
+```
+
+**Diagnose:** Der Cast `ParenthesizedExpressionSyntax → TypeSyntax` deutet auf einen Mutator hin, der bei Cast-Expressions oder pattern-matching-Konstrukten den syntaktischen Unterschied zwischen `(Type)expr` (CastExpressionSyntax mit Type=TypeSyntax) und `(expr)` (ParenthesizedExpressionSyntax) übersieht und blind auf `TypeSyntax` castet.
+
+Wahrscheinliche Kandidaten unter den "All"-spezifischen Operatoren (laut Doku-Beschreibung):
+- `UoiMutator` (unary operator insertion) — könnte bei `-(x + y)` triggern, weil `(x + y)` parenthesized expression ist
+- `MethodBodyReplacement` — könnte bei expression-bodied members betroffen sein
+- `NakedReceiver` — eher unwahrscheinlich
+
+**Verhalten der anderen Profile in v3.1.1:**
+
+| Profile | Status | Created | Tested | Killed | Survived | Timeout | Score |
+|---------|--------|---------|--------|--------|----------|---------|-------|
+| `Defaults` | ✅ läuft durch | 271 | 203 | 142 | 55 | 6 | 72,91 % |
+| `Stronger` | ✅ läuft durch | (nicht im Output, aber) **420 tested** | 420 | 277 | 127 | 16 | 69,10 % |
+| `All` | 🔴 **CRASH** | — | — | — | — | — | — |
+
+**Vorschlag zur Fehlersuche:**
+1. Mutator-Liste in Stronger vs All identifizieren — die Differenz-Operatoren sind die Kandidaten.
+2. Pro Differenz-Operator einen kleinen Test mit Code-Schnipseln, die `ParenthesizedExpressionSyntax` enthalten (z.B. `var x = -(a + b);`, `return (predicate ? a : b);`, `var y = !(x > 0);`).
+3. Cast-Stelle finden, in `is`/`as`/Pattern-Matching ändern.
+4. Regression-Test mit minimaler Repro-Codebase im stryker-netx-Repo.
+
+**Vorläufiger Workaround für Anwender:** `--mutation-profile Stronger` statt `All` einsetzen. Stronger funktioniert in v3.1.1 sauber und liefert bereits 420 Mutanten (vs. 203 bei Defaults) — also schon einen substantiellen Mehrwert gegenüber Defaults.
 
 ---
 
