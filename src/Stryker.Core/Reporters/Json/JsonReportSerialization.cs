@@ -22,10 +22,16 @@ public static class JsonReportSerialization
     /// <see cref="JsonTestFileConverter"/>, <see cref="JsonTestConverter"/>)
     /// handle the polymorphic interface-typed properties at runtime.
     ///
-    /// Net AOT progress: source-gen for the entry-type metadata graph.
-    /// Custom converters continue to use runtime reflection for interface
-    /// dispatch — full AOT-trim would require flattening interface
-    /// properties to concrete types (out of scope for v2.3.0).
+    /// <para>
+    /// v3.2.8 (Sprint 154 / ADR-034): full AOT-trim. The source-gen context
+    /// now also covers the 6 concrete types behind the polymorphic interfaces
+    /// (<c>SourceFile</c>, <c>JsonMutant</c>, <c>Location</c>, <c>Position</c>,
+    /// <c>JsonTestFile</c>, <c>JsonTest</c>) plus the concrete dictionary
+    /// types used by <see cref="JsonReport"/>. The <c>DefaultJsonTypeInfoResolver</c>
+    /// reflection-fallback is no longer needed — the resolver is just the
+    /// source-gen context. Net effect: full AOT/trim-compatible JsonReport
+    /// pipeline.
+    /// </para>
     /// </summary>
     public static readonly JsonSerializerOptions Options = BuildOptions();
 
@@ -36,9 +42,10 @@ public static class JsonReportSerialization
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             WriteIndented = false,
-            TypeInfoResolver = JsonTypeInfoResolver.Combine(
-                JsonReportSerializerContext.Default,
-                new DefaultJsonTypeInfoResolver()),
+            // Sprint 154 ADR-034: source-gen context only, no DefaultJsonTypeInfoResolver
+            // reflection-fallback. All concrete types touched by the converter chain are
+            // [JsonSerializable]-registered in JsonReportSerializerContext.
+            TypeInfoResolver = JsonReportSerializerContext.Default,
         };
         options.Converters.Add(new SourceFileConverter());
         options.Converters.Add(new JsonMutantConverter());
