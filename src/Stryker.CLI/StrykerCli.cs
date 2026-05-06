@@ -57,6 +57,13 @@ public partial class StrykerCli
     /// <param name="args">User input</param>
     public async Task<int> RunAsync(string[] args)
     {
+        // Sprint 141 Bug #4: short-circuit --tool-version / -T before any other parsing.
+        if (TryHandleToolVersionFlag(args, out var earlyExitCode))
+        {
+            await Console.Out.WriteLineAsync(GetToolVersionString()).ConfigureAwait(false);
+            return earlyExitCode;
+        }
+
         var app = new CommandLineApplication(new ConsoleWrapper(_console))
         {
             Name = "Stryker",
@@ -223,4 +230,37 @@ Since this is a preview feature things might not work as expected! Please report
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Stryker starting, version: {Version}")]
     private static partial void LogStrykerStarting(ILogger logger, SemanticVersion version);
+
+    /// <summary>
+    /// Sprint 141 (Bug #4 from Calculator-tester report): detect <c>--tool-version</c>
+    /// or <c>-T</c> in the raw args BEFORE any other parsing. We can't reuse
+    /// <c>--version</c> / <c>-v</c> because those are bound to the project-version
+    /// (dashboard / baseline feature) inherited 1:1 from upstream Stryker.NET. The
+    /// separate <c>--tool-version</c> flag preserves CLI-schema-compat while giving
+    /// users the platform-conventional way to discover which tool version they have.
+    /// </summary>
+    private static bool TryHandleToolVersionFlag(string[] args, out int exitCode)
+    {
+        var match = args.Any(static a =>
+            string.Equals(a, "--tool-version", StringComparison.Ordinal)
+            || string.Equals(a, "-T", StringComparison.Ordinal));
+        exitCode = match ? ExitCodes.Success : 0;
+        return match;
+    }
+
+    /// <summary>
+    /// Reads the tool's <see cref="AssemblyInformationalVersionAttribute"/> and strips
+    /// the trailing <c>+&lt;commit-sha&gt;</c> source-revision build-metadata that
+    /// <c>DotNet.ReproducibleBuilds</c> appends, so users see <c>3.1.0</c> not
+    /// <c>3.1.0+abcdef0123...</c>.
+    /// </summary>
+    internal static string GetToolVersionString()
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        var raw = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                  ?? assembly.GetName().Version?.ToString()
+                  ?? "0.0.0";
+        var plusIndex = raw.IndexOf('+', StringComparison.Ordinal);
+        return plusIndex >= 0 ? raw[..plusIndex] : raw;
+    }
 }

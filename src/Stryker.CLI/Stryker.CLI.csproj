@@ -48,4 +48,9 @@
     <ProjectReference Include="..\Stryker.Core\Stryker.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup Label="InternalsVisibleTo">
+    <!-- Sprint 141 (Bug #4): expose internal GetToolVersionString helper to the test project. -->
+    <InternalsVisibleTo Include="Stryker.CLI.Tests" />
+  </ItemGroup>
+
 </Project>

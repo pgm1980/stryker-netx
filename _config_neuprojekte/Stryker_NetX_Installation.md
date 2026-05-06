@@ -360,7 +360,7 @@ Wenn das Projekt zuvor das originale `dotnet-stryker` benutzt hat:
 dotnet tool uninstall -g dotnet-stryker
 
 # 2. stryker-netx installieren
-dotnet tool install -g dotnet-stryker-netx --version 3.0.24
+dotnet tool install -g dotnet-stryker-netx --version 3.1.1
 
 # 3. In Scripts / CI-Workflows:
 #    `dotnet stryker`        →  `dotnet stryker-netx`
@@ -369,6 +369,59 @@ dotnet tool install -g dotnet-stryker-netx --version 3.0.24
 ```
 
 **Keine Änderungen an `stryker-config.json` notwendig.** Alle Reporter-Outputs (HTML, JSON, Dashboard) sind formatkompatibel.
+
+---
+
+## Häufige Stolpersteine
+
+### NuGet-Indexing-Latenz nach `dotnet nuget push`
+
+Wenn du selbst Releases pushst (z.B. via dem `release.yml`-Workflow): das Paket erscheint **nicht sofort** im offiziellen NuGet.org-Index. Der Push selbst dauert ~2 Sekunden, aber bis `flatcontainer/index.json` (die Quelle für `dotnet tool install`) das neue Paket sieht, vergehen typischerweise **5–30 Min**, in Einzelfällen bis zu **1 h** (search-index ist langsamer als flatcontainer).
+
+**Wirkung:** Direkt nach dem Push schlägt `dotnet tool install -g dotnet-stryker-netx --version <neue-version>` mit `"Version "<X>" des Pakets ... nicht gefunden"` fehl, obwohl die GitHub-Release-Notes schon das `.nupkg`-Asset zeigen. Das ist **nicht** ein Bug — das ist NuGet-Indexing-Latenz.
+
+**Empfehlungen:**
+- **Bei eigenen Releases:** in den Release-Notes einen Hinweis einbauen ("NuGet-Indexing kann bis zu 30 min dauern"). Stryker-netx hat das z.B. nach Sprint 138 (erstmaliger Push) selbst beobachtet: ~14 min für v3.0.24, ~5 min für v3.0.25 (nachfolgende Pushes sind schneller weil das Paket-Skeleton schon existiert).
+- **In CI-Pipelines:** Tool-Version pinnen — entweder per `dotnet-tools.json` (committed im Repo) oder via `--version`-Flag mit konkreter Version statt `latest`. Verhindert dass eine neue Release in einer Hälfte deines CI-Cluster schon verfügbar ist und in der anderen noch nicht.
+- **Beim Verifizieren:** `gh api "https://api.nuget.org/v3-flatcontainer/dotnet-stryker-netx/index.json"` zeigt direkt die indexed-Versions-Liste.
+
+### Tool-Version abfragen
+
+`dotnet stryker-netx --tool-version` (oder `-T`) gibt die installierte Tool-Version aus und beendet sofort:
+
+```bash
+$ dotnet stryker-netx --tool-version
+3.1.1
+```
+
+(`--version` / `-v` ist **nicht** für die Tool-Version — das ist der **project-version**-Flag fürs Dashboard- und Baseline-Feature, 1:1 von upstream Stryker.NET geerbt.)
+
+### Multi-Source-Project Setups (Clean-Architecture etc.)
+
+Wenn dein Test-Projekt mehrere `<ProjectReference>` enthält (typisch: `Domain` + `Infrastructure` + `App`), wirft stryker-netx im Single-Project-Mode den Fehler:
+
+```
+Test project contains more than one project reference. Please set the project option ...
+```
+
+**Die richtige Lösung ist Solution-Mode statt Single-Project-Mode:**
+
+```bash
+# Statt: dotnet stryker-netx (im Test-Project-Verzeichnis, schlägt fehl)
+# Nutze: Solution-Mode vom Solution-Root
+dotnet stryker-netx --solution <Projektname>.slnx
+```
+
+Im Solution-Mode mutiert stryker-netx **alle** referenzierten Source-Projekte sequentiell in einem Run und erzeugt einen kombinierten Report. Das ist die idiomatische Lösung für Clean-Architecture-Layouts und Multi-Module-Setups.
+
+Alternativ — wenn du nur ein bestimmtes Layer mutieren willst:
+
+```bash
+# Im Test-Project-Verzeichnis:
+dotnet stryker-netx --project ../../src/<Projekt>.Domain/<Projekt>.Domain.csproj
+```
+
+(Sprint 141 Hinweis #8: error-message verbessert, um den Solution-Mode-Hinweis explizit zu machen.)
 
 ---
 
