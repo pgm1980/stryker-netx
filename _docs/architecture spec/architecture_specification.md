@@ -1866,19 +1866,44 @@ Die Mutation-Pipeline wird in **drei Phasen** type-position-aware gemacht. Jede 
 - Solution-wide: 0 Warnings, 0 Errors, ~2200 Tests grün (RedirectDebugAssert ist pre-existing nicht-deterministischer Flake aus Sprint 27, unabhängig).
 - Semgrep: 0 Findings auf den 6 modifizierten Dateien.
 
-### Phase 2 (Sprint TBD) — CAE-aware Lifting für `MemberBinding.Name`-Slot
+### Phase 2 (Sprint 144) ✅ implementiert — CAE-aware Lifting für `MemberBinding.Name`-Slot + TypeSyntax-Skip
 
 **Problem.** Der `WhenNotNull`-Slot eines `ConditionalAccessExpression` (`?.`-Operator) verlangt eine binding-led Expression (Start mit `.` oder `[`). Ein Phase-1-style Pivot auf `MemberBindingExpression` produziert `(?.Length)++` Tree-shape, was Roslyn-Binder rejects. Stattdessen muss bei `MB.Name` der Pivot **bis zum umschließenden CAE** gehoben werden, sodass der Postfix-/Prefix-Operator das gesamte `data?.Length` umschließt.
 
-**Geplante Änderungen.**
+**Phase-1-Gap entdeckt (Sprint-144-Bisect).** Das Problem ist NICHT auf `MB.Name` beschränkt: jeder Pivot der innerhalb einer `CAE.WhenNotNull`-Subtree landet — auch ein `MA.Name`-Pivot (`box?.Inner.Length`) oder ein deeper `MB`-Inside-Invocation (`matrix?.GetType().Name?.Length`) — produziert dieselbe binder-rejection. Sample.Library hatte keine solche Patterns, daher Phase-1-e2e nicht broken; Real-World-Code mit `?.X.Y`-Chains hingegen schon. Phase 2 generalisiert den Lift: walking-up bis zur outermost-CAE in der `?.`-Kette, durch alle Zwischenebenen (Invocation, MA-Expression-side, CAE.Expression-side-crossing) hindurch.
 
-1. **`UoiMutator`-Erweiterung**: `MB.Name` → `pivot = enclosing CAE`. Walk up die Parent-Kette, bis wir den nicht-Conditional-WhenNotNull-Ancestor gefunden haben.
-2. **`MemberAccessNameSlotOrchestrator`-Predicate**: aufweiten auf `MB.Name`-Slots (oder ein zweiter Orchestrator), Inject-Defer bis zum CAE-Frame.
-3. Verallgemeinerung: jede Pivot-Kette (`MA → outer-MA → CAE → ...`) muss konsistent in den ersten loose-typed-Expression-Slot landen.
+**Implementierte Änderungen.**
 
-**Fallout.** Der `DoNotMutateOrchestrator<SimpleNameSyntax>(predicate)` Phase-1-Guard wird entfernt. UOI-Coverage wird auch auf Conditional-Access-Right-Hands aktiv.
+1. **`UoiMutator.ApplyMutations`**: initial pivot extension auf `MB.Name` (Phase-1 hatte nur `MA.Name`), dann `LiftPastConditionalAccess` while-loop. Die Lift-Hilfe `FindEnclosingCaeViaWhenNotNull` walks the parent chain und returns die erste CAE deren WhenNotNull ein Vorfahr ist (CAEs deren Expression-side gekreuzt werden, sind transparent — wir gehen weiter).
+2. **`UoiMutator.IsSafeToWrap`**: Phase-1 MB.Name-skip entfernt (CAE-walk-up handled). Refaktoriert mit dedizierten Helper-Methoden (Methodenlänge ≤ 60 für MA0051). NEU: `IsInTypeSyntaxPosition`-Skip für IdentifierName in TypeSyntax-typed Slots — Sprint 142 hatte das nur für `SpanReadOnlySpanDeclarationMutator` (GenericName); UoiMutator (IdentifierName) hatte den Guard nicht, was bei user-defined Property-Types in Real-World-Code zum identischen Cast-Crash geführt hätte. Re-enable in Phase 3.
+3. **`MemberAccessNameSlotOrchestrator.CanHandle`**: predicate aufgeweitet auf MA.Name OR MB.Name. Existing `MutationControl.MemberAccess`-Defer-Mechanik trägt Phase 2 von selbst — Inject defers bis zur outer-CAE-frame, Mutation injects als `sourceCAE.InjectMutation(mutation)` mit `mutation.OriginalNode = CAE`.
+4. **`CsharpMutantOrchestrator.BuildOrchestratorList`**: Phase-1's `DoNotMutateOrchestrator<SimpleNameSyntax>(MB.Name)` Guard ENTFERNT.
+5. **`ConditionalExpressionOrchestrator`**: UNVERÄNDERT — bestehende Mechanik trägt Phase 2.
 
-**Verifikation.** Repro-Fixture um `data?.Length`-Variante erweitern, alle 4 Mutations als Pivot-zu-CAE testen.
+**Phase 2 Verifikation (Sprint 144).**
+
+- Lokaler Bisect-Trail mit `samples/Sample.Library/SpanTester.cs` (`data.Length > 0 ? data[0] : 0` + `data?.Length ?? 0` + `matrix?.GetType().Name?.Length ?? 0`). Sprint-143-Phase-1 cracht auf `box?.Inner.Length` mit `InvalidCastException(ParenthesizedExpression → TypeSyntax)` (TypeSyntax-Slot-Issue für user-defined `Box` und `BoxInner` Property-Types). Sprint-144-Phase-2 läuft sauber durch — kein Crash, kein file-compile-poisoning. Calculator-Baseline (30 killed / 14 survived) unverändert. SpanTester-Repro produziert +43 testbare Mutations mit individueller Compile-Error-Klassifikation (vs. ganzheitlicher file-compile-fail). Repro-Fixture vor Commit entfernt (würde `Defaults_ProducesExpectedTotalAndScore` E2E-Baseline brechen, gleich wie Sprint 142+143).
+- `tests/Stryker.Core.Tests/Mutators/UoiMutatorTests.cs`: 10 grün — 4 Phase-1-regression + 6 Phase-2 NEU: `MutatesAtCaeLevel_RightHandOfMemberBinding` (`data?.Length`), `MutatesAtOutermostCae_NestedConditionalAccess` (`a?.b?.c`), `MutatesAtOutermostCae_MaInWhenNotNullSubtree` (`box?.Inner.Length`), `DoesNotMutate_IdentifierInTypeSyntaxPosition` (Property-Type-Slot).
+- Solution-wide: 0 Warnings, 0 Errors, ~2200 Tests grün (RedirectDebugAssert pre-existing flake bleibt unverändert).
+- Semgrep: 0 Findings auf 4 modifizierten Dateien.
+
+**Algorithm — `LiftPastConditionalAccess`.**
+
+```csharp
+ExpressionSyntax pivot = initial; // MA / MB / Identifier
+while (true) {
+    var enclosingCae = FindEnclosingCaeViaWhenNotNull(pivot);
+    if (enclosingCae is null) return pivot;
+    pivot = enclosingCae;
+}
+
+// FindEnclosingCaeViaWhenNotNull walks up the parent chain. Returns the
+// first CAE we cross from the WhenNotNull side. CAEs we cross from the
+// Expression side are transparent — we keep walking. Critical for nested
+// scenarios like `matrix?.GetType().Name?.Length` where MB(.GetType) sits
+// inside MA -> CAE2.Expression -> CAE1.WhenNotNull (so the first
+// WhenNotNull-side crossing is at CAE1, not CAE2).
+```
 
 ### Phase 3 (Sprint TBD) — Type-Position-Aware Engine für `TypeSyntax`-Slots (`SpanReadOnlySpanDeclarationMutator` re-enable)
 
@@ -1905,11 +1930,12 @@ Die Mutation-Pipeline wird in **drei Phasen** type-position-aware gemacht. Jede 
 
 - (+) Root-cause-fix: die Engine wird wirklich type-position-aware, nicht symptombezogen-skipped.
 - (+) Phase 1 stellt UOI-Coverage auf MA.Name wieder her (war Sprint-142-Hotfix-Verlust).
+- (+) Phase 2 stellt UOI-Coverage auf MB.Name + MA-in-CAE-Subtree wieder her und discovered + fixt einen latenten Phase-1-Crash für TypeSyntax-Position IdentifierName (user-defined Property-Types).
 - (+) Phase-Plan ist incremental: jede Phase ist verifizierbar, ein Phase-Fail blockt nicht das v3.2.0-Tag (er verschiebt es).
 - (–) Multi-Sprint commitment — kein 3.x.x-Patch-Tag bis Phase 3 fertig.
 - (–) Phase 3 ist die invasivste Änderung (möglich neuer Engine-Typ), kann mehrere Sprints brauchen.
 
-**Supersedes.** Teile von ADR-026: der `DoNotMutateOrchestrator<SimpleNameSyntax>(MA.Name || MB.Name)` Guard wird zu `MB.Name only` reduziert; Phase 2 entfernt ihn ganz. Der `SpanReadOnlySpanDeclarationMutator: Profile.None` Guard wird in Phase 3 zurückgenommen. UoiMutator's `IsSafeToWrap`-Skip für MA.Name aus Sprint 142 wird durch Pivot ersetzt.
+**Supersedes.** Teile von ADR-026: der `DoNotMutateOrchestrator<SimpleNameSyntax>(MA.Name || MB.Name)` Guard wurde in Phase 1 zu `MB.Name only` reduziert; Phase 2 hat ihn ganz entfernt. UoiMutator's `IsSafeToWrap`-Skip für MA.Name (Sprint 142) wurde durch Phase-1-Pivot ersetzt; UoiMutator's `IsSafeToWrap`-Skip für MB.Name (Sprint 142) wurde durch Phase-2-CAE-Pivot ersetzt. Der `SpanReadOnlySpanDeclarationMutator: Profile.None` Guard sowie Phase-2's `UoiMutator.IsInTypeSyntaxPosition`-Skip werden in Phase 3 (Engine-Refactor) zurückgenommen.
 
 ---
 
@@ -1926,3 +1952,4 @@ Die Mutation-Pipeline wird in **drei Phasen** type-position-aware gemacht. Jede 
 | 0.7.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 140 (v3.1.0): ADR-025 — Mutation-Profile Auto-Bump für Mutation-Level. Code-Side Reparatur des silent-no-op-Bugs aus Calculator-Tester-Bug-Report (#1). ToT (5 Branches) + Maxential (14 Thoughts, 2 Branches) Decision-Trail. |
 | 0.8.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 142 (v3.1.2 Hotfix): ADR-026 — ConditionalInstrumentation × TypeSyntax-/SimpleName-Slot incompat. Bug #9 aus Calculator-Tester-Bug-Report-Update (`--mutation-profile All` crash). UoiMutator-pre-check erweitert + SpanReadOnlySpanDeclarationMutator disabled (Profile.None) + global DoNotMutateOrchestrator<SimpleNameSyntax> mit predicate. Sprint 23-Pattern auf neue crash-Klassen übertragen. |
 | 0.9.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 143 (v3.2.0-dev Phase 1): ADR-027 — Type-Position-Aware Mutation Control. Multi-Sprint Engine-Refaktor zur Root-Cause-Fix von Bug #9 statt Sprint-142-Symptom-Skip (User-Feedback). Phase 1 implementiert: Smart-Pivot in UoiMutator für MA.Name + neuer MemberAccessNameSlotOrchestrator + Mutator-set OriginalNode (`??=`). Phase 2 (MB.Name CAE-aware Lifting) und Phase 3 (TypeSyntax-Engine, SpanReadOnly re-enable) geplant. **Kein Tag** — v3.2.0 erst nach Phase 3. |
+| 0.10.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 144 (v3.2.0-dev Phase 2): ADR-027 Phase 2 implementiert. CAE-aware lifting für MB.Name + MA-in-CAE.WhenNotNull-Subtree via UoiMutator's `LiftPastConditionalAccess` walk-up loop (transparent durch CAE-Expression-side-crossings für nested patterns wie `matrix?.GetType().Name?.Length`). Phase-1-Gap entdeckt + gefixt: UoiMutator emittierte PostfixUnary in TypeSyntax-Slots (user-defined Property-Types) → `InvalidCastException(ParenthesizedExpression → TypeSyntax)` Crash; mit Phase-2 `IsInTypeSyntaxPosition`-Skip. Phase-1 MB.Name-Guard entfernt; MemberAccessNameSlotOrchestrator predicate auf MA-OR-MB aufgeweitet. 6 neue UoiMutator-Tests (Phase-1+2 regression, 10 grün gesamt). **Kein Tag** — v3.2.0 erst nach Phase 3 (TypeSyntax-Engine + SpanReadOnly re-enable). |

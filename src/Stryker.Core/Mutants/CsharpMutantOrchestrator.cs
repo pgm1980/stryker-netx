@@ -53,10 +53,10 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new DoNotMutateOrchestrator<EnumMemberDeclarationSyntax>(),
         new DoNotMutateOrchestrator<UsingDirectiveSyntax>(),
         // Sprint 23: QualifiedName slots crash typed visitor on Parens-envelope.
+        // (Sprint-143 MB.Name guard retired in Sprint 144 ADR-027 Phase 2 — UOI
+        // now lifts MB targets to the enclosing CAE via UoiMutator + the
+        // MemberAccessNameSlotOrchestrator MA-or-MB predicate.)
         new DoNotMutateOrchestrator<QualifiedNameSyntax>(),
-        // Sprint 143 (ADR-027 Phase 1): MB.Name guard. Phase 2 lifts to enclosing CAE.
-        new DoNotMutateOrchestrator<SimpleNameSyntax>(t =>
-            t.Parent is MemberBindingExpressionSyntax mb && mb.Name == t),
         // constants and constant fields
         new DoNotMutateOrchestrator<FieldDeclarationSyntax>(
             t => t.Modifiers.Any(x => x.IsKind(SyntaxKind.ConstKeyword))),
@@ -69,7 +69,7 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         // prevent mutations to happen within member access expression
         new MemberAccessExpressionOrchestrator<MemberAccessExpressionSyntax>(),
         new MemberAccessExpressionOrchestrator<MemberBindingExpressionSyntax>(),
-        // Sprint 143 (ADR-027 Phase 1): MA / MB .Name slot is strict-typed.
+        // ADR-027 Phase 1+2: MA / MB .Name slots are strict-typed (SimpleName).
         // The predicate-restricted handler MUST come first (TypeBasedStrategy
         // takes FirstOrDefault per-type bucket).
         new MemberAccessNameSlotOrchestrator(),
