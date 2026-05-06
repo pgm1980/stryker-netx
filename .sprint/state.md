@@ -1,7 +1,7 @@
 ---
-current_sprint: "155"
-sprint_goal: "RoslynSemanticDiagnostics v2 — StatementSyntax-Coverage via TryGetSpeculativeSemanticModel + descendant-walk. Schließt Sprint-16-deferred-Item. ADR-037. v3.2.9."
-branch: "feature/155-roslyn-semantic-statements"
+current_sprint: "156"
+sprint_goal: "Issue #191 MutationTestProcessTests minimum-viable closure — port ShouldNotTest_WhenThereAreNoMutations + ADR-038 honest-deferral für 4 heavy pipeline tests. v3.2.10."
+branch: "feature/156-mutationtestprocesstests-port"
 started_at: "2026-05-06"
 housekeeping_done: false
 memory_updated: false
@@ -11,34 +11,33 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 155 in progress (RoslynDiagnostics v2)
+# Session State — Sprint 156 in progress (Issue #191 closure)
 
-## Sprint 155 — ADR-037 (Maxential 4-Schritte, 3 ToT-Branches)
+## Sprint 156 — ADR-038 (Maxential 3-Schritte branchless)
 
-**Decision:** S2 (TryGetSpeculativeSemanticModel + descendant-walk via GetSymbolInfo) gewählt.
+**Decision:** minimum-viable closure: 6/9 upstream tests ported (5 Sprint-107 + 1 Sprint-156 Empty-Mutants). 4 heavy pipeline tests honest-deferred mit 3 dokumentierten Refactor-Voraussetzungen.
 
-**Verworfen:**
-- S1 (TryGetSpeculativeSemanticModel + GetDiagnostics): NotSupportedException aus SpeculativeSemanticModelWithMemberModel.GetDiagnostics
-- S3 (Compilation.AddSyntaxTrees per-mutation): O(parse + bind) statt O(1)
+## Sprint-156-Phasen
 
-## Sprint-155-Phasen
+- **Phase A** ✅ Maxential 3-Schritte (minimum-viable definition + cost/benefit gegen full-port)
+- **Phase B** ✅ Audit der 4 deferred upstream tests — 3 Refactor-Voraussetzungen identifiziert (shared-state-fixture / Real-Pipeline-Wiring / TestResources/ExampleSourceFile.cs)
+- **Phase C** ✅ ShouldNotTest_WhenThereAreNoMutations port — async Task return type, FluentAssertions assertions
+- **Phase D** ✅ 9 MutationTestProcessTests grün (5+1+3)
+- **Phase E** ✅ ADR-038 + 0.22.0 history-row
+- **Phase F** PR + merge + tag v3.2.10 + Issue #191 close
 
-- **Phase A** ✅ Maxential 4-Schritte (S1 test-failure → S2 chosen)
-- **Phase B** ✅ Code-Audit Sprint-17 RoslynSemanticDiagnosticsEquivalenceFilter — Statement+Declaration explicit out-of-scope per Sprint-16-deferral
-- **Phase C** ✅ IsEquivalent switch-pattern: ExpressionSyntax → IsEquivalentExpression (Sprint 17 unchanged), StatementSyntax → IsEquivalentStatement (NEU), Declaration → false
-- **Phase D** ✅ TryGetSpeculativeSemanticModel + descendant-walk + Sprint-137 MemberBindingExpression-skip
-- **Phase E** ✅ 6 RoslynSemanticDiagnostics-Tests grün (1 renamed + 1 neu)
-- **Phase F** ✅ Solution-wide build (0 W / 0 E), Semgrep clean
-- **Phase G** ✅ ADR-037 + 0.21.0 history
-- **Phase H** PR + merge + tag v3.2.9
+## Backlog-Status nach Sprint 156
 
-## Backlog-Status nach Sprint 155
+**Alle 7 Backlog-Items aus User-Direktive sind geschlossen.**
 
-- ✓ Item 1 (JsonReport AOT-trim) — Sprint 154 / ADR-034
-- ✓ Item 2 (RoslynDiagnostics v2) — Sprint 155 / ADR-037
-- ✓ Item 3 (TypeSyntax-Engine) — ADR-035 status-quo
-- ✓ Item 4 (HotSwap-incremental) — ADR-035 status-quo
-- ✓ Item 5 (CI flakes Class A+B+D) — Sprint 152 / ADR-036; Class C deferred
-- ✓ Item 7 (Combined Report) — ADR-033 discovery
+| # | Backlog-Item | Status | Sprint / ADR |
+|---|--------------|--------|--------------|
+| 1 | JsonReport full AOT-trim | ✓ closed | Sprint 154 / ADR-034 |
+| 2 | RoslynDiagnostics v2 | ✓ closed | Sprint 155 / ADR-037 |
+| 3 | TypeSyntax-Engine Refactor | ✓ status-quo | ADR-035 |
+| 4 | HotSwap inkrementelles MT | ✓ status-quo | ADR-035 |
+| 5 | CI Integration Matrix Flakes | ✓ closed Class A+B+D (Class C deferred) | Sprint 152 / ADR-036 |
+| 6 | Issue #191 MutationTestProcessTests | ✓ closed | Sprint 156 / ADR-038 |
+| 7 | Combined Multi-Project Report | ✓ closed by discovery | ADR-033 |
 
-Remaining: Item 6 (Issue #191 MutationTestProcessTests port) — Sprint 156
+5-Sprint-Roadmap (152, 153/154/155, 156) erfüllt + 2 doc-only ADRs (033, 035).
