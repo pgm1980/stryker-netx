@@ -1704,12 +1704,76 @@ Defer JsonReport full AOT-trim to **v3.0**.
 
 **Implementation outline für v3.0.**
 
-1. ADR-025: concrete-types schema for the JsonReport family
+1. Future-ADR (TBD-Nummer): concrete-types schema for the JsonReport family — note: ADR-025 was originally reserved for this, but Sprint 140 (Profile×Level Auto-Bump, see below) took the slot first; the JsonReport-concrete-types ADR will get the next free number when actually scheduled.
 2. Replace interface declarations with `sealed record` declarations (or sealed classes if record-init-binding doesn't work for the polymorphic-deserialization case)
 3. Delete custom converters (`SourceFileConverter`, `JsonMutantConverter`, etc.)
 4. Simplify `JsonReportSerializerContext` to handle the full type graph natively
 5. Remove `JsonTypeInfoResolver.Combine` plumbing in `JsonReportSerialization`
 6. Update embedders' migration guide
+
+---
+
+## ADR-025: Mutation-Profile Auto-Bump für Mutation-Level (v3.1.0)
+
+**Status.** Accepted — 2026-05-06 (Sprint 140, v3.1.0). Backed by Sprint-140-ToT (5 Branches A/B/C/D/E, score-ranked, C+E pruned) + Maxential (14 Thoughts, 2 closed branches `B-autobump` + `D-hybrid`, both full-integration merged).
+
+**Context.**
+
+`mutation-profile` (ADR-018, Sprint 6) und `mutation-level` (geerbt von Stryker.NET) sind orthogonale Filter-Achsen, die conjunctive zusammenwirken. Pro Mutator wird gefiltert:
+
+1. Profile-Filter via `MutationProfileMembershipAttribute` (zb `[MutationProfile.Stronger | MutationProfile.All]`)
+2. Level-Filter via `MutatorBase<T>.MutationLevel` Property (`<= options.MutationLevel`)
+
+Beide müssen passieren, sonst feuert der Mutator nicht.
+
+Real-Life-Bug-Report (Sprint 138 `_bug_reporting/bug_report_stryker_netx.md`, Bug #1) hat aufgezeigt: `--mutation-profile Stronger` bei Default-`--mutation-level Standard` ist schweigsam wirkungslos, weil alle 18 Stronger-only-Mutatoren `MutationLevel = Advanced (50)` oder höher haben — der Level-Filter kickt sie raus, bevor der Profile-Filter sie passieren kann.
+
+Sprint 139 hat das Doku-Side adressiert. Sprint 140 muss die Code-Side klären: schweigsamen No-Op vermeiden.
+
+**Decision.**
+
+Wenn der User `--mutation-profile Stronger` oder `--mutation-profile All` setzt, **ohne** explizit `--mutation-level` zu setzen, **bumped der Orchestrator das Level automatisch** auf den passenden Wert:
+
+- `Profile=Stronger` + Level-implicit → `Level=Advanced`
+- `Profile=All` + Level-implicit → `Level=Complete`
+- `Profile=Defaults` + Level-implicit → `Level=Standard` (= unverändert, heute schon Default)
+- Jede explizite Level-Setzung (auch `Standard`) **gewinnt immer** — kein Override.
+
+Ein Info-Log macht den Auto-Bump sichtbar: `[INF] mutation-level auto-set to {X} based on mutation-profile={Y} (no explicit --mutation-level supplied).`
+
+**Detection-Logik:**
+
+In `StrykerInputs.BuildStrykerOptions()` (Datei `src/Stryker.Configuration/Options/StrykerInputs.cs` ~Zeile 123-124):
+
+- `MutationProfileInput.SuppliedInput is not null` AND validate-result `!= MutationProfile.Defaults`: User hat Profile explicit auf Stronger/All gesetzt
+- AND `MutationLevelInput.SuppliedInput is null`: User hat Level NICHT gesetzt
+- → Override `MutationLevel` mit dem profile-passenden Wert + Info-Log
+
+**Alternatives (verworfen — siehe Maxential).**
+
+- **A — Warning only, kein Auto-Bump.** Score 0.55. Verworfen weil silent no-op weiterhin möglich (User ignoriert Warning). Keine echte UX-Reparatur.
+- **C — Profile-Bundle-Werte (DefaultsStandard/StrongerAdvanced/AllComplete als kombinierte Flags).** Score 0.20. Verworfen — Major Breaking-Change, verletzt 1:1 schema-compat mit upstream Stryker.NET (README-Versprechen).
+- **D — Hybrid (Auto-Bump + Opt-out-Flag --no-auto-mutation-level).** Score 0.82 (höchster ToT-Score!). Verworfen via Maxential YAGNI: der Opt-out-Flag adressiert ein 1%-Use-Case (User will Profile=Stronger + Level=Standard = Defaults-Equivalent) der durch Setzen explicit `--mutation-level Standard` schon gelöst ist. Der Flag wäre 70 LOC + 9 Tests für 1% Use-Case. Wenn künftig real-world Demand auftaucht, additiv nachrüstbar.
+- **E — Profile-Forces-Level (Profile != Defaults bypasst Level-Filter komplett).** Score 0.40. Verworfen — würde die Level-Semantic von "filter on/off pro Mutator" zu "fine-grained tuning" ändern, divergiert von upstream Stryker.NET.
+
+**Consequences.**
+
+- (+) `--mutation-profile Stronger` ohne expliziten Level zeigt jetzt sofort die erwartete Wirkung. UX-Reparatur des Calculator-Bug-Reports.
+- (+) Backwards-compat: User die heute beide Flags explizit setzen, sehen identisches Verhalten. User die heute nur Profile setzen, bekommen ein One-Liner Info-Log + 18 zusätzliche Mutatoren feuern (was sie ohnehin wollten).
+- (+) Implementation-Aufwand klein (~6 LOC + 9 Tests), Maintenance-Surface minimal.
+- (–) Behavior-Change im Default-Pfad — daher v3.1.0 (Minor-Bump) statt v3.0.26 (Patch). User die heute auf v3.0.x in CI gepinned sind, sehen die Änderung erst nach explizitem `dotnet tool update`.
+- (–) Implicit default-shift verletzt "explicit > implicit" Zen leicht. Mitigiert durch Info-Log, der den Auto-Bump explizit announciert.
+
+**Implementation outline (Sprint 140).**
+
+1. Modifikation `StrykerInputs.BuildStrykerOptions()` (~Zeile 123-124)
+2. Helper-Method (oder inline) `ResolveMutationLevel(profile, levelSuppliedInput)`
+3. ILogger-Injection für Info-Log (`ApplicationLogging.LoggerFactory.CreateLogger<StrykerInputs>()`)
+4. Unit-Tests `tests/Stryker.Configuration.Tests/MutationProfileAutoBumpTests.cs` mit 9 Cases:
+   - 3 Profile-Werte × {Level explicit / Level implicit / Level-explicit-equal-to-bump-target}
+5. Doku-Update `_config_neuprojekte/Stryker_NetX_Installation.md`: "Sprint 140 (geplant)"-Forward-Reference entfernen, neue Auto-Bump-Behavior dokumentieren.
+
+**Backed by.** Sprint 140 ToT (Tree-of-Thoughts mit 5 Branches, Pruning niedrig-scored Optionen, score 0.82 Best-Path) + Sprint 140 Maxential (14 Thoughts, 2 Branches `B-autobump` + `D-hybrid`, full-integration-merged, conclusion mit `decision`+`synthesis`-Tags markiert).
 
 ---
 
@@ -1723,3 +1787,4 @@ Defer JsonReport full AOT-trim to **v3.0**.
 | 0.4.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 15 (v2.2.0): ADR-021 — Walking back ADR-016 (HotSwap-Engine wegen falschen mentalen Modells in v2.0.0-Architektur entfernt). ADR-022 (Proposed) — Inkrementelles Mutation-Testing als zukünftige Performance-Direction. Supersedes ADR-016 + ADR-019. |
 | 0.5.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 16 (v2.3.0): ADR-023 — Validation-Framework Count-Tests prinzipieller Skip statt Reconciliation. AsyncAwaitResultMutator (catalogue +1 = 52). JsonReport hybrid source-gen. |
 | 0.6.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 17 (v2.4.0): ADR-024 — JsonReport full AOT-trim als v3.0-scope deferral. Plus RoslynSemanticDiagnosticsFilter + GenericConstraintLoosen interface-pair extension. |
+| 0.7.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 140 (v3.1.0): ADR-025 — Mutation-Profile Auto-Bump für Mutation-Level. Code-Side Reparatur des silent-no-op-Bugs aus Calculator-Tester-Bug-Report (#1). ToT (5 Branches) + Maxential (14 Thoughts, 2 Branches) Decision-Trail. |

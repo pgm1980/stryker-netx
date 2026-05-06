@@ -1,12 +1,14 @@
+using Microsoft.Extensions.Logging;
 using System.IO.Abstractions;
 using Stryker.Abstractions;
 using Stryker.Abstractions.Baseline;
 using Stryker.Abstractions.Options;
 using Stryker.Configuration.Options.Inputs;
+using Stryker.Utilities.Logging;
 
 namespace Stryker.Configuration.Options;
 
-public class StrykerInputs : IStrykerInputs
+public partial class StrykerInputs : IStrykerInputs
 {
     private IStrykerOptions? _strykerOptionsCache;
     private readonly IFileSystem _fileSystem;
@@ -120,7 +122,7 @@ public class StrykerInputs : IStrykerInputs
             OutputPath = outputPath,
             ReportFileName = ReportFileNameInput.Validate(),
             Concurrency = ConcurrencyInput.Validate(),
-            MutationLevel = MutationLevelInput.Validate(),
+            MutationLevel = ResolveMutationLevel(MutationProfileInput, MutationLevelInput),
             MutationProfile = MutationProfileInput.Validate(),
             MutationEngine = MutationEngineInput.Validate(),
             DiagMode = DiagModeInput.Validate(),
@@ -173,4 +175,52 @@ public class StrykerInputs : IStrykerInputs
         };
 #pragma warning restore CS0618
     }
+
+    /// <summary>
+    /// v3.1.0 (Sprint 140, ADR-025): resolve <see cref="MutationLevel"/> with auto-bump
+    /// based on <see cref="MutationProfile"/> when the user did not explicitly supply
+    /// <c>--mutation-level</c>. Closes the silent-no-op caused by the conjunctive
+    /// Profile × Level filter when only the profile is set.
+    /// </summary>
+    /// <remarks>
+    /// Mapping (profile → bumped level) when level is not explicitly supplied:
+    /// <list type="bullet">
+    ///   <item><c>Stronger</c> → <see cref="MutationLevel.Advanced"/></item>
+    ///   <item><c>All</c> → <see cref="MutationLevel.Complete"/></item>
+    ///   <item><c>Defaults</c> / <c>None</c> → unchanged (validated default = Standard).</item>
+    /// </list>
+    /// When the user explicitly supplies <c>--mutation-level</c> (any value, including
+    /// <c>Standard</c>), it always wins — auto-bump only kicks in for the implicit case.
+    /// </remarks>
+    private static MutationLevel ResolveMutationLevel(MutationProfileInput profileInput, MutationLevelInput levelInput)
+    {
+        var validatedLevel = levelInput.Validate();
+
+        // Explicit user-set level always wins, no auto-bump.
+        if (levelInput.SuppliedInput is not null)
+        {
+            return validatedLevel;
+        }
+
+        var profile = profileInput.Validate();
+        var bumpedLevel = profile switch
+        {
+            MutationProfile.Stronger => MutationLevel.Advanced,
+            MutationProfile.All => MutationLevel.Complete,
+            _ => validatedLevel,
+        };
+
+        if (bumpedLevel != validatedLevel)
+        {
+            var logger = ApplicationLogging.LoggerFactory.CreateLogger<StrykerInputs>();
+            LogAutoBumpedMutationLevel(logger, bumpedLevel, profile);
+        }
+
+        return bumpedLevel;
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "mutation-level auto-set to {AutoBumpedLevel} based on mutation-profile={Profile} (no explicit --mutation-level supplied). Override with --mutation-level if needed. (ADR-025)")]
+    private static partial void LogAutoBumpedMutationLevel(ILogger logger, MutationLevel autoBumpedLevel, MutationProfile profile);
 }

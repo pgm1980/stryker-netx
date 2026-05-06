@@ -110,7 +110,14 @@ public class StrykerCLITests
     [Fact]
     public async Task OnAlreadyNewestVersion_ShouldCallNugetClientForPreview()
     {
-        _nugetClientMock.Setup(x => x.GetLatestVersionAsync()).Returns(Task.FromResult(new SemanticVersion(0, 0, 0)));
+        // Sprint 139 (Bug #2 fix) changed Directory.Build.props local-build defaults from
+        // "1.0.0-preview.1" to "0.0.0-localdev". The "AlreadyNewest" branch is only taken
+        // when latestVersion is NOT strictly greater than currentVersion. With a release-tag
+        // mock like SemanticVersion(0,0,0), release > prerelease in SemVer 2.0 → "Update"
+        // branch fires (incorrectly for this test's intent). Use the same prerelease tag
+        // as Directory.Build.props so currentVersion == latestVersion and the ELSE branch
+        // (preview-check) runs.
+        _nugetClientMock.Setup(x => x.GetLatestVersionAsync()).Returns(Task.FromResult(new SemanticVersion(0, 0, 0, "localdev")));
         _nugetClientMock.Setup(x => x.GetPreviewVersionAsync()).Returns(Task.FromResult(new SemanticVersion(20, 0, 0)));
 
         await _target.RunAsync([]);
