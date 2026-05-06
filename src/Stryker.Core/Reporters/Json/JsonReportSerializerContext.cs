@@ -59,6 +59,14 @@ namespace Stryker.Core.Reporters.Json;
 [JsonSerializable(typeof(Dictionary<string, SourceFile>))]
 [JsonSerializable(typeof(Dictionary<string, JsonTestFile>))]
 [JsonSerializable(typeof(Dictionary<string, int>))]
+// Sprint 156 ADR-038 supplementary (Sprint-154 follow-up): DashboardClient
+// batch publishing uses JsonReportSerialization.Options for `List<IJsonMutant>`.
+// Without these registrations, PostAsJsonAsync(_batch, options) throws
+// NotSupportedException at runtime when Reporter.Dashboard is active. The
+// JsonReportSerializationDashboardBatchTests test is the regression-prevention
+// guard so this gap doesn't recur.
+[JsonSerializable(typeof(IJsonMutant))]
+[JsonSerializable(typeof(List<IJsonMutant>))]
 internal sealed partial class JsonReportSerializerContext : JsonSerializerContext
 {
 }
