@@ -54,20 +54,18 @@ public class UoiMutatorTests : MutatorTestBase
         }
     }
 
-    // ----- Sprint 143 (ADR-027 Phase 1 — type-position-aware pivot) regression tests -----
-    // The .Name slot on MemberAccess is strict-typed (SimpleNameSyntax). Sprint 142 mitigated
-    // the resulting crash via a hard skip; Sprint 143 supersedes that with a parent-pivot:
-    // the mutation now lands on the enclosing MA so the engine's ParenthesizedExpression
-    // envelope ends up in an Expression-typed slot instead of a SimpleName-typed one.
-    // The MB.Name twin (data?.Length) still requires the legacy skip — see Phase 2.
+    // ----- ADR-027 Phase 1 + 2 type-position-aware pivot regression tests -----
+    // The .Name slot of MA / MB is strict-typed SimpleNameSyntax. Phase 1
+    // (Sprint 143) lifts MA.Name targets to the parent MA. Phase 2 (Sprint 144)
+    // extends to MB.Name (and any pivot landing inside a CAE.WhenNotNull
+    // subtree) by walking the pivot up to the outermost enclosing CAE.
 
     [Fact]
     public void MutatesAtParentLevel_RightHandOfMemberAccess()
     {
-        // Sprint 143 Phase 1 — pivot for member-access right-hand. UOI now emits 4
-        // mutations whose OriginalNode is the parent MemberAccess and whose
-        // ReplacementNode wraps the full member-access expression in postfix or
-        // prefix increment / decrement.
+        // Phase 1 — `data.Length`. Pivot lifts to the parent MemberAccess so
+        // the post-/pre-fix wraps the full member-access expression and lands
+        // in an Expression-typed slot.
         var tree = CSharpSyntaxTree.ParseText("class C { int Probe(System.ReadOnlySpan<int> data) => data.Length; }");
         var memberAccess = tree.GetRoot().DescendantNodes().OfType<MemberAccessExpressionSyntax>().Single();
         var rhs = (IdentifierNameSyntax)memberAccess.Name;
@@ -77,7 +75,7 @@ public class UoiMutatorTests : MutatorTestBase
             "UOI must emit all 4 increment/decrement variants for MA.Name targets via parent-pivot");
         mutations.Should().AllSatisfy(m =>
             m.OriginalNode.Should().BeSameAs(memberAccess,
-                "Sprint 143 pivot lifts OriginalNode to the enclosing MemberAccess so the (OriginalNode, ReplacementNode) pair is structurally valid for an Expression-typed slot"));
+                "Phase 1 pivot lifts OriginalNode to the enclosing MemberAccess"));
     }
 
     [Fact]
@@ -100,18 +98,87 @@ public class UoiMutatorTests : MutatorTestBase
     }
 
     [Fact]
-    public void DoesNotMutate_RightHandOfMemberBinding()
+    public void MutatesAtCaeLevel_RightHandOfMemberBinding()
     {
-        // Sprint 143 Phase 1 deferred: `data?.Length` — pivoting `Length` to its
-        // MemberBinding parent would put the post-/pre-fix in CAE.WhenNotNull,
-        // which the binder rejects (must be binding-led: `.` or `[`). The legacy
-        // hard-skip remains in place until Phase 2 lifts the pivot to the
-        // enclosing ConditionalAccessExpression.
-        var tree = CSharpSyntaxTree.ParseText("class C { int Probe(System.ReadOnlySpan<int>? data) => data?.Length ?? 0; }");
+        // Phase 2 — `data?.Length`. UOI on `Length` (MB.Name) used to be
+        // skipped (Phase 1 hard-guard) because PostfixUnary(MB) at
+        // CAE.WhenNotNull is not binding-led and Roslyn's binder rejects it.
+        // Phase 2 lifts the pivot up to the enclosing ConditionalAccessExpression.
+        var tree = CSharpSyntaxTree.ParseText("class C { int Probe(System.Span<int>? data) => data?.Length ?? 0; }");
+        var conditionalAccess = tree.GetRoot().DescendantNodes().OfType<ConditionalAccessExpressionSyntax>().Single();
         var memberBinding = tree.GetRoot().DescendantNodes().OfType<MemberBindingExpressionSyntax>().Single();
         var rhs = (IdentifierNameSyntax)memberBinding.Name;
 
-        ApplyMutations(new UoiMutator(), rhs).Should().BeEmpty(
-            "UOI must still skip MemberBinding.Name slots — Phase 1 limits pivot to MA.Name only; MB pivot is Phase 2 (CAE-aware lifting)");
+        var mutations = ApplyMutations(new UoiMutator(), rhs).ToList();
+        mutations.Should().HaveCount(4,
+            "Phase 2 must emit all 4 increment/decrement variants for MB.Name targets via CAE-pivot");
+        mutations.Should().AllSatisfy(m =>
+            m.OriginalNode.Should().BeSameAs(conditionalAccess,
+                "Phase 2 pivot lifts OriginalNode to the enclosing CAE so the (OriginalNode, ReplacementNode) pair sits in a slot whose binder accepts arbitrary expressions"));
+    }
+
+    [Fact]
+    public void MutatesAtOutermostCae_NestedConditionalAccess()
+    {
+        // Phase 2 — nested CAEs `a?.b?.c`. UOI on `c` (.Name of inner MB) must
+        // walk the pivot up through both CAE wrappers and land on the
+        // outermost CAE (where the slot is loose Expression-typed).
+        var tree = CSharpSyntaxTree.ParseText("class A { public B? B { get; } } class B { public int C { get; } } class T { int Probe(A? a) => a?.B?.C ?? 0; }");
+        var allCaes = tree.GetRoot().DescendantNodes().OfType<ConditionalAccessExpressionSyntax>().ToList();
+        allCaes.Should().HaveCount(2, "test setup: source must produce a 2-deep CAE chain");
+        var outermostCae = allCaes[0]; // first in document order is outermost
+        var innerMb = tree.GetRoot().DescendantNodes()
+            .OfType<MemberBindingExpressionSyntax>()
+            .Last(); // last MB in document order targets `C`
+        var rhs = (IdentifierNameSyntax)innerMb.Name;
+        rhs.Identifier.Text.Should().Be("C", "test setup precondition");
+
+        var mutations = ApplyMutations(new UoiMutator(), rhs).ToList();
+        mutations.Should().HaveCount(4);
+        mutations.Should().AllSatisfy(m =>
+            m.OriginalNode.Should().BeSameAs(outermostCae,
+                "Phase 2 must walk past every enclosing CAE.WhenNotNull layer to land on the outermost CAE"));
+    }
+
+    [Fact]
+    public void MutatesAtOutermostCae_MaInWhenNotNullSubtree()
+    {
+        // Phase 2 — the case Phase 1 silently broke: `box?.Inner.Length`. The
+        // `Length` is .Name of an MA whose chain ultimately sits inside the
+        // CAE.WhenNotNull subtree. Phase-1's MA-pivot would land
+        // PostfixUnary(MA) inside CAE.WhenNotNull (non-binding-led -> binder
+        // NRE / file-compile poisoning). Phase 2 walks up to the CAE.
+        var tree = CSharpSyntaxTree.ParseText(
+            "class Inner { public int Length { get; } } class Box { public Inner Inner { get; } = new(); } class T { int Probe(Box? b) => b?.Inner.Length ?? 0; }");
+        var conditionalAccess = tree.GetRoot().DescendantNodes().OfType<ConditionalAccessExpressionSyntax>().Single();
+        var lengthIdentifier = tree.GetRoot().DescendantNodes()
+            .OfType<IdentifierNameSyntax>()
+            .Single(n => string.Equals(n.Identifier.Text, "Length", System.StringComparison.Ordinal)
+                         && n.Parent is MemberAccessExpressionSyntax ma && ma.Name == n);
+
+        var mutations = ApplyMutations(new UoiMutator(), lengthIdentifier).ToList();
+        mutations.Should().HaveCount(4,
+            "Phase 2 must emit mutations for MA.Name targets that sit deep in CAE.WhenNotNull subtree");
+        mutations.Should().AllSatisfy(m =>
+            m.OriginalNode.Should().BeSameAs(conditionalAccess,
+                "the pivot must walk past the WhenNotNull boundary to the enclosing CAE"));
+    }
+
+    [Fact]
+    public void DoesNotMutate_IdentifierInTypeSyntaxPosition()
+    {
+        // Phase 2 — TypeSyntax slot guard. IdentifierName as a property type
+        // (BoxInner in `BoxInner Inner { get; }`) lives in a TypeSyntax slot.
+        // ParenthesizedExpression cannot occupy that slot (same crash class
+        // ADR-026 mitigated for SpanReadOnlySpanDeclarationMutator).
+        var tree = CSharpSyntaxTree.ParseText(
+            "class BoxInner { } class Box { public BoxInner Inner { get; } = new(); }");
+        var typeIdentifier = tree.GetRoot().DescendantNodes()
+            .OfType<IdentifierNameSyntax>()
+            .Single(n => string.Equals(n.Identifier.Text, "BoxInner", System.StringComparison.Ordinal)
+                         && n.Parent is PropertyDeclarationSyntax);
+
+        ApplyMutations(new UoiMutator(), typeIdentifier).Should().BeEmpty(
+            "UOI must skip IdentifierName in TypeSyntax-typed slots (PropertyDeclaration.Type) — ParenthesizedExpression envelope is invalid there. Re-enable in ADR-027 Phase 3.");
     }
 }
