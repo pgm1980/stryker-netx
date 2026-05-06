@@ -1,5 +1,6 @@
 using System.IO;
 using FluentAssertions;
+using Stryker.Abstractions;
 using Stryker.Abstractions.Baseline;
 using Stryker.Abstractions.Exceptions;
 using Stryker.Abstractions.Options;
@@ -200,5 +201,114 @@ public class StrykerInputsTests : TestBase
         result.BaselineProvider.Should().Be(BaselineProvider.Disk);
         result.AzureFileStorageSas.Should().BeEmpty();
         result.AzureFileStorageUrl.Should().BeEmpty();
+    }
+
+    // ----- Sprint 140 (ADR-025) Mutation-Profile Auto-Bump Tests -----
+    // Closes Bug #1 silent-no-op from the post-v3.0.24 Calculator-tester real-life
+    // bug-report. ToT + Maxential converged on B-AutoBump (= D-lite). Test matrix:
+    // 3 profiles × 3 level-settings = 9 cases. Implementation in
+    // src/Stryker.Configuration/Options/StrykerInputs.cs::ResolveMutationLevel().
+
+    [Fact]
+    public void AutoBump_ProfileDefaults_LevelImplicit_KeepsStandard()
+    {
+        // Profile=Defaults + no explicit level → keep Standard (today's behaviour).
+        // Auto-bump must NOT fire because profile is Defaults.
+        _target.MutationProfileInput.SuppliedInput = null!;
+        _target.MutationLevelInput.SuppliedInput = null!;
+        var result = _target.ValidateAll();
+        result.MutationLevel.Should().Be(MutationLevel.Standard, "Defaults-profile must keep Standard-level (no auto-bump)");
+        result.MutationProfile.Should().Be(MutationProfile.Defaults);
+    }
+
+    [Fact]
+    public void AutoBump_ProfileStronger_LevelImplicit_BumpsToAdvanced()
+    {
+        // Profile=Stronger + no explicit level → Auto-bump to Advanced (ADR-025).
+        // The core bug-fix scenario from the Calculator-tester real-life report.
+        _target.MutationProfileInput.SuppliedInput = "Stronger";
+        _target.MutationLevelInput.SuppliedInput = null!;
+        var result = _target.ValidateAll();
+        result.MutationLevel.Should().Be(MutationLevel.Advanced, "Stronger-profile + implicit level must auto-bump to Advanced");
+        result.MutationProfile.Should().Be(MutationProfile.Stronger);
+    }
+
+    [Fact]
+    public void AutoBump_ProfileAll_LevelImplicit_BumpsToComplete()
+    {
+        // Profile=All + no explicit level → Auto-bump to Complete (ADR-025).
+        _target.MutationProfileInput.SuppliedInput = "All";
+        _target.MutationLevelInput.SuppliedInput = null!;
+        var result = _target.ValidateAll();
+        result.MutationLevel.Should().Be(MutationLevel.Complete, "All-profile + implicit level must auto-bump to Complete");
+        result.MutationProfile.Should().Be(MutationProfile.All);
+    }
+
+    [Fact]
+    public void AutoBump_ProfileDefaults_LevelExplicit_RespectsUserChoice()
+    {
+        // Profile=Defaults + explicit level=Advanced → keep user's Advanced.
+        _target.MutationProfileInput.SuppliedInput = "Defaults";
+        _target.MutationLevelInput.SuppliedInput = "Advanced";
+        var result = _target.ValidateAll();
+        result.MutationLevel.Should().Be(MutationLevel.Advanced, "explicit level must always win");
+        result.MutationProfile.Should().Be(MutationProfile.Defaults);
+    }
+
+    [Fact]
+    public void AutoBump_ProfileStronger_LevelExplicitStandard_RespectsUserChoice()
+    {
+        // Profile=Stronger + explicit level=Standard → DO NOT auto-bump (user chose Standard
+        // explicitly, possibly to test the conjunctive-filter behaviour deliberately).
+        _target.MutationProfileInput.SuppliedInput = "Stronger";
+        _target.MutationLevelInput.SuppliedInput = "Standard";
+        var result = _target.ValidateAll();
+        result.MutationLevel.Should().Be(MutationLevel.Standard, "explicit Standard must always win, even with Stronger profile");
+        result.MutationProfile.Should().Be(MutationProfile.Stronger);
+    }
+
+    [Fact]
+    public void AutoBump_ProfileStronger_LevelExplicitAdvanced_KeepsAdvanced()
+    {
+        // Profile=Stronger + explicit level=Advanced → keep Advanced (user explicit, no bump needed).
+        _target.MutationProfileInput.SuppliedInput = "Stronger";
+        _target.MutationLevelInput.SuppliedInput = "Advanced";
+        var result = _target.ValidateAll();
+        result.MutationLevel.Should().Be(MutationLevel.Advanced);
+        result.MutationProfile.Should().Be(MutationProfile.Stronger);
+    }
+
+    [Fact]
+    public void AutoBump_ProfileStronger_LevelExplicitComplete_KeepsComplete()
+    {
+        // Profile=Stronger + explicit level=Complete → keep Complete (user wants more aggressive than profile-default).
+        _target.MutationProfileInput.SuppliedInput = "Stronger";
+        _target.MutationLevelInput.SuppliedInput = "Complete";
+        var result = _target.ValidateAll();
+        result.MutationLevel.Should().Be(MutationLevel.Complete);
+        result.MutationProfile.Should().Be(MutationProfile.Stronger);
+    }
+
+    [Fact]
+    public void AutoBump_ProfileAll_LevelExplicitBasic_KeepsBasic()
+    {
+        // Profile=All + explicit level=Basic → keep Basic (user wants minimal mutations from All-pool).
+        _target.MutationProfileInput.SuppliedInput = "All";
+        _target.MutationLevelInput.SuppliedInput = "Basic";
+        var result = _target.ValidateAll();
+        result.MutationLevel.Should().Be(MutationLevel.Basic);
+        result.MutationProfile.Should().Be(MutationProfile.All);
+    }
+
+    [Fact]
+    public void AutoBump_ProfileNotSupplied_LevelImplicit_DefaultsBoth()
+    {
+        // No explicit profile, no explicit level → both at default (Defaults + Standard).
+        // Verifies the auto-bump does NOT silently override the natural defaults.
+        _target.MutationProfileInput.SuppliedInput = null!;
+        _target.MutationLevelInput.SuppliedInput = null!;
+        var result = _target.ValidateAll();
+        result.MutationProfile.Should().Be(MutationProfile.Defaults);
+        result.MutationLevel.Should().Be(MutationLevel.Standard);
     }
 }

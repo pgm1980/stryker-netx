@@ -259,7 +259,24 @@ Tatsächliche Mutanten-Anzahl identisch zu `--mutation-profile Defaults`. Grund:
 }
 ```
 
-**Sprint 140 (geplant):** Eine Warnung wird ausgegeben, wenn `mutation-profile != Defaults` aber `mutation-level == Standard` oder niedriger gesetzt wird — diese Kombination ist heute schweigsam wirkungslos und ein häufiger Bug-Report-Source.
+### Auto-Bump (seit v3.1.0, ADR-025)
+
+Wenn du `--mutation-profile Stronger` (oder `All`) setzt **ohne** `--mutation-level` explizit zu setzen, bumped stryker-netx das Level automatisch auf den passenden Wert:
+
+| Profile (explicit) | Level (implicit) | → Effektives Level |
+|---|---|---|
+| `Stronger` | nicht gesetzt | **`Advanced`** (auto-bumped) |
+| `All` | nicht gesetzt | **`Complete`** (auto-bumped) |
+| `Defaults` | nicht gesetzt | `Standard` (= Default, kein Bump) |
+| Beliebig | **explicit gesetzt** | `<explicit value>` (User-Setzung gewinnt immer) |
+
+Der Auto-Bump wird im Log angekündigt:
+
+```
+[INF] mutation-level auto-set to Advanced based on mutation-profile=Stronger (no explicit --mutation-level supplied). Override with --mutation-level if needed. (ADR-025)
+```
+
+**Konsequenz:** Du kannst `--mutation-profile Stronger` alleine setzen und bekommst die erwartete Wirkung — keine separate `--mutation-level Advanced`-Setzung mehr nötig (bleibt aber als explizite Override-Option erhalten). Closes Bug #1 aus dem Calculator-Tester real-life Bug-Report.
 
 ---
 
