@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -24,12 +25,15 @@ namespace Stryker.Core.Mutants.Filters;
 /// which would have been O(parse + bind) per mutation. The MVP here is
 /// what made v2.4.0 inclusion viable.</para>
 ///
-/// <para><b>Conservative scope.</b> Only acts on
-/// <see cref="ExpressionSyntax"/>-typed replacements; statement-level and
-/// declaration-level replacements would need the
-/// <see cref="SemanticModel"/>'s <c>TryGetSpeculativeSemanticModel(...)</c>
-/// overloads which are bulkier per call. Statement-level replacements
-/// continue to be filtered by the v2.1 parser-only filter.</para>
+/// <para>
+/// v3.2.9 (Sprint 155 / ADR-037): coverage extended from
+/// <see cref="ExpressionSyntax"/> to <see cref="StatementSyntax"/> via
+/// <c>SemanticModel.TryGetSpeculativeSemanticModel(int, StatementSyntax, out SemanticModel)</c>.
+/// Statement-level mutations (e.g. <c>StatementMutator</c>'s return-statement
+/// rewrites, <c>BlockMutator</c>'s while-true → while-false) now get semantic
+/// pre-filtering instead of relying solely on the parser-only v2.1 filter.
+/// Closes the Sprint-16-deferred extension item.
+/// </para>
 ///
 /// <para>Always-on in the pipeline (no profile gate).</para>
 /// </summary>
@@ -49,28 +53,33 @@ public sealed class RoslynSemanticDiagnosticsEquivalenceFilter : IEquivalentMuta
         {
             return false;
         }
-        if (mutation.ReplacementNode is not ExpressionSyntax replacementExpression)
+
+        return mutation.ReplacementNode switch
         {
-            // Statement / declaration replacements need a different speculative API
-            // (TryGetSpeculativeSemanticModel) which is bulkier per call. Stay conservative
-            // and let the v2.1 parser-only filter handle structural validity for those.
-            return false;
-        }
+            ExpressionSyntax expression => IsEquivalentExpression(mutation, semanticModel, expression),
+            StatementSyntax statement => IsEquivalentStatement(mutation, semanticModel, statement),
+            // Declaration-level replacements (e.g. MethodBodyReplacement) would need
+            // a third speculative path; conservatively defer to v2.1 parser-only filter.
+            _ => false,
+        };
+    }
 
-        var position = mutation.OriginalNode.SpanStart;
-
+    /// <summary>
+    /// Sprint 17 (v2.4.0) expression path — speculative symbol-binding. Symbol == null
+    /// with CandidateReason != None means "binder tried but failed".
+    /// </summary>
+    private static bool IsEquivalentExpression(Mutation mutation, SemanticModel semanticModel, ExpressionSyntax replacementExpression)
+    {
         // Sprint 137 (v3.0.24): Roslyn's GetSpeculativeSymbolInfo crashes with NRE when binding
         // a MemberBindingExpression (the `.X` part of `obj?.X`) in isolation — the binder calls
-        // FindConditionalAccessNodeForBinding which returns null and dereferences. Wrap in
-        // try/catch to stay conservative (treat as non-equivalent — keep mutant).
-        // Sprint 137: pre-check to skip MemberBindingExpression (`.X` part of `obj?.X`) — these
-        // cannot be speculatively bound in isolation; Roslyn's binder dereferences a null in
-        // FindConditionalAccessNodeForBinding. Treat as non-equivalent (conservative).
+        // FindConditionalAccessNodeForBinding which returns null and dereferences. Pre-check skips
+        // these; treat as non-equivalent (conservative).
         if (replacementExpression is MemberBindingExpressionSyntax)
         {
             return false;
         }
 
+        var position = mutation.OriginalNode!.SpanStart;
         Microsoft.CodeAnalysis.SymbolInfo info;
         try
         {
@@ -93,5 +102,66 @@ public sealed class RoslynSemanticDiagnosticsEquivalenceFilter : IEquivalentMuta
         // == null with CandidateReason == None means "successfully bound to nothing
         // resolvable" (e.g. a literal expression), which is fine.
         return info.Symbol is null && info.CandidateReason != CandidateReason.None;
+    }
+
+    /// <summary>
+    /// Sprint 155 (v3.2.9, ADR-037) statement path — uses
+    /// <c>SemanticModel.TryGetSpeculativeSemanticModel(int, StatementSyntax, out SemanticModel)</c>
+    /// to construct a speculative semantic model rooted at the replacement statement,
+    /// then walks the statement's <see cref="ExpressionSyntax"/> descendants and queries
+    /// <c>GetSymbolInfo</c> on each. Speculative models do not support
+    /// <c>GetDiagnostics()</c> (it throws <see cref="NotSupportedException"/>), but
+    /// per-descendant <c>GetSymbolInfo</c> works and surfaces unbound references the
+    /// same way as the expression-path. Catches e.g. <c>BlockMutator</c> wrapping a
+    /// return-bearing block in <c>if (false) {…}</c> where the body still references
+    /// names that are out-of-scope in the speculative position.
+    /// </summary>
+    private static bool IsEquivalentStatement(Mutation mutation, SemanticModel semanticModel, StatementSyntax replacementStatement)
+    {
+        var position = mutation.OriginalNode!.SpanStart;
+        SemanticModel? speculativeModel;
+        try
+        {
+            if (!semanticModel.TryGetSpeculativeSemanticModel(position, replacementStatement, out speculativeModel) || speculativeModel is null)
+            {
+                // Roslyn refused to construct a speculative model for this position +
+                // statement combination. Conservative: keep the mutant.
+                return false;
+            }
+        }
+#pragma warning disable S1696, CA1031 // see expression-path comment
+        catch (Exception)
+        {
+            return false;
+        }
+#pragma warning restore S1696, CA1031
+
+        // Speculative models throw NotSupportedException on GetDiagnostics(); use
+        // per-descendant GetSymbolInfo instead. Same signal as the expression-path:
+        // Symbol == null + CandidateReason != None means "binder tried but failed".
+        foreach (var expr in replacementStatement.DescendantNodesAndSelf().OfType<ExpressionSyntax>())
+        {
+            // Sprint 137 known crash class — same pre-check as the expression-path.
+            if (expr is MemberBindingExpressionSyntax)
+            {
+                continue;
+            }
+            try
+            {
+                var info = speculativeModel.GetSymbolInfo(expr);
+                if (info.Symbol is null && info.CandidateReason != CandidateReason.None)
+                {
+                    return true; // semantic invalid → filter as equivalent
+                }
+            }
+#pragma warning disable S1696, CA1031, RCS1075 // best-effort — Roslyn binder edge cases; empty catch is intentional skip
+            catch (Exception)
+            {
+                // Skip this descendant; continue walk. Conservative if we end with no errors.
+            }
+#pragma warning restore S1696, CA1031, RCS1075
+        }
+
+        return false;
     }
 }
