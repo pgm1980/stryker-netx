@@ -1,62 +1,68 @@
 ---
-current_sprint: "141"
-sprint_goal: "Bug-Report Restitems aufarbeiten: Bug #4 + Hinweis #7 + #8 — alle 8 Items closed"
-branch: "main"
+current_sprint: "142"
+sprint_goal: "Hotfix v3.1.2 — Bug #9 (--mutation-profile All InvalidCastException) via UoiMutator pre-check + SpanReadOnly disable + global DoNotMutate"
+branch: "feature/142-bug9-all-profile-crash"
 started_at: "2026-05-06"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
-sprint_backlog_written: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
+sprint_backlog_written: false
 semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 141 closed (alle 8 Bug-Report-Items abgearbeitet)
+# Session State — Sprint 142 (active, hotfix v3.1.2)
 
-## Sprint 141 closed cleanly
-- Bug #4: additive `--tool-version` / `-T` flag — production-verified als `3.1.1`
-- Hinweis #7: NuGet-Indexing-Doku in Stryker_NetX_Installation.md
-- Hinweis #8: Solution-Mode-Hint in der Error-Message + Doku-Sektion
-- 3 neue CLI-Tests (ToolVersionFlag long+short + GetToolVersionString sha-strip)
-- IVT für Stryker.CLI → Stryker.CLI.Tests (für internal helper-test access)
-- v3.1.1 published to NuGet.org, alle 4 verfügbaren Versionen: 3.0.24, 3.0.25, 3.1.0, 3.1.1
+## Goal
+Calculator-tester Bug-Report-2 (`_bug_reporting/bug_report_2_stryker_netx.md`) Bug #9: `--mutation-profile All` crasht mit `InvalidCastException(ParenthesizedExpression → TypeSyntax/SimpleNameSyntax)`. Hotfix v3.1.2 — pure bug-fix, additive disable, kein Behavior-Change für Defaults/Stronger-Profile.
 
-## Bug-Report Final Score (8/8 closed)
-| # | Schwere | Status | Sprint |
-|---|---|---|---|
-| #1 Stufe 1 (Doku) | 🔴 HOCH | ✓ | Sprint 139 (v3.0.25) |
-| #1 Stufe 2 (Code) | 🔴 HOCH | ✓ | Sprint 140 (v3.1.0) ADR-025 |
-| #2 (Banner-Version) | 🟡 MITTEL | ✓ | Sprint 139 (v3.0.25) |
-| #3 (Update-Hinweis) | 🟡 MITTEL | ✓ | Auto-resolved durch #2 in Sprint 139 |
-| #4 (--version Tool-Convention) | 🟡 NIEDRIG | ✓ | Sprint 141 (v3.1.1) |
-| #5 (Log-Rauschen) | 🟡 NIEDRIG | ✓ | Sprint 139 (v3.0.25) |
-| #6 (--reporters Doku) | 🟡 NIEDRIG | ✓ | Sprint 138 closing |
-| Hinweis #7 (NuGet-Indexing) | 🟢 INFO | ✓ | Sprint 141 (v3.1.1) |
-| Hinweis #8 (Multi-Project) | 🟢 NIEDRIG | ✓ | Sprint 141 (v3.1.1) |
+## Diagnose-Trail (Sprint 142)
 
-## Total Sprint-Output (Sprints 138-141, "Calculator-Bug-Report Aufarbeitung")
-- **4 Sprints, 4 Tags** (138 ohne tag, 139=v3.0.25, 140=v3.1.0, 141=v3.1.1)
-- **8 Bug-Report-Items closed**
-- **+12 Unit-Tests** (Sprint 139: 0, Sprint 140: 9 AutoBump, Sprint 141: 3 ToolVersionFlag)
-- **1 ADR** (ADR-025 — mutation-profile Auto-Bump)
-- **2 ToT-Sessions** (Sprint 140 hatte 5 ToT branches + 14 Maxential thoughts)
-- **0 Production-Bugs eingeführt** (alle Tests grün)
+**Lokale Repro:** SpanTester.cs mit `data.Length > 0 ? data[0] : 0` zu Sample.Library hinzugefügt → CLI mit `--mutation-profile All` aufgerufen → InvalidCastException reproduziert.
 
-## Cumulative Session (Sprints 95-141, 47 sprints)
-- 906/99 → 1184/9 dogfood + 80 CLI + 388 Core + ... = ~2003 tests grün, 27 legitimate skips
-- 46 GitHub releases (v2.81.0 → v3.1.1)
-- 7 production-bug-fix sprints
-- Repo public seit Sprint 138, NuGet.org seit v3.0.24
+**Bisect-Result:**
+- UoiMutator allein triggert SimpleNameSyntax-Variante des Crashs (auf `data.Length`)
+- SpanReadOnlySpanDeclarationMutator allein triggert nicht im local-Repro, aber per Bug-Report-Stack-Trace (TypeSyntax-Variante) auf Calculator-tester-codebase
 
-## Status: Mission Complete (Calculator-Tester Bug-Report)
-Alle vom Calculator-Tester gemeldeten Issues sind in der `main`-Branch behoben und in einer öffentlich-installierbaren NuGet-Version verfügbar. **v3.1.1 ist der aktuelle "stable" für den Calculator-Use-Case.**
+**Root cause (verified):**
+- ConditionalInstrumentationEngine wrappt Mutationen in `ParenthesizedExpressionSyntax` (`(MutantControl.IsActive(N) ? mutated : original)`)
+- Mutators die in TypeSyntax-/NameSyntax-Slots emittieren produzieren ParenthesizedExpression in einem Slot wo Roslyn's typed visitor strict NameSyntax/TypeSyntax erwartet → `InvalidCastException` zur Mutation-Time
+- Sprint 23 hat das gleiche Pattern für QualifiedNameSyntax schon adressiert (UoiMutator parent-skip + global DoNotMutate). Sprint 142 erweitert auf SimpleNameSyntax (.Name slot) + SpanReadOnly's TypeSyntax slot.
 
-Optional: Calculator-Tester kann jetzt mit `dotnet tool update -g dotnet-stryker-netx --version 3.1.1` aktualisieren und die fixes verifizieren.
+## Maxential-Decision (5 Thoughts)
 
-## Next-Sprint-Optionen (offen, nicht eingeplant)
-- Persistent-Test-Host (mutmut-Trampoline-Style, mehrere Sprints, ADR-026)
-- Access-Modifier-Mutation (vom mutation_framework_comparison.md §4.4 #5, "kontrovers")
-- Inkrementelles Mutation-Testing / Watch-Mode (ADR-022 Proposed → Accepted)
-- Pre-existing _references-Test-Failures in CI (`Stryker.Solutions.Tests.SolutionFileShould.*`)
+**Final: A+B+SpanReadOnly-disable** (Sprint 23 precedent):
+- A: UoiMutator.IsSafeToWrap() erweitern um MemberAccess.Name + MemberBinding.Name zu skippen
+- B: Global DoNotMutateOrchestrator<SimpleNameSyntax> mit predicate (parent.Name == t)
+- SpanReadOnly: aus All-Profile rausnehmen via `[MutationProfileMembership(MutationProfile.None)]`. Re-enable bedingt engine-fix.
 
-Keine Active-Sprint-Aufgabe pending. Auf User-Input warten.
+Verworfen: (C) Engine-rewrite (zu invasiv für hotfix), (A-only) (fehlt future-proofing), (D-keep-Span) (mutator emittiert ausschließlich in TypeSyntax → kompletter pre-check würde Mutator deaktivieren, daher direkter via Profile.None).
+
+## Implementation
+
+### Code-Changes
+- `src/Stryker.Core/Mutators/UoiMutator.cs`: IsSafeToWrap() erweitert mit MemberAccess.Name + MemberBinding.Name skip
+- `src/Stryker.Core/Mutators/SpanReadOnlySpanDeclarationMutator.cs`: `[MutationProfileMembership(MutationProfile.None)]` + Doc-Comment mit Sprint-142-Note + Re-enable-Bedingungen
+- `src/Stryker.Core/Mutants/CsharpMutantOrchestrator.cs`: neue `DoNotMutateOrchestrator<SimpleNameSyntax>(predicate=...)` registriert; Sprint-23-Comment-Block kombiniert mit Sprint-142
+
+### Doc-Changes
+- `_docs/architecture spec/architecture_specification.md`: ADR-026 hinzugefügt (Profile/Level conjunctive-incompat-Pattern, alternatives evaluated, future re-enable conditions); Änderungshistorie 0.8.0 entry
+
+### Test-Changes
+- `tests/Stryker.Core.Tests/Mutators/UoiMutatorTests.cs`: 3 neue Regression-Tests (RightHandOfMemberAccess, StillMutates_LocalIdentifier, RightHandOfMemberBinding)
+- `tests/Stryker.Core.Tests/Mutators/SpanReadOnlySpanDeclarationMutatorTests.cs`: Profile_IsAllOnly → Profile_IsNone_AsOfSprint142
+- `tests/Stryker.Core.Tests/Properties/MutatorReflectionProperties.cs`: IntentionallyDisabledMutators-Whitelist + Tests entsprechend angepasst
+
+## Verification
+
+- Lokale Repro: Crash war `InvalidCastException(ParenthesizedExpression → SimpleNameSyntax)` auf `data.Length`-Pattern. Nach Fix: 61 mutants created, score 65.22 %, kein Crash.
+- Solution-wide Tests (excl. E2E): **2003 grün, 27 legitimate skips, 0 fail** (1184 dogfood + 391 core + 80 CLI + 142 MTP + 57 VsTest + 128 RegexMutators + 17 Sample + 15 Solutions + 10 Architecture)
+- Semgrep on changed files: 0 findings
+
+## Tag-Strategy
+**v3.1.2 (Patch)** — pure bug fix + disable. Kein behaviour-change für die meisten User. Sprint-Tag-Convention: nach merge-on-main + ff-only-pull → tag → push → release.yml auto-trigger.
+
+## Known follow-ups (nicht Sprint 142)
+- ConditionalInstrumentationEngine type-position-aware machen (separate ADR, multi-sprint, kann SpanReadOnlySpanDeclarationMutator wieder enable)
+- Bug #4 (Tester-Sicht: `--version` braucht Argument) — Sprint 141 hat additiv `--tool-version` gemacht; Tester erwartet anderen Approach. Sprint 143 könnte das nochmal aufgreifen.
+- Bug #6 (Tester-Sicht: `--reporters` plural unbekannt) — Sprint 138 hat Doku gefixt; Tester erwartete Alias-Akzeptanz. Sprint 143 könnte das additiv ergänzen.

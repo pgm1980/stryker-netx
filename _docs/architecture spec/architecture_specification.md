@@ -1777,6 +1777,60 @@ In `StrykerInputs.BuildStrykerOptions()` (Datei `src/Stryker.Configuration/Optio
 
 ---
 
+## ADR-026: ConditionalInstrumentation × TypeSyntax-/SimpleName-Slot incompat (v3.1.2)
+
+**Status.** Accepted — 2026-05-06 (Sprint 142, v3.1.2 Hotfix). Backed by Sprint 142 Maxential (5 Thoughts, decision tag `decision`+`synthesis`).
+
+**Context.**
+
+Calculator-Tester-Bug-Report (`_bug_reporting/bug_report_2_stryker_netx.md`, Bug #9) meldete einen Crash bei `--mutation-profile All`:
+
+```
+System.InvalidCastException: Unable to cast object of type
+'Microsoft.CodeAnalysis.CSharp.Syntax.ParenthesizedExpressionSyntax'
+to type 'Microsoft.CodeAnalysis.CSharp.Syntax.TypeSyntax'.
+```
+
+Sprint 142 Bisect-Diagnose: zwei distinct trigger:
+1. **`UoiMutator`** auf `SimpleNameSyntax`-Slots (`MemberAccess.Name`, `MemberBinding.Name`). Beispiel-Repro: `data.Length > 0 ? data[0] : 0` — UoiMutator wrapt `Length`, der ConditionalInstrumentationEngine erzeugt `data.(IsActive(N) ? Length++ : Length)` — eine `ParenthesizedExpressionSyntax` in einem `SimpleNameSyntax`-Slot, die Roslyn's typed visitor mit `InvalidCastException(ParenthesizedExpression → SimpleNameSyntax)` ablehnt.
+2. **`SpanReadOnlySpanDeclarationMutator`** auf `TypeSyntax`-Slots. Der Mutator emittiert `GenericNameSyntax`-Replacements ausschließlich in TypeSyntax-Positionen (parameter type, field type, etc.). Der ConditionalInstrumentationEngine wickelt jede Mutation in `(IsActive(N) ? mutated : original)` = `ParenthesizedExpressionSyntax` → `InvalidCastException(ParenthesizedExpression → TypeSyntax)`.
+
+Beide Crashes haben dieselbe root cause: **der ConditionalInstrumentationEngine emittiert ParenthesizedExpression als Mutation-Wrap, was nur in ExpressionSyntax-Slots zulässig ist; in TypeSyntax-/NameSyntax-Slots ist der Cast blocked.**
+
+**Sprint 23 (v2.10.0) hat das gleiche Pattern für `QualifiedNameSyntax` schon adressiert** (UoiMutator parent-skip + global `DoNotMutateOrchestrator<QualifiedNameSyntax>`). Sprint 142 erweitert das pattern auf die zwei neuen crash-Klassen.
+
+**Decision.**
+
+Sprint 23-Pattern (Mutator-internal pre-check + global Belt-and-suspenders) auf die neuen crash-Klassen übertragen:
+
+1. **UoiMutator** `IsSafeToWrap()` erweitern: skip `MemberAccess.Name == node` und `MemberBinding.Name == node`.
+2. **SpanReadOnlySpanDeclarationMutator** disablen aus allen Profilen via `[MutationProfileMembership(MutationProfile.None)]`. Der Mutator targets ausschließlich TypeSyntax-Slots, was im aktuellen Engine prinzipiell incompatible ist. Re-enabling bedingt dass die ConditionalInstrumentationEngine eine type-position-aware Variante bekommt (z.B. `[Conditional("MUTATION_N")]`-Pattern oder static-field-switching ohne Expression-Wrap).
+3. **Global `DoNotMutateOrchestrator<SimpleNameSyntax>`** mit Predicate `parent.Name == t` als Belt-and-suspenders. Predicate scoped strict — locals und sonstige SimpleNames bleiben mutable.
+
+**Alternatives evaluated (Maxential).**
+
+- **A (mutator-only):** nur UoiMutator pre-check, kein global guard. Verworfen — fehlt future-proofing wenn andere Mutators auch SimpleName.Name-Slots betreffen.
+- **C (engine rewrite):** ConditionalInstrumentationEngine erkennt TypeSyntax-/NameSyntax-Position und emittiert non-Parenthesized control. Verworfen für hotfix — zu invasiv. Wahrscheinlich richtige Long-term-Lösung, aber separate ADR und mehrere Sprints.
+- **D (SpanReadOnly behalten + per-mutator-pre-check):** der SpanReadOnly-Mutator emittiert AUSSCHLIESSLICH in TypeSyntax-Slots — ein pre-check der diese skippt würde den Mutator komplett deaktivieren. Daher direkter als-disable-markieren via Profile.None, mit klarer Re-enable-Bedingung in der Doku.
+
+**Consequences.**
+
+- (+) `--mutation-profile All` funktioniert wieder. Calculator-Tester-Crash eliminiert.
+- (+) Pattern aus Sprint 23 robust auf weitere crash-Klassen übertragbar (`SimpleNameSyntax.Name`-Slots).
+- (+) Hotfix v3.1.2 (Patch) — keine breaking-changes für die meisten User. SpanReadOnly-Disable affects nur User die explizit `--mutation-profile All` setzen UND auf der spezifischen Span-decl-mutation gerechnet haben (rare).
+- (–) `SpanReadOnlySpanDeclarationMutator` ist temporär dormant (52 → 51 effective Mutators in `All`-Profile). Re-enable pending engine-fix.
+- (–) Long-term: ConditionalInstrumentationEngine sollte type-/name-position-aware werden (eigene ADR, eigene Sprints).
+
+**Future re-enable conditions for SpanReadOnlySpanDeclarationMutator.**
+
+- Engine-fix: Conditional-control variant, der in TypeSyntax-positions kein ParenthesizedExpression wrapt
+- ODER: Mutator emittiert die Mutation direkt ohne control-wrap (Mutant ist nicht runtime-switch-bar, sondern nur compile-error-detected)
+- ODER: Refaktoriere SpanReadOnly als file-level rewrite (nicht per-instance)
+
+**Backed by.** Sprint 142 Maxential 5 Thoughts (Reset clean, conclusion `decision`+`synthesis` tagged) + lokaler Bisect-Trail in `samples/Sample.Library/SpanTester.cs` (temporary repro-fixture, removed before commit if fix lands cleanly).
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -1788,3 +1842,4 @@ In `StrykerInputs.BuildStrykerOptions()` (Datei `src/Stryker.Configuration/Optio
 | 0.5.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 16 (v2.3.0): ADR-023 — Validation-Framework Count-Tests prinzipieller Skip statt Reconciliation. AsyncAwaitResultMutator (catalogue +1 = 52). JsonReport hybrid source-gen. |
 | 0.6.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 17 (v2.4.0): ADR-024 — JsonReport full AOT-trim als v3.0-scope deferral. Plus RoslynSemanticDiagnosticsFilter + GenericConstraintLoosen interface-pair extension. |
 | 0.7.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 140 (v3.1.0): ADR-025 — Mutation-Profile Auto-Bump für Mutation-Level. Code-Side Reparatur des silent-no-op-Bugs aus Calculator-Tester-Bug-Report (#1). ToT (5 Branches) + Maxential (14 Thoughts, 2 Branches) Decision-Trail. |
+| 0.8.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 142 (v3.1.2 Hotfix): ADR-026 — ConditionalInstrumentation × TypeSyntax-/SimpleName-Slot incompat. Bug #9 aus Calculator-Tester-Bug-Report-Update (`--mutation-profile All` crash). UoiMutator-pre-check erweitert + SpanReadOnlySpanDeclarationMutator disabled (Profile.None) + global DoNotMutateOrchestrator<SimpleNameSyntax> mit predicate. Sprint 23-Pattern auf neue crash-Klassen übertragen. |
