@@ -1861,7 +1861,7 @@ Die Mutation-Pipeline wird in **drei Phasen** type-position-aware gemacht. Jede 
 
 **Phase 1 Verifikation (Sprint 143).**
 
-- Lokaler Repro `samples/Sample.Library/SpanTester.cs` (`data.Length > 0 ? data[0] : 0` + `data?.Length ?? 0`): `--mutation-profile All --mutation-level Complete` läuft sauber durch — kein Crash, +28 testbare Mutations auf der Repro-Datei, Calculator-Baseline (30 killed / 14 survived) unverändert.
+- Lokaler Bisect-Trail mit temporärer `samples/Sample.Library/SpanTester.cs` (`data.Length > 0 ? data[0] : 0` + `data?.Length ?? 0`): `--mutation-profile All --mutation-level Complete` läuft sauber durch — kein Crash, +28 testbare Mutations auf der Repro-Datei, Calculator-Baseline (30 killed / 14 survived) unverändert. Repro-Fixture vor Commit entfernt (würde `Defaults_ProducesExpectedTotalAndScore` E2E-Baseline brechen, gleich wie Sprint 142). Phase-1-Regression bleibt über UoiMutator unit-tests abgedeckt.
 - `tests/Stryker.Core.Tests/Mutators/UoiMutatorTests.cs`: `MutatesAtParentLevel_RightHandOfMemberAccess` (4 Mutations mit `OriginalNode = parent MA`), `StillMutates_LocalIdentifierInExpression` (Pivot fired NICHT für plain identifier), `DoesNotMutate_RightHandOfMemberBinding` (Phase-2-deferred-Skip dokumentiert).
 - Solution-wide: 0 Warnings, 0 Errors, ~2200 Tests grün (RedirectDebugAssert ist pre-existing nicht-deterministischer Flake aus Sprint 27, unabhängig).
 - Semgrep: 0 Findings auf den 6 modifizierten Dateien.

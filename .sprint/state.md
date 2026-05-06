@@ -23,7 +23,7 @@ User-Pushback aus Sprint 142 closing-review: "Hotfix-Skip ist symptomatisch, der
 - `MemberAccessNameSlotOrchestrator` (neu): defers injection für SimpleName in MA.Name-Slot über `MutationControl.MemberAccess`. Mutationen blubbern in den umschließenden MA-Frame, dessen Inject-Call dann `sourceNode.InjectMutation(mutation)` mit valid Contains-check macht.
 - `CsharpMutantOrchestrator` BuildOrchestratorList: globalen DoNotMutate<SimpleName> für (MA.Name || MB.Name) auf nur MB.Name reduziert.
 - ADR-027 (Phase 1 detailed + Phase 2/3 skizziert) + 0.9.0 history entry.
-- Repro-Fixture: `samples/Sample.Library/SpanTester.cs` + `samples/Sample.Tests/SpanTesterTests.cs` (permanent).
+- Lokaler Bisect-Trail mit temporärer SpanTester.cs (vor commit entfernt — würde E2E-Baseline `Defaults_ProducesExpectedTotalAndScore = 5` brechen).
 - 3 UoiMutator-Tests adapted: `MutatesAtParentLevel_RightHandOfMemberAccess`, `StillMutates_LocalIdentifierInExpression`, `DoesNotMutate_RightHandOfMemberBinding` (Phase-2-deferred).
 
 ### Verifikation
