@@ -2105,6 +2105,73 @@ Diese Optimierungen sind separate Sprints — der Sicherheits-Aspekt (Bug-9 fixe
 
 ---
 
+## ADR-029: `--version` Tool-Convention + `--project-version` Hard Rename (v3.2.3 / Sprint 148)
+
+**Status.** Accepted — Sprint 148 (v3.2.3, 2026-05-06).
+
+**Kontext.** Calculator-Tester Bug-Report 4, Bug #4: in den Versionen v3.1.x und v3.2.x druckt `dotnet stryker-netx --version` nicht die Tool-Version, sondern wird als positionsloser Wert für die Dashboard-Projekt-Version interpretiert (oder McMaster-Parser-Fehler bei `--version` ohne nachfolgenden String). Die .NET-Tool-Plattform-Konvention ist eindeutig: `--version` druckt die Tool-Version + exit 0, ohne weitere Pipeline-Aktionen. Sprint 141 hatte das mit einem parallelen `--tool-version` / `-T` Flag umgangen, aber der User hat das im Bug-Report explizit zurückgewiesen: das Konvention-konforme `--version` muss die Tool-Version drucken, nicht die historische Project-Version.
+
+**Entscheidung.** **Hard rename** mit Breaking-Change in CLI-Migration:
+
+1. **`--version` / `-V`**: druckt die Tool-Version (Inhalt von `AssemblyInformationalVersionAttribute`, gestrippt um `+commit-sha`-Suffix) + exit 0. Short-circuit in `StrykerCli.RunAsync` BEVOR irgendein McMaster-Parsing oder NuGet-Client-Call. Bare-Flag-Detektion: `--version` wird nur dann short-circuited wenn der nächste Arg null ist oder mit `-` beginnt; `--version <wert>` (wie historisch für Dashboard genutzt) fällt durch zur McMaster-Parser-Fehler-Pipeline.
+2. **`--project-version` (long-only, kein short-Alias)**: ersetzt die historische Project-Version-Bindung. Lange Form ist explizit, kein `-v` short-Alias mehr. Migration für CI-Pipelines: `--version <value>` → `--project-version <value>`.
+3. **`--tool-version` / `-T`** (Sprint-141-Aliase): bleiben funktional als deprecated transitional path. Drucken auch die Tool-Version. Nicht offiziell deprecated im help-text, aber Dokumentation cue: `--version` ist die kanonische Form.
+
+**Begründung der Wahl.** Maxential 11 Schritte, 3 ToT-Branches:
+- **O1 (Hard Rename + new Tool-Version-Flag)**: gewählt. Konvention-konformes Verhalten, klare Migration, einmaliger Breaking-Change, langfristig stabilste Lösung.
+- **O2 (Soft-Detection by Value-Presence)**: verworfen. `--version` mit Wert-Präsenz → Project-Version, ohne Wert → Tool-Version, ist undurchsichtig und nicht-konventionell. Macht help-Text kontraintuitiv.
+- **O3 (Status-Quo + Documentation)**: verworfen. Der User hat den Sprint-141-Workaround im Bug-Report explizit zurückgewiesen.
+
+**Implementation.**
+
+- `src/Stryker.CLI/StrykerCli.cs`:
+  - `RunAsync`: prüft `TryHandleToolVersionFlag(args, …)` BEFORE McMaster-Parser-Pipeline. Druckt `GetToolVersionString()` + exit 0.
+  - `TryHandleToolVersionFlag(string[] args, out int exitCode)`: scannt args linear, akzeptiert `--tool-version` / `-T` als Alias (Sprint-141-Pfad) oder `--version` / `-V` als bare-flag (kein nachfolgender Wert).
+  - `IsBareVersionFlag(string[] args, int i)`: liefert true wenn `args[i]` ∈ {`--version`, `-V`} UND (`args[i+1]` ist null oder beginnt mit `-`).
+  - `GetToolVersionString()`: liest `AssemblyInformationalVersionAttribute`, strippt `+commit-sha`-Suffix.
+  - Refactoring: `RunAsync` zerlegt in `BuildCommandLineApplication` + `ExecuteWithErrorHandlingAsync` (MA0051 60-Zeilen-Cap).
+
+- `src/Stryker.CLI/CommandLineConfig/CommandLineConfigReader.cs` (Z. 247):
+  - `AddCliInput(inputs.ProjectVersionInput, "version", "v", …)` → `AddCliInput(inputs.ProjectVersionInput, "project-version", null, …)`.
+  - Long-only Registrierung. Kein `-p` / `-v` Short-Alias mehr (bewusste Engführung wegen Risiko der Verwechslung mit `--project`).
+
+- `tests/Stryker.CLI.Tests/StrykerCLITests.cs`:
+  - 4 Sprint-148-Tests: `VersionFlag_LongForm`, `VersionFlag_ShortForm`, `ToolVersionFlag_Sprint141Alias_LongForm_StillWorks`, `ToolVersionFlag_Sprint141Alias_ShortForm_StillWorks`.
+  - `ShouldSetProjectVersionFeatureWhenPassed`: InlineData `[("--version","master"), ("-v","master")]` → `[("--project-version","master")]`.
+
+**Migration für Anwender.**
+
+| v3.2.2 (alt) | v3.2.3+ (neu) | Verhalten |
+|--------------|---------------|-----------|
+| `dotnet stryker-netx --version` | `dotnet stryker-netx --version` | druckt jetzt Tool-Version statt Parser-Fehler |
+| `dotnet stryker-netx --version master` | `dotnet stryker-netx --project-version master` | Dashboard-Projekt-Version setzen |
+| `dotnet stryker-netx -v master` | `dotnet stryker-netx --project-version master` | Dashboard-Projekt-Version setzen (kein Short-Alias mehr) |
+| `dotnet stryker-netx --tool-version` | `dotnet stryker-netx --version` (oder weiterhin `--tool-version`) | druckt Tool-Version |
+
+**Konsequenzen.**
+
+- (+) `--version` ist konvention-konform: druckt Tool-Version + exit 0, ohne NuGet-Client-Call, ohne Logo, ohne Mutation-Run.
+- (+) Kein doppelter Code-Pfad: `--tool-version` ist ein dünner Alias auf den gleichen Handler.
+- (+) Help-Text reflektiert die neue Realität: `--project-version` (ohne `-v`).
+- (–) **Breaking-Change**: CI-Pipelines die `--version <value>` für Dashboard-Reporting verwenden, müssen auf `--project-version <value>` umgestellt werden. Migration-Cue im help-Text + ADR-029. Die alte Form fällt jetzt durch zu McMaster-Parser-Fehler "Unrecognized option" — kein silent-fail.
+- (–) Der `-v` Short-Alias ist weg. Wer den verwendet hat, muss explizit `--project-version` schreiben. Kein Short-Alias-Pfad weil das Risiko der Verwechslung mit `--project` zu groß ist.
+
+**Supersedes / supplements.**
+
+- Supersedes Sprint 141 (`--tool-version` / `-T` als parallel-Flag): die Aliase bleiben transitional, sind aber nicht mehr die kanonische Form.
+- Supersedes Project-Version-Registrierung in CommandLineConfigReader (`"version"`, `"v"` → `"project-version"`, null).
+
+**Backed by.** Sprint 148 Maxential (3-Weg ToT: O1/O2/O3, O1 gewählt), 4 neue Unit-Tests, lokal-acid-test mit allen 4 Aliases (`--version`, `-V`, `--tool-version`, `-T` drucken `0.0.0-localdev`), help-Text verifiziert (`--project-version` registered, kein doppelter `--version`), Solution-wide ~817 Unit-Tests grün, Semgrep clean (0 Findings auf 3 modifizierten Dateien).
+
+**Bezug zu offenen Bugs aus Bug-Report 4.**
+
+- Bug #4 ✓ closed mit ADR-029 (Sprint 148 / v3.2.3).
+- Bug #6 (`--reporters` plural-Alias) — separater Sprint 149 (v3.2.4).
+- Bug #8 (Multi-Project UX) — separater Sprint 150 (v3.2.5 oder v3.3.0).
+- Bug #9 ✓ closed mit ADR-028 (Sprint 147 / v3.2.2).
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2122,3 +2189,4 @@ Diese Optimierungen sind separate Sprints — der Sicherheits-Aspekt (Bug-9 fixe
 | 0.11.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 145 (v3.2.0 final Phase 3): ADR-027 Phase 3 abgeschlossen mit **Skip-as-Architecture** (Maxential Decision Option F nach 11 Schritten + 3 Engine-Refactor-Alternativen evaluiert). TypeSyntax-Engine-Refactor (4+ Sprints für 1 niche-Mutator) verworfen wegen Cost/Benefit. UoiMutator.IsInTypeSyntaxPosition + SpanReadOnly Profile.None werden als finale Architektur-Entscheidung formalisiert (nicht-temporäre Skip-Markierung). MutatorReflectionProperties Doku updated. ADR-027 schließt. **Tag v3.2.0** (final Phase-3-Closure) — gerechtfertigt durch Phase-1+2 echten Engine-Refactor (smart-pivot, MemberAccessNameSlotOrchestrator, CAE-walk-up). User-Pushback-Path: Engine-Refactor wäre eigener v3.3.0+ Sprint. |
 | 0.12.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 146 Hotfix v3.2.1: Calculator-Tester Report 3 hat Bug-9 Crash in v3.2.0 reproduziert (gleicher `InvalidCastException(ParenthesizedExpression → TypeSyntax)` Stack-Trace wie v3.1.1). Root-Cause: Phase-2 `IsInTypeSyntaxPosition` Skip-Liste war unvollständig — Pattern-Matching-Slots (DeclarationPattern, RecursivePattern, TypePattern) und TypeParameterConstraintClause fehlten. UoiMutator feuerte auf `Deposit` in `t switch { Deposit d => ... }` und cracht. Sample.Library hat keine entsprechenden Patterns, Calculator.Domain (records + switch) schon. 4 neue Skip-arms eingefügt + 4 neue UoiMutator-Tests. KEIN Engine-Refactor (Phase-3 Skip-as-Architecture bleibt). Tag **v3.2.1** (Patch-Hotfix). Note: separater Bug bei GenericConstraintMutator als v3.3.0+ Kandidat dokumentiert. |
 | 0.13.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 147 v3.2.2: ADR-028 — **Central Syntax-Slot Validation Layer**. Calculator-Tester Bug-Report 4 reproduziert Bug-9 in v3.2.1 als `NullReferenceException` mit identischem Stack-Trace-Pfad. User-Forderung c): **Validierungs-Layer vor der Mutation**, KEIN weiterer Hotfix. Maxential (13 Schritte, 3 ToT-Branches) → Branch C (Hybrid Validator + Audit) gewählt. **`SyntaxSlotValidator.TryReplaceWithValidation`** + **`RoslynHelper.TryInjectMutation`** + **`MutationStore.ApplyMutationsValidated`** — defensive Pipeline-Stage zwischen Mutator-Output und Engine-Wrap. Fängt 4 Crash-Klassen: InvalidCast, NRE, InvalidOperationException-Contains-mismatch, null-Mutation-Properties. 4 Validator-Tests + lokal-acid-test mit allen 9 Calculator-Patterns ohne Crash. Solution-wide ~2200 Tests grün. Tag **v3.2.2** — Bug-9-stable-fix. |
+| 0.14.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 148 v3.2.3: ADR-029 — `--version` Tool-Convention + `--project-version` **Hard Rename**. Calculator-Tester Bug-Report 4, Bug #4: `dotnet stryker-netx --version` druckt jetzt konvention-konform die Tool-Version statt als Project-Version-Wert interpretiert zu werden. Maxential (3-Weg ToT: O1=Hard-Rename, O2=Soft-Detection, O3=Status-Quo) → O1 gewählt. **Breaking-Change**: `--version <value>` → `--project-version <value>` Migration. `--tool-version` / `-T` (Sprint-141-Aliase) bleiben transitional. `StrykerCli.TryHandleToolVersionFlag` short-circuited bare-Flag BEFORE McMaster-Parser-Pipeline. RunAsync zerlegt in `BuildCommandLineApplication` + `ExecuteWithErrorHandlingAsync` (MA0051-Cap). 4 neue Sprint-148-Tests + ShouldSetProjectVersion umgestellt auf `--project-version`. Solution-wide 817 Unit-Tests grün, Semgrep clean. Tag **v3.2.3** — Bug #4 closed. Bugs #6, #8 → separate Sprints 149/150. |

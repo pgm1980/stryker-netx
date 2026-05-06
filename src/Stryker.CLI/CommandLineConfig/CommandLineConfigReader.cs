@@ -234,7 +234,17 @@ public class CommandLineConfigReader
         // Category: Reporting
         AddCliInput(inputs.OpenReportInput, "open-report", "o", CommandOptionType.SingleOrNoValue, argumentHint: "report-type", category: InputCategory.Reporting);
         AddCliInput(inputs.ReportersInput, "reporter", "r", optionType: CommandOptionType.MultipleValue, category: InputCategory.Reporting);
-        AddCliInput(inputs.ProjectVersionInput, "version", "v", category: InputCategory.Reporting);
+        // Sprint 148 (Bug #4 from Calculator-Tester Bug-Report 4): the project version
+        // (dashboard/baseline feature) was historically registered under --version/-v,
+        // colliding with the .NET-tool convention that --version prints the tool version.
+        // Sprint 141 worked around this with --tool-version/-T as a parallel flag, but
+        // the user explicitly rejected that: --version must be the tool version. This
+        // sprint frees up --version/-v: the project version moves to --project-version
+        // (long-only — no short alias). --version/-v is now handled by TryHandleVersionFlag
+        // in StrykerCli (prints tool version + exits 0). Breaking change for CI pipelines
+        // that used `--version <value>` for the dashboard — migration: rename to
+        // `--project-version <value>`. Documented in ADR-029.
+        AddCliInput(inputs.ProjectVersionInput, "project-version", null, category: InputCategory.Reporting);
         AddCliInput(inputs.DashboardApiKeyInput, "dashboard-api-key", null, category: InputCategory.Reporting);
         AddCliInput(inputs.AzureFileStorageSasInput, "azure-fileshare-sas", null, category: InputCategory.Reporting);
         AddCliInput(inputs.S3BucketNameInput, "s3-bucket-name", null, category: InputCategory.Reporting);
