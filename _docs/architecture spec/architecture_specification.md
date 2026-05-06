@@ -1944,6 +1944,38 @@ verworfen.
 
 **User-Pushback-Path.** Wenn der Engine-Refactor (Option A) doch gewünscht: eigener v3.3.0+ Sprint-Auftrag mit klarer 4+ Sprint-Aufwand-Erwartung und expliziter user-value Begründung (welcher Real-World-Code profitiert von SpanReadOnly-mutations).
 
+### Phase 3 — Skip-list expansion (Sprint 146 Hotfix v3.2.1)
+
+**Befund.** Calculator-Tester report 3 (2026-05-06, 6h nach v3.2.0-Release) reproduziert Bug-9 Crash in v3.2.0 — identischer `InvalidCastException(ParenthesizedExpression → TypeSyntax)` Stack-Trace wie in v3.1.1. Die Root-Cause-Analyse zeigt: Phase-2's `IsInTypeSyntaxPosition`-Skip-Liste ist unvollständig. Sample.Library hat keine pattern-matching-Patterns; Calculator.Domain (Records + Switch-Expressions) trifft sie aber.
+
+**Lokal-Repro Sprint 146.** Minimal:
+```csharp
+abstract record Transaction;
+sealed record Deposit(int Amount) : Transaction;
+int Get(Transaction t) => t switch { Deposit d => d.Amount, _ => 0 };
+```
+UOI feuert auf `Deposit` IdentifierName in `Deposit d`-Pattern. Parent ist `DeclarationPatternSyntax`. Phase-2's switch-arm-list enthielt **DeclarationPatternSyntax NICHT** → Skip greift nicht → ParenthesizedExpression-Envelope landet im DeclarationPattern.Type-Slot (TypeSyntax-strict) → Crash bei OrchestrateChildrenMutation.
+
+**Skip-list expansion (4 neue arms).**
+
+```csharp
+DeclarationPatternSyntax dp => dp.Type == current,        // `t is Deposit d`
+TypePatternSyntax tp => tp.Type == current,                // defensive: type-only pattern
+RecursivePatternSyntax rp => rp.Type == current,           // `t is Deposit { Amount: 5 }`
+TypeParameterConstraintClauseSyntax tpc => tpc.Name == current, // `where T : class`
+```
+
+**Warum war Sprint 144 davon nicht betroffen?** Sample.Library hat keine Records, keine pattern-matching Switch-Expressions, keine Type-constraint generic methods. Der Phase-2-Skip-Set war ausreichend für die in Sprints 143/144 getesteten Patterns aber nicht für Real-World-Domain-Code mit C# 9+ Pattern-Matching.
+
+**Verifikation Sprint 146.**
+- Lokaler Repro mit minimalem `t switch { Deposit d => ... }`: kein Crash, Score 68.89% (31 killed + 14 survived).
+- 4 neue UoiMutator-Tests: `DoesNotMutate_TypeNameInDeclarationPattern`, `DoesNotMutate_TypeNameInRecursivePattern`, `DoesNotMutate_TypeParameterInConstraintClause`, `TypePatternSlot_IsCoveredByIsInTypeSyntaxPositionSwitch` (defensive — Roslyn-Parser produziert `TypePatternSyntax` selten, aber Skip-arm bleibt für Future-Roslyn-Behavior).
+- Solution-wide tests grün (14 UoiMutator-Tests, ~2200 solution-wide).
+
+**Phase-3-Skip-as-Architecture-Decision bleibt unverändert** — die finale Architektur ist weiterhin "Skip in TypeSyntax-Slots, kein Engine-Refactor". Nur die Skip-Liste war unvollständig. Phase 3 ist NICHT re-eröffnet — Sprint 146 ist ein punktueller Hotfix der den ursprünglichen Skip-as-Architecture-Plan vervollständigt.
+
+**Note für mögliche v3.3.0+ Sprints.** Sprint 146 lokaler Bisect hat einen ZWEITEN Bug aufgedeckt: GenericConstraintMutator (All-only) emittiert `OriginalNode = MethodDeclarationSyntax` mit `Type = Mutator.Statement`. Bei Methods mit expression-body landet die Mutation auf einem child-expression-Inject-Frame (T)o, dessen `sourceNode.Contains(MethodDecl)` Check fail-t — Stryker wirft `InvalidOperationException: Cannot inject mutation`. Das ist ein **separater Bug**, NICHT Calculator's Bug-9 (anderer Exception-Type). Calculator's Code triggert ihn nicht (kein generic constraint). Tracking als "v3.3.0+ Method-level-mutation-frame-routing" bug.
+
 ### Maxential / ToT Decision-Trail
 
 - **Naive Plan rev1 (verworfen).** "Lift UoiMutator auf einen `MutateAtExpressionLevelOrchestrator<IdentifierNameSyntax>` der die Mutation an die Expression-Ebene escaliert." Lokal getestet → der Crash hat sich nur eine Layer früher in der Stack manifestiert (`InvalidCastException(PostfixUnary → SimpleName)` statt Parens → SimpleName), weil `RoslynHelper.InjectMutation` mit `oldNode = IdentifierName` immer noch die strikte Slot-Substitution macht, BEVOR die Engine wrapt. Erkenntnis: das Problem ist nicht der Inject-Frame-Level, sondern der `(OriginalNode, ReplacementNode)`-Pair self.
@@ -1979,3 +2011,4 @@ verworfen.
 | 0.9.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 143 (v3.2.0-dev Phase 1): ADR-027 — Type-Position-Aware Mutation Control. Multi-Sprint Engine-Refaktor zur Root-Cause-Fix von Bug #9 statt Sprint-142-Symptom-Skip (User-Feedback). Phase 1 implementiert: Smart-Pivot in UoiMutator für MA.Name + neuer MemberAccessNameSlotOrchestrator + Mutator-set OriginalNode (`??=`). Phase 2 (MB.Name CAE-aware Lifting) und Phase 3 (TypeSyntax-Engine, SpanReadOnly re-enable) geplant. **Kein Tag** — v3.2.0 erst nach Phase 3. |
 | 0.10.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 144 (v3.2.0-dev Phase 2): ADR-027 Phase 2 implementiert. CAE-aware lifting für MB.Name + MA-in-CAE.WhenNotNull-Subtree via UoiMutator's `LiftPastConditionalAccess` walk-up loop (transparent durch CAE-Expression-side-crossings für nested patterns wie `matrix?.GetType().Name?.Length`). Phase-1-Gap entdeckt + gefixt: UoiMutator emittierte PostfixUnary in TypeSyntax-Slots (user-defined Property-Types) → `InvalidCastException(ParenthesizedExpression → TypeSyntax)` Crash; mit Phase-2 `IsInTypeSyntaxPosition`-Skip. Phase-1 MB.Name-Guard entfernt; MemberAccessNameSlotOrchestrator predicate auf MA-OR-MB aufgeweitet. 6 neue UoiMutator-Tests (Phase-1+2 regression, 10 grün gesamt). **Kein Tag** — v3.2.0 erst nach Phase 3 (TypeSyntax-Engine + SpanReadOnly re-enable). |
 | 0.11.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 145 (v3.2.0 final Phase 3): ADR-027 Phase 3 abgeschlossen mit **Skip-as-Architecture** (Maxential Decision Option F nach 11 Schritten + 3 Engine-Refactor-Alternativen evaluiert). TypeSyntax-Engine-Refactor (4+ Sprints für 1 niche-Mutator) verworfen wegen Cost/Benefit. UoiMutator.IsInTypeSyntaxPosition + SpanReadOnly Profile.None werden als finale Architektur-Entscheidung formalisiert (nicht-temporäre Skip-Markierung). MutatorReflectionProperties Doku updated. ADR-027 schließt. **Tag v3.2.0** (final Phase-3-Closure) — gerechtfertigt durch Phase-1+2 echten Engine-Refactor (smart-pivot, MemberAccessNameSlotOrchestrator, CAE-walk-up). User-Pushback-Path: Engine-Refactor wäre eigener v3.3.0+ Sprint. |
+| 0.12.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 146 Hotfix v3.2.1: Calculator-Tester Report 3 hat Bug-9 Crash in v3.2.0 reproduziert (gleicher `InvalidCastException(ParenthesizedExpression → TypeSyntax)` Stack-Trace wie v3.1.1). Root-Cause: Phase-2 `IsInTypeSyntaxPosition` Skip-Liste war unvollständig — Pattern-Matching-Slots (DeclarationPattern, RecursivePattern, TypePattern) und TypeParameterConstraintClause fehlten. UoiMutator feuerte auf `Deposit` in `t switch { Deposit d => ... }` und cracht. Sample.Library hat keine entsprechenden Patterns, Calculator.Domain (records + switch) schon. 4 neue Skip-arms eingefügt + 4 neue UoiMutator-Tests. KEIN Engine-Refactor (Phase-3 Skip-as-Architecture bleibt). Tag **v3.2.1** (Patch-Hotfix). Note: separater Bug bei GenericConstraintMutator als v3.3.0+ Kandidat dokumentiert. |

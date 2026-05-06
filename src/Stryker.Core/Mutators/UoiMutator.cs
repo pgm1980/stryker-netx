@@ -239,6 +239,21 @@ public sealed class UoiMutator : MutatorBase<IdentifierNameSyntax>
             DefaultExpressionSyntax de => de.Type == current,
             SizeOfExpressionSyntax so => so.Type == current,
             ObjectCreationExpressionSyntax oc => oc.Type == current,
+            // Sprint 146 (Bug-9 v3.2.0 hotfix from Calculator-Tester report 3):
+            // pattern-matching type slots also demand TypeSyntax. Without these
+            // arms, UOI fires on `Deposit` in `t is Deposit d` (DeclarationPattern)
+            // or `Deposit => ...` in switch-expressions (TypePattern), which
+            // produces a `ParenthesizedExpression → TypeSyntax` cast crash at the
+            // OrchestrateChildrenMutation layer (same crash class as Sprint 144's
+            // ParameterSyntax / etc).
+            DeclarationPatternSyntax dp => dp.Type == current,
+            TypePatternSyntax tp => tp.Type == current,
+            RecursivePatternSyntax rp => rp.Type == current,
+            // Sprint 146 (continued): type-parameter constraint clauses
+            // (`where T : class`) demand IdentifierNameSyntax (stricter than
+            // TypeSyntax) for the .Name slot. UOI on `T` produces a cast crash
+            // `ParenthesizedExpression → IdentifierNameSyntax`. Same skip class.
+            TypeParameterConstraintClauseSyntax tpc => tpc.Name == current,
             _ => false,
         };
     }

@@ -1,7 +1,7 @@
 ---
-current_sprint: "145"
-sprint_goal: "v3.2.0 Phase 3 — Skip-Formalization (ADR-027 Maxential-Trail Decision: Option F). TypeSyntax-Engine-Refactor wegen Cost/Benefit verworfen. ADR-027 schließt; v3.2.0 Tag (final Phase-3-Closure)."
-branch: "feature/145-engine-refactor-part3-typesyntax-engine"
+current_sprint: "146"
+sprint_goal: "Hotfix v3.2.1 — Calculator-Tester Report 3: Bug-9 v3.2.0 Skip-list-Gap. UoiMutator IsInTypeSyntaxPosition erweitert um DeclarationPattern + TypePattern + RecursivePattern + TypeParameterConstraintClause."
+branch: "fix/146-bug9-typesyntax-pattern-slots"
 started_at: "2026-05-06"
 housekeeping_done: false
 memory_updated: false
@@ -11,50 +11,52 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 145 in progress (v3.2.0 final Phase 3)
+# Session State — Sprint 146 in progress (v3.2.1 hotfix)
 
-## Sprint 145 — ADR-027 Phase 3 finalization
+## Sprint 146 — Calculator-Tester Bug Report 3
 
-**Maxential Decision (11 Schritte, 3 Branches evaluiert): Option F = Skip-Formalization.**
+**Befund:** Calculator-Tester Report 3 (2026-05-06, ~6h nach v3.2.0-Release)
+zeigt Bug-9 reproduziert in v3.2.0 mit gleichem `InvalidCastException(
+ParenthesizedExpression → TypeSyntax)` Stack-Trace wie v3.1.1. Phase 1+2
+hatten den Crash für SimpleName + CAE-Klasse gefixt aber TypeSyntax-Skip-Liste
+war unvollständig.
 
-Phase 1 (Sprint 143) + Phase 2 (Sprint 144) haben den ECHTEN Engine-Refactor implementiert:
-- Smart-pivot via Mutator-set OriginalNode (`??=`)
-- MemberAccessNameSlotOrchestrator mit MemberAccess-Defer
-- CAE-walk-up via LiftPastConditionalAccess
-- TypeSyntax-position skip via UoiMutator.IsInTypeSyntaxPosition
+## Root-Cause
 
-Bug-9 ist root-cause-fixed für die wichtigen Cases (Expression-level + CAE-aware
-+ MA.Name-pivot + MB-via-CAE).
+Phase-2 `UoiMutator.IsInTypeSyntaxPosition` switch hatte 4 fehlende arms:
+1. `DeclarationPatternSyntax` — `t is Deposit d` (Calculator's repro)
+2. `TypePatternSyntax` — `t is Deposit or Withdrawal` (defensive)
+3. `RecursivePatternSyntax` — `t is Deposit { Amount: 5 }`
+4. `TypeParameterConstraintClauseSyntax` — `where T : class` (lokal entdeckt)
 
-### Was Phase 3 NICHT mehr macht (Cost/Benefit-Maxential)
+Sample.Library hat keine dieser Patterns. Calculator.Domain (records +
+switch-expressions) trifft sie. Real-World-Code mit C# 9+ pattern-matching
+generell.
 
-ADR-027 Phase 3 ursprünglich: "TypeAware Engine + SpanReadOnly Re-Enable + UOI
-TypeSyntax-skip removal". Maxential hat alle 4 Engine-Refactor-Optionen durchgegangen:
+## Fix
 
-- **Option A** (TypeReplacementEngine + Pipeline-Refactor): 4+ Sprints für separate-compile-pro-mutation. **Verworfen**.
-- **Option G** (Targeted Engine SpanReadOnly only): gleiche Pipeline-Changes notwendig. Aufwand nicht mutator-skaliert. **Verworfen**.
-- **Option F** (Skip-Formalization): 1-2h, ADR-Trail mit cost/benefit, niedriger Risk. **GEWÄHLT**.
+`IsInTypeSyntaxPosition` switch um 4 arms erweitert. KEINE anderen Code-
+Logic-Änderungen. Tests: 14 UoiMutator-Tests grün (4 neue Pattern-Slot-
+Regressions).
 
-User-Wert für TypeSyntax-Engine-Refactor:
-- SpanReadOnly: 1 Sprint-14-niche-Mutator (Span↔ReadOnlySpan, Memory↔ReadOnlyMemory). Real-World-impact niedrig.
-- UoiMutator-on-TypeSyntax: semantisch sinnlos (post-/pre-fix auf Type-Identifier 100% non-compiling).
+## Verifikation
 
-Cost/Benefit unfavorable → Skip-as-architecture-decision formalisiert.
+- Lokaler Repro `t switch { Deposit d => ... }`: kein Crash, Score 68.89%.
+- Solution-wide build: 0 warnings, 0 errors.
+- Solution-wide tests: ~2200 grün.
+- Semgrep: clean.
 
-### Phase 3 Implementation (Skip-Formalization)
+## Phase-3-Skip-as-Architecture bleibt
 
-1. **UoiMutator.IsInTypeSyntaxPosition**: bleibt. Doku-Comment formalisiert als Architektur-Entscheidung.
-2. **SpanReadOnlySpanDeclarationMutator**: bleibt Profile.None. Doku-Comment formalisiert.
-3. **MutatorReflectionProperties.IntentionallyDisabledMutators**: bleibt. Comment update.
-4. **ADR-027 Phase 3**: von "geplant" auf "abgeschlossen mit Skip-as-final-architecture" + Maxential-Trail.
-5. **Tag v3.2.0**: gerechtfertigt durch Phase-1+2-Engine-Refactor.
+Sprint 146 ist ein punktueller Hotfix der die Phase-3-Skip-Liste vervollständigt.
+ADR-027 Phase 3 Decision (Skip-as-Architecture) bleibt unverändert; nur die
+Skip-Patterns waren nicht complete genug.
 
-### KEIN Code-Logic-Change
-Phase 3 ist nur Doku-Update + ADR-Schließung. Tests bleiben unverändert grün.
+## Note für mögliche v3.3.0+ Sprints
 
-### v3.2.0 Tag-Justification
-- Phase 1 (Sprint 143): MA.Name pivot via parent + MemberAccessNameSlotOrchestrator + Mutator-set OriginalNode
-- Phase 2 (Sprint 144): CAE-aware Lifting + MA-in-CAE-Subtree + TypeSyntax-skip
-- Phase 3 (Sprint 145): ADR-027 closure mit Architektur-Entscheidung
-
-User-Pushback-Path: wenn TypeSyntax-Engine-Refactor doch gewünscht, eigener v3.3.0+ Sprint mit klarer Aufwand-Erwartung (4+ Sprints).
+Lokal-Bisect hat ZWEITEN Bug aufgedeckt: GenericConstraintMutator (All-only)
+emittiert `OriginalNode = MethodDeclarationSyntax` mit Type=Statement; bei
+expression-body Methods landet die Mutation auf child-Expression-Inject-Frame
+das `sourceNode.Contains(MethodDecl)` Check fail-t. Anderes Exception-Class
+(`InvalidOperationException: Cannot inject`) als Calculator's Bug-9
+(`InvalidCastException`). NICHT in dieser Hotfix-Scope.
