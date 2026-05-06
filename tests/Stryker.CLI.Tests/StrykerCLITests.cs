@@ -107,6 +107,52 @@ public class StrykerCLITests
         _nugetClientMock.VerifyNoOtherCalls();
     }
 
+    // ----- Sprint 141 (Bug #4) — additive --tool-version flag tests -----
+
+    [Fact]
+    public async Task ToolVersionFlag_LongForm_PrintsToolVersionAndReturnsZero()
+    {
+        // --tool-version short-circuits before any McMaster parsing → no NuGet client call,
+        // no logo, no mutation run. Exit code 0.
+        var mock = new Mock<IStrykerRunner>(MockBehavior.Strict);
+        var nugetMock = new Mock<IStrykerNugetFeedClient>(MockBehavior.Strict);
+        var consoleMock = new Mock<IAnsiConsole>();
+        var fileSystemMock = new Mock<IFileSystem>();
+        var target = new StrykerCli(mock.Object, new ConfigBuilder(), Mock.Of<ILoggingInitializer>(), nugetMock.Object, consoleMock.Object, fileSystemMock.Object);
+
+        var exitCode = await target.RunAsync(["--tool-version"]);
+
+        exitCode.Should().Be(ExitCodes.Success);
+        // Strict-mode mocks would throw if any calls happened — proves short-circuit before further parsing.
+        mock.VerifyNoOtherCalls();
+        nugetMock.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ToolVersionFlag_ShortForm_ReturnsZero()
+    {
+        // -T is the shorthand for --tool-version.
+        var mock = new Mock<IStrykerRunner>(MockBehavior.Strict);
+        var nugetMock = new Mock<IStrykerNugetFeedClient>(MockBehavior.Strict);
+        var target = new StrykerCli(mock.Object, new ConfigBuilder(), Mock.Of<ILoggingInitializer>(), nugetMock.Object, Mock.Of<IAnsiConsole>(), Mock.Of<IFileSystem>());
+
+        var exitCode = await target.RunAsync(["-T"]);
+
+        exitCode.Should().Be(ExitCodes.Success);
+        mock.VerifyNoOtherCalls();
+        nugetMock.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public void GetToolVersionString_StripsCommitShaSuffix()
+    {
+        // GetToolVersionString reads AssemblyInformationalVersion. With DotNet.ReproducibleBuilds
+        // active, that has the form "X.Y.Z+commit-sha" — we strip the +sha so users see "X.Y.Z".
+        var version = StrykerCli.GetToolVersionString();
+        version.Should().NotBeNullOrEmpty();
+        version.Should().NotContain("+", "the +commit-sha suffix must be stripped from the user-facing version output");
+    }
+
     [Fact]
     public async Task OnAlreadyNewestVersion_ShouldCallNugetClientForPreview()
     {

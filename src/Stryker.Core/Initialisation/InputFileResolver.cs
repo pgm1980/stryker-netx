@@ -103,8 +103,13 @@ public partial class InputFileResolver : IInputFileResolver
             return result;
         }
         // still ambiguous
+        // Sprint 141 (Hinweis #8 from Calculator-tester report): users with multi-layer
+        // test setups (Domain + Infrastructure + App) hit this error when they expected
+        // stryker to "just mutate everything". Surfacing the --solution alternative in
+        // the message itself reduces support load — the feature already exists.
         var stringBuilder = new StringBuilder().AppendLine(
                 "Test project contains more than one project reference. Please set the project option (https://stryker-mutator.io/docs/stryker-net/configuration#project-file-name) to specify which project to mutate.")
+            .AppendLine("Alternatively, run stryker-netx in solution-mode (--solution <path>.slnx) to mutate ALL referenced projects sequentially in one run with a combined report.")
             .Append(BuildReferenceChoice(result.Select(p => p.Analysis.ProjectFilePath)));
         throw new InputException(stringBuilder.ToString());
     }
