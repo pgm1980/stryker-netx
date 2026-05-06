@@ -57,6 +57,14 @@ public partial class StrykerCli
     /// <param name="args">User input</param>
     public async Task<int> RunAsync(string[] args)
     {
+        // Sprint 149 (Bug #6 from Calculator-Tester Bug-Report 4): accept --reporters
+        // (plural) as an alias for --reporter (singular). External tutorials and our own
+        // historical docs spell the flag plural; McMaster's "Did you mean: reporter"
+        // hint is correct but unfriendly. We rewrite --reporters → --reporter (and the
+        // = / : -separated forms) BEFORE McMaster sees the args, so both spellings
+        // populate the same ReportersInput.
+        args = RewriteReportersAlias(args);
+
         // Sprint 148 (Bug #4 from Calculator-Tester Bug-Report 4): short-circuit
         // --version / -V before any other parsing. Print the tool version + exit 0.
         if (TryHandleToolVersionFlag(args, out var earlyExitCode))
@@ -83,6 +91,61 @@ public partial class StrykerCli
         });
 
         return await ExecuteWithErrorHandlingAsync(app, args).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sprint 149 (Bug #6 from Calculator-Tester Bug-Report 4): rewrites the plural
+    /// <c>--reporters</c> alias to the singular <c>--reporter</c> form that
+    /// McMaster knows. Handles three argv shapes:
+    /// <list type="bullet">
+    ///   <item><description><c>--reporters html</c> → <c>--reporter html</c></description></item>
+    ///   <item><description><c>--reporters=html</c> → <c>--reporter=html</c></description></item>
+    ///   <item><description><c>--reporters:html</c> → <c>--reporter:html</c> (McMaster also accepts colon-separated)</description></item>
+    /// </list>
+    /// Tippfehler-Variants like <c>--reporterz</c> or <c>--report</c> still fall through
+    /// to McMaster's "Did you mean: reporter" hint — we only rewrite the exact plural.
+    /// </summary>
+    /// <param name="args">Raw argv as passed to <see cref="RunAsync"/>.</param>
+    /// <returns>The same array reference if no rewrite was needed, or a new array
+    /// with the rewritten entries.</returns>
+    internal static string[] RewriteReportersAlias(string[] args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        var anyRewrite = false;
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (TryRewriteReporterArg(args[i], out var rewritten))
+            {
+                if (!anyRewrite)
+                {
+                    args = (string[])args.Clone();
+                    anyRewrite = true;
+                }
+                args[i] = rewritten;
+            }
+        }
+        return args;
+    }
+
+    private static bool TryRewriteReporterArg(string arg, out string rewritten)
+    {
+        if (string.Equals(arg, "--reporters", StringComparison.Ordinal))
+        {
+            rewritten = "--reporter";
+            return true;
+        }
+        if (arg.StartsWith("--reporters=", StringComparison.Ordinal))
+        {
+            rewritten = string.Concat("--reporter=", arg.AsSpan("--reporters=".Length));
+            return true;
+        }
+        if (arg.StartsWith("--reporters:", StringComparison.Ordinal))
+        {
+            rewritten = string.Concat("--reporter:", arg.AsSpan("--reporters:".Length));
+            return true;
+        }
+        rewritten = arg;
+        return false;
     }
 
     private CommandLineApplication BuildCommandLineApplication()

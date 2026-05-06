@@ -185,6 +185,72 @@ public class StrykerCLITests
         version.Should().NotContain("+", "the +commit-sha suffix must be stripped from the user-facing version output");
     }
 
+    // ----- Sprint 149 (Bug #6 from Calculator-Tester Bug-Report 4) — --reporters plural alias rewrite -----
+    // Static-readonly fields (CA1861) for the array-literals used in the TheoryData below.
+    private static readonly string[] s_reportersHtmlIn = ["--reporters", "html"];
+    private static readonly string[] s_reporterHtmlOut = ["--reporter", "html"];
+    private static readonly string[] s_reportersHtmlEqIn = ["--reporters=html"];
+    private static readonly string[] s_reporterHtmlEqOut = ["--reporter=html"];
+    private static readonly string[] s_reportersHtmlColonIn = ["--reporters:html"];
+    private static readonly string[] s_reporterHtmlColonOut = ["--reporter:html"];
+    private static readonly string[] s_reportersTwoIn = ["--reporters", "html", "--reporters", "json"];
+    private static readonly string[] s_reporterTwoOut = ["--reporter", "html", "--reporter", "json"];
+    private static readonly string[] s_mixedIn = ["--project", "X.csproj", "--reporters=html"];
+    private static readonly string[] s_mixedOut = ["--project", "X.csproj", "--reporter=html"];
+    private static readonly string[] s_singularSpaced = ["--reporter", "html"];
+    private static readonly string[] s_singularEq = ["--reporter=html"];
+    private static readonly string[] s_falsePositive = ["--reportersx"];
+
+    public static TheoryData<string[], string[]> RewriteReportersData() => new()
+    {
+        { s_reportersHtmlIn,      s_reporterHtmlOut },
+        { s_reportersHtmlEqIn,    s_reporterHtmlEqOut },
+        { s_reportersHtmlColonIn, s_reporterHtmlColonOut },
+        { s_reportersTwoIn,       s_reporterTwoOut },
+        { s_mixedIn,              s_mixedOut },
+    };
+
+    [Theory]
+    [MemberData(nameof(RewriteReportersData))]
+    public void RewriteReportersAlias_RewritesPluralToSingular(string[] input, string[] expected)
+    {
+        var actual = StrykerCli.RewriteReportersAlias(input);
+        actual.Should().Equal(expected, "the plural --reporters alias must be rewritten to --reporter before McMaster sees it");
+    }
+
+    private static readonly string[] s_emptyArgs = [];
+
+#pragma warning disable IDE0028 // TheoryData<T> single-arg collection-init: the {item} brace-list IS the simplification IDE0028 wants, but the analyzer can't tell with the "params"-shaped TheoryData<T>. Suppression is local to this declaration.
+    public static TheoryData<string[]> NonPluralArgsData() => new()
+    {
+        s_singularSpaced,
+        s_singularEq,
+        s_falsePositive,
+        s_emptyArgs,
+    };
+#pragma warning restore IDE0028
+
+    [Theory]
+    [MemberData(nameof(NonPluralArgsData))]
+    public void RewriteReportersAlias_LeavesNonPluralUnchanged(string[] input)
+    {
+        var actual = StrykerCli.RewriteReportersAlias(input);
+        actual.Should().Equal(input, "non-plural args must pass through unchanged");
+    }
+
+    [Fact]
+    public async Task ShouldAcceptReportersPluralAsAliasForReporter()
+    {
+        // --reporters html should populate ReportersInput identically to --reporter html.
+        // We exercise the full pipeline so the rewrite happens BEFORE McMaster.
+        await _target.RunAsync(["--reporters", "html"]);
+
+        _strykerRunnerMock.VerifyAll();
+        _inputs.ReportersInput.SuppliedInput.Should().NotBeNullOrEmpty();
+        _inputs.ReportersInput.SuppliedInput.Should().Contain("html",
+            "--reporters (plural) is the historical / external-doc spelling and Sprint 149 makes it equivalent to --reporter (singular)");
+    }
+
     [Fact]
     public async Task OnAlreadyNewestVersion_ShouldCallNugetClientForPreview()
     {

@@ -2172,6 +2172,54 @@ Diese Optimierungen sind separate Sprints — der Sicherheits-Aspekt (Bug-9 fixe
 
 ---
 
+## ADR-030: `--reporters` Plural-Alias via args-Pre-Processor (v3.2.4 / Sprint 149)
+
+**Status.** Accepted — Sprint 149 (v3.2.4, 2026-05-06).
+
+**Kontext.** Calculator-Tester Bug-Report 4, Bug #6: das Tool kennt nur `--reporter` (Singular), externe Tutorials und Doku-Quellen schreiben aber häufig `--reporters` (Plural). McMaster zeigt eine "Did you mean: reporter"-Hilfe, lehnt den Aufruf aber als `Unrecognized option '--reporters'` ab. User-Forderung: entweder Plural-Alias akzeptieren ODER Doku überall korrigieren. Plural-Alias ist der Tool-Fix-Pfad.
+
+**Entscheidung.** **args-Pre-Processor in `StrykerCli.RunAsync`**: rewrite `--reporters` → `--reporter` (sowie `--reporters=html` → `--reporter=html` und `--reporters:html` → `--reporter:html`) BEVOR McMaster die argv sieht. Konsistent mit Sprint-148-Pattern (`TryHandleToolVersionFlag` operiert auf demselben pre-McMaster-Layer). Ein einziger Helper `RewriteReportersAlias(string[]) → string[]` mit drei expliziten Branch-Forms.
+
+**Begründung der Wahl.** Maxential 3-Schritte-Branchless:
+- **Option A (args-pre-process)**: gewählt. Minimal-invasiv, kein API-Change, kein doppelter McMaster-Eintrag, konsistent mit Sprint-148.
+- **Option B (zweite Option-Registrierung in CommandLineConfigReader)**: verworfen. Zwei Help-Zeilen, zwei IInput-Bindungs-Pfade die konsolidiert werden müssten.
+- **Option C (Custom McMaster-Subclass mit Multi-Long-Aliases)**: verworfen. McMaster-Internals fragil, Implementations-Aufwand vs Nutzen.
+
+**Implementation.**
+
+- `src/Stryker.CLI/StrykerCli.cs`:
+  - `RunAsync` ruft `args = RewriteReportersAlias(args)` als ALLERERSTEN Schritt auf — vor dem Tool-Version-Short-Circuit, vor McMaster.
+  - `RewriteReportersAlias(string[] args) → string[]`: scannt args linear, ruft `TryRewriteReporterArg` pro Element. Bei keinem Treffer wird die Eingabe-Referenz unverändert zurückgegeben (kein Heap-Allocation). Bei erstem Treffer wird `args.Clone()` aufgerufen und das geclonte Array befüllt (struktur-erhaltend, keine Mutation der Eingabe).
+  - `TryRewriteReporterArg(string arg, out string rewritten) → bool`: drei Branch-Forms — exakter Match `--reporters`, Prefix-Match `--reporters=`, Prefix-Match `--reporters:`. False-Positive-Guard: `--reportersx` matcht KEINES der drei Patterns und fällt durch.
+
+- `tests/Stryker.CLI.Tests/StrykerCLITests.cs`:
+  - 5 Theory-Cases für Rewrite (`RewriteReportersAlias_RewritesPluralToSingular`): space-separated, `=`-separated, `:`-separated, twice-repeated, mixed-with-other-flags.
+  - 4 Theory-Cases für Non-Rewrite (`RewriteReportersAlias_LeavesNonPluralUnchanged`): `--reporter` already-singular spaced + `=`-form, false-positive `--reportersx`, empty args.
+  - 1 End-to-End-Fact (`ShouldAcceptReportersPluralAsAliasForReporter`): `--reporters html` populiert `ReportersInput.SuppliedInput` über die volle Pipeline.
+
+**Help-Text-Sichtbarkeit.** Der Plural-Alias erscheint NICHT im `--help`-Output. Das ist eine bewusste Designentscheidung: die kanonische Form bleibt `--reporter` (Singular), der Plural ist ein transparenter Compatibility-Alias für externe Doku/Tutorials. McMaster's "Did you mean: reporter"-Hilfe bleibt für andere Tippfehler-Variants (`--reporterz`, `--report`) aktiv — nur die exakte plural-Variante wird schweigend rewritten.
+
+**Tippfehler-Toleranz vs Plural-Alias-Trennlinie.** Der Pre-Processor matcht NUR `--reporters` exakt (oder mit `=`/`:` direkt anschließend). Variants wie `--reporterz`, `--reportz`, `--report` werden NICHT rewritten — die fallen weiter durch zu McMaster's "Did you mean"-Hilfe. Das verhindert dass jede 1-Buchstabe-Variation zur stillen Akzeptanz wird (würde Help-Text-Akkuratheit untergraben).
+
+**Konsequenzen.**
+
+- (+) Externe Doku/Tutorials die `--reporters html` zeigen funktionieren ohne Änderung.
+- (+) Kein Behavior-Change für bestehende `--reporter`-Nutzer.
+- (+) Kein API-Change, keine Migration nötig.
+- (+) Konsistentes Pattern mit Sprint-148-Pre-Processor (`TryHandleToolVersionFlag`).
+- (–) Plural-Alias ist nicht im `--help` sichtbar — User die das Tool ausschließlich über `--help` lernen, sehen nur `--reporter`. Bewusst akzeptiert; ADR-030 dokumentiert die Entscheidung.
+
+**Backed by.** Sprint 149 Maxential 3-Schritte (Option A vs B vs C, A gewählt). 10 neue Tests (5 Rewrite-Theory + 4 Non-Rewrite-Theory + 1 E2E-Fact). 91 Stryker.CLI.Tests grün, Solution-wide 844 Unit-Tests grün (vs Sprint 148 = 834, +10), Semgrep clean (0 Findings auf 2 modifizierten Dateien).
+
+**Bezug zu offenen Bugs aus Bug-Report 4.**
+
+- Bug #4 ✓ closed mit ADR-029 (Sprint 148 / v3.2.3).
+- Bug #6 ✓ closed mit ADR-030 (Sprint 149 / v3.2.4).
+- Bug #8 (Multi-Project UX) — separater Sprint 150 (v3.2.5 oder v3.3.0).
+- Bug #9 ✓ closed mit ADR-028 (Sprint 147 / v3.2.2).
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2190,3 +2238,4 @@ Diese Optimierungen sind separate Sprints — der Sicherheits-Aspekt (Bug-9 fixe
 | 0.12.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 146 Hotfix v3.2.1: Calculator-Tester Report 3 hat Bug-9 Crash in v3.2.0 reproduziert (gleicher `InvalidCastException(ParenthesizedExpression → TypeSyntax)` Stack-Trace wie v3.1.1). Root-Cause: Phase-2 `IsInTypeSyntaxPosition` Skip-Liste war unvollständig — Pattern-Matching-Slots (DeclarationPattern, RecursivePattern, TypePattern) und TypeParameterConstraintClause fehlten. UoiMutator feuerte auf `Deposit` in `t switch { Deposit d => ... }` und cracht. Sample.Library hat keine entsprechenden Patterns, Calculator.Domain (records + switch) schon. 4 neue Skip-arms eingefügt + 4 neue UoiMutator-Tests. KEIN Engine-Refactor (Phase-3 Skip-as-Architecture bleibt). Tag **v3.2.1** (Patch-Hotfix). Note: separater Bug bei GenericConstraintMutator als v3.3.0+ Kandidat dokumentiert. |
 | 0.13.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 147 v3.2.2: ADR-028 — **Central Syntax-Slot Validation Layer**. Calculator-Tester Bug-Report 4 reproduziert Bug-9 in v3.2.1 als `NullReferenceException` mit identischem Stack-Trace-Pfad. User-Forderung c): **Validierungs-Layer vor der Mutation**, KEIN weiterer Hotfix. Maxential (13 Schritte, 3 ToT-Branches) → Branch C (Hybrid Validator + Audit) gewählt. **`SyntaxSlotValidator.TryReplaceWithValidation`** + **`RoslynHelper.TryInjectMutation`** + **`MutationStore.ApplyMutationsValidated`** — defensive Pipeline-Stage zwischen Mutator-Output und Engine-Wrap. Fängt 4 Crash-Klassen: InvalidCast, NRE, InvalidOperationException-Contains-mismatch, null-Mutation-Properties. 4 Validator-Tests + lokal-acid-test mit allen 9 Calculator-Patterns ohne Crash. Solution-wide ~2200 Tests grün. Tag **v3.2.2** — Bug-9-stable-fix. |
 | 0.14.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 148 v3.2.3: ADR-029 — `--version` Tool-Convention + `--project-version` **Hard Rename**. Calculator-Tester Bug-Report 4, Bug #4: `dotnet stryker-netx --version` druckt jetzt konvention-konform die Tool-Version statt als Project-Version-Wert interpretiert zu werden. Maxential (3-Weg ToT: O1=Hard-Rename, O2=Soft-Detection, O3=Status-Quo) → O1 gewählt. **Breaking-Change**: `--version <value>` → `--project-version <value>` Migration. `--tool-version` / `-T` (Sprint-141-Aliase) bleiben transitional. `StrykerCli.TryHandleToolVersionFlag` short-circuited bare-Flag BEFORE McMaster-Parser-Pipeline. RunAsync zerlegt in `BuildCommandLineApplication` + `ExecuteWithErrorHandlingAsync` (MA0051-Cap). 4 neue Sprint-148-Tests + ShouldSetProjectVersion umgestellt auf `--project-version`. Solution-wide 817 Unit-Tests grün, Semgrep clean. Tag **v3.2.3** — Bug #4 closed. Bugs #6, #8 → separate Sprints 149/150. |
+| 0.15.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 149 v3.2.4: ADR-030 — `--reporters` Plural-Alias via args-Pre-Processor. Calculator-Tester Bug-Report 4, Bug #6: externe Tutorials/Doku schreiben oft `--reporters` (Plural), McMaster lehnt das mit "Unrecognized option" + "Did you mean: reporter" ab. Maxential (3-Schritte): Option A (args-rewrite) gewählt vs B (zweite Option-Registrierung) vs C (McMaster-Subclass). `RewriteReportersAlias(string[]) → string[]` rewrites `--reporters`, `--reporters=…`, `--reporters:…` zu Singular-Form BEFORE McMaster sieht args. Konsistent mit Sprint-148-Pattern (Pre-Processor). False-Positive-Guard: `--reportersx` fällt durch zu McMaster's "Did you mean"-Hilfe. 10 neue Tests (5 Rewrite + 4 Non-Rewrite + 1 E2E). Solution-wide 844 Unit-Tests grün (vs Sprint 148 = 834, +10), Semgrep clean. Tag **v3.2.4** — Bug #6 closed. Bug #8 → Sprint 150. |
