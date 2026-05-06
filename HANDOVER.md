@@ -1,26 +1,27 @@
-# HANDOVER — v3.1.1 + Sprint 141 Closing — alle 8 Bug-Report-Items geschlossen
+# HANDOVER — v3.1.2 + Sprint 142 Hotfix (Bug #9 from 2nd Calculator-tester report)
 
-## Final State — v3.1.1 (Calculator-Tester Bug-Report vollständig abgearbeitet)
-- **Dogfood: 1184 green / 9 skip / 1193 total** (Sprint 141 hat 3 weitere CLI-Tests = 80 statt 77)
-- **Latest tag: v3.1.1** (Patch-bump: additive `--tool-version` flag + Doku + error-message-text — keine Behavior-Change)
-- **NuGet.org: `dotnet-stryker-netx 3.1.1` öffentlich auffindbar** ✓ (seit Sprint 141 / 2026-05-06)
-- **Banner zeigt korrekte Version**: `Version: 3.1.1`
-- **`--tool-version` / `-T` production-verified**: gibt `3.1.1` aus + exit 0
-- **Auto-Bump-Behavior production-verified** (ADR-025, Sprint 140)
+## Final State — v3.1.2 (Bug #9 Hotfix released)
+- **Dogfood: 1184 green / 9 skip / 1193 total** (Sprint 142 +3 UoiMutator-Regression-Tests in Stryker.Core.Tests, jetzt 391)
+- **Latest tag: v3.1.2** (Patch-bump: hotfix für `--mutation-profile All` InvalidCastException; SpanReadOnly disabled)
+- **NuGet.org: `dotnet-stryker-netx 3.1.2` öffentlich auffindbar** ✓ (seit Sprint 142 / 2026-05-06)
+- **Banner zeigt korrekte Version**: `Version: 3.1.2`
+- **`-T` production-verified**: `3.1.2`
+- **Bug #9 production-verified**: lokale Repro mit `data.Length`-Pattern → kein Crash mehr
 - Repo `pgm1980/stryker-netx`: **public** (Apache-2.0, NOTICE-attributed, "independent community fork")
-- **Versionssprung-Reihenfolge der letzten 4 Sprints:** v3.0.24 (Sprint 137 last v3.0.x) → v3.0.25 (Sprint 139 bug-batch) → v3.1.0 (Sprint 140 ADR-025 auto-bump, minor) → **v3.1.1 (Sprint 141 last bug-report items, patch)**
+- **Versionssprung-Reihenfolge der letzten 5 Sprints:** v3.0.24 (Sprint 137) → v3.0.25 (Sprint 139) → v3.1.0 (Sprint 140 ADR-025) → v3.1.1 (Sprint 141) → **v3.1.2 (Sprint 142 Bug #9 hotfix, ADR-026)**
 
-## Cumulative Session (Sprints 95-141, 47 sprints)
-- Dogfood: **906/99 → 1184/9** (+278 green, -90 skip, +188 new tests). CLI-Tests +3 = 80 in Sprint 141.
-- 46 GitHub releases (v2.81.0 → v3.1.1); Sprint 138 had no version-bump (CI-reparation only)
-- 7 production bug-fix sprints:
+## Cumulative Session (Sprints 95-142, 48 sprints)
+- Dogfood: **906/99 → 1184/9** (+278 green, -90 skip, +188 new tests). Sprint 142 +3 UoiMutator-Regression-Tests.
+- 47 GitHub releases (v2.81.0 → v3.1.2); Sprint 138 had no version-bump (CI-reparation only)
+- 8 production bug-fix sprints:
   - Sprint 99: MsBuildHelper.GetVersion missing-space + multi-line
   - Sprint 136: SseServer.Dispose double-close
   - Sprint 137: RoslynSemanticDiagnosticsEquivalenceFilter speculative-binding crash on MemberBindingExpression
-  - Sprint 138: release.yml CI-reparation → **erstmaliger erfolgreicher NuGet.org-Push** (v3.0.24)
-  - Sprint 139: Calculator-tester Bug-Report-Batch → 4 of 6 bugs closed in v3.0.25
-  - Sprint 140: Bug #1 Stufe 2 Code-Side via ADR-025 — mutation-profile auto-bumps mutation-level → v3.1.0
-  - Sprint 141: last 3 bug-report items (Bug #4 + Hinweis #7 + #8) → v3.1.1 — **alle 8 Bug-Report-Items vollständig closed** ✓
+  - Sprint 138: release.yml CI-reparation → erstmaliger NuGet-Push (v3.0.24)
+  - Sprint 139: Calculator-tester Bug-Report-1-Batch → 4 of 6 bugs closed in v3.0.25
+  - Sprint 140: Bug #1 Stufe 2 Code-Side via ADR-025 → v3.1.0
+  - Sprint 141: last 3 bug-report-1 items (Bug #4 + Hinweis #7 + #8) → v3.1.1
+  - Sprint 142: Bug #9 hotfix from Calculator-tester Bug-Report-2 (ADR-026 ConditionalInstrumentation × TypeSyntax incompat) → v3.1.2
 
 ## Sprint 135-141 — Final Cleanup + Release Pipeline + Bug-Report Vollständig
 - **Sprint 135 (v3.0.22):** Last attackable architectural-deferral ELIMINATED (CSharpRollbackProcess null-SourceTree)
