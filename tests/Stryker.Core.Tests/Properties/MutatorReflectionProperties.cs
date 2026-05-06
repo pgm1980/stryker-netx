@@ -37,11 +37,14 @@ public class MutatorReflectionProperties
     /// <summary>
     /// Sprint 142 (ADR-026): mutators that are intentionally disabled across all
     /// profiles via Profile.None because their target slot is incompatible with
-    /// the current ConditionalInstrumentationEngine. Re-enabling tracked in ADR-026.
+    /// the current ConditionalInstrumentationEngine. Re-enable tracked in
+    /// ADR-027 Phase 3 (TypeSyntax-aware engine variant); Sprint 143 Phase 1
+    /// already addressed the SimpleName twin via parent-pivot, so this list
+    /// shrinks as the multi-sprint refactor progresses.
     /// </summary>
     private static readonly HashSet<string> IntentionallyDisabledMutators = new(StringComparer.Ordinal)
     {
-        "SpanReadOnlySpanDeclarationMutator", // Sprint 142, ADR-026: TypeSyntax-slot conditional-instrumentation crash
+        "SpanReadOnlySpanDeclarationMutator", // ADR-026 / ADR-027 Phase 3: TypeSyntax-slot engine refactor pending
     };
 
     [Fact]

@@ -18,6 +18,31 @@ namespace Stryker.Core.Mutators;
 ///
 /// Profile membership: All only — UOI is famously aggressive (every
 /// identifier use becomes 4 mutations); opt-in via --profile All.
+///
+/// <para><b>v3.2.0-dev (Sprint 143, ADR-027 Phase 1 — type-position-aware
+/// pivot for MemberAccess.Name):</b> when the visited identifier lives in a
+/// MemberAccess.Name slot (typed <see cref="SimpleNameSyntax"/> in Roslyn),
+/// a <c>PostfixUnary(IdentifierName)</c> replacement is structurally invalid
+/// in that slot — the typed visitor refuses anything but a SimpleName, and the
+/// <c>ConditionalInstrumentationEngine</c> wraps every mutation in a
+/// <c>ParenthesizedExpression</c> envelope, which inherits the same strict
+/// slot and crashes (Bug-9). Phase 1 pivots the mutation up to the enclosing
+/// <see cref="MemberAccessExpressionSyntax"/> so the post-/pre-fix wraps the
+/// full member-access expression: <c>data.Length</c> -> <c>data.Length++</c>.
+/// This replaces the Sprint 142 hotfix (skip + global
+/// <c>DoNotMutateOrchestrator&lt;SimpleNameSyntax&gt;</c>) for the MA.Name
+/// case while restoring UOI coverage there.</para>
+///
+/// <para><b>Out of Phase-1 scope (deferred to ADR-027 Phase 2 — CAE-aware
+/// lifting):</b> the symmetric case for MemberBinding.Name (<c>data?.Length</c>)
+/// is still skipped via <see cref="IsSafeToWrap"/>. Pivoting to the enclosing
+/// MB and emitting <c>PostfixUnary(MB)</c> structurally produces a
+/// <c>ConditionalAccessExpression.WhenNotNull</c> that no longer starts with
+/// a binding operator (<c>.</c> or <c>[</c>), which Roslyn's binder rejects
+/// (yields a compile error on the entire mutated file, taking out unrelated
+/// mutations). Phase 2 will lift these all the way to the enclosing CAE so
+/// the post-/pre-fix wraps the full conditional access. Until then, MB.Name
+/// stays skipped to keep the file-compile clean.</para>
 /// </summary>
 [MutationProfileMembership(MutationProfile.All)]
 public sealed class UoiMutator : MutatorBase<IdentifierNameSyntax>
@@ -28,29 +53,41 @@ public sealed class UoiMutator : MutatorBase<IdentifierNameSyntax>
     {
         // Conservative scope: only mutate when the identifier appears in a
         // simple expression position. Skip when the node is the target of
-        // assignment, a member-access head, an invocation, or already inside
-        // an increment expression (avoid double-wrapping).
+        // assignment, an invocation, or already inside an increment expression
+        // (avoid double-wrapping). MA.Name is NOT skipped — Sprint 143
+        // (ADR-027 Phase 1) handles it via parent-pivot below.
         if (!IsSafeToWrap(node))
         {
             yield break;
         }
 
-        yield return WrapIn(node, SyntaxKind.PostIncrementExpression, "x++");
-        yield return WrapIn(node, SyntaxKind.PreIncrementExpression, "++x");
-        yield return WrapIn(node, SyntaxKind.PostDecrementExpression, "x--");
-        yield return WrapIn(node, SyntaxKind.PreDecrementExpression, "--x");
+        // Sprint 143 (ADR-027 Phase 1): MA.Name pivot. Pivoting up to the
+        // enclosing MA puts (OriginalNode, ReplacementNode) in a slot whose
+        // declared type accepts ExpressionSyntax (and so accepts the engine's
+        // ParenthesizedExpression envelope). MB.Name (conditional access) is
+        // not pivoted here — see Phase 2 in the type doc-comment.
+        ExpressionSyntax pivot = node;
+        if (node.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == node)
+        {
+            pivot = memberAccess;
+        }
+
+        yield return WrapIn(pivot, node, SyntaxKind.PostIncrementExpression, "x++");
+        yield return WrapIn(pivot, node, SyntaxKind.PreIncrementExpression, "++x");
+        yield return WrapIn(pivot, node, SyntaxKind.PostDecrementExpression, "x--");
+        yield return WrapIn(pivot, node, SyntaxKind.PreDecrementExpression, "--x");
     }
 
-    private static Mutation WrapIn(IdentifierNameSyntax original, SyntaxKind kind, string label)
+    private static Mutation WrapIn(ExpressionSyntax pivot, IdentifierNameSyntax labelSource, SyntaxKind kind, string label)
     {
         ExpressionSyntax replacement = kind is SyntaxKind.PostIncrementExpression or SyntaxKind.PostDecrementExpression
-            ? SyntaxFactory.PostfixUnaryExpression(kind, original)
-            : SyntaxFactory.PrefixUnaryExpression(kind, original);
+            ? SyntaxFactory.PostfixUnaryExpression(kind, pivot)
+            : SyntaxFactory.PrefixUnaryExpression(kind, pivot);
         return new Mutation
         {
-            OriginalNode = original,
-            ReplacementNode = replacement.WithCleanTriviaFrom(original),
-            DisplayName = $"UOI: '{original.Identifier.Text}' -> '{label}'",
+            OriginalNode = pivot,
+            ReplacementNode = replacement.WithCleanTriviaFrom(pivot),
+            DisplayName = $"UOI: '{labelSource.Identifier.Text}' -> '{label}'",
             Type = Mutator.Update,
         };
     }
@@ -77,11 +114,11 @@ public sealed class UoiMutator : MutatorBase<IdentifierNameSyntax>
             return false;
         }
 
-        // Skip member-access heads / invocation targets — wrapping changes call semantics.
-        // Sprint 142 Bug #9: skip MemberAccess.Name and MemberBinding.Name as well (right-hand
-        // member-name slots). Wrapping yields ParenthesizedExpression in a SimpleNameSyntax slot.
-        if (parent is MemberAccessExpressionSyntax memberAccess
-            && (memberAccess.Expression == node || memberAccess.Name == node))
+        // Skip member-access heads (Expression-side) / invocation targets — wrapping
+        // changes call semantics. The right-hand MA.Name is NOT skipped here:
+        // Sprint 143 pivots the mutation up to the parent MA. MB.Name IS still
+        // skipped — Phase 2 will lift it to the enclosing CAE (see type doc).
+        if (parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Expression == node)
         {
             return false;
         }
@@ -107,6 +144,8 @@ public sealed class UoiMutator : MutatorBase<IdentifierNameSyntax>
         // placer wraps every mutation in `(MutantControl.IsActive(N) ? mutated : original)`
         // — a ParenthesizedExpressionSyntax. Roslyn's QualifiedNameSyntax visitor
         // casts both children to NameSyntax and crashes on the parens.
+        // (MemberAccess.Name used to be in this list, but Sprint 143 handles it
+        // via parent-pivot — see ApplyMutations above. MB.Name remains skipped.)
         if (parent is QualifiedNameSyntax or AliasQualifiedNameSyntax)
         {
             return false;

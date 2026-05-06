@@ -52,13 +52,11 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         // enum values
         new DoNotMutateOrchestrator<EnumMemberDeclarationSyntax>(),
         new DoNotMutateOrchestrator<UsingDirectiveSyntax>(),
-        // Sprint 23 + 142: TypeSyntax-typed slots crash Roslyn's typed visitor when the
-        // ConditionalInstrumentationEngine wraps mutations in ParenthesizedExpression.
-        // Belt-and-suspenders for per-mutator skips. ADR-026 has the full story.
+        // Sprint 23: QualifiedName slots crash typed visitor on Parens-envelope.
         new DoNotMutateOrchestrator<QualifiedNameSyntax>(),
+        // Sprint 143 (ADR-027 Phase 1): MB.Name guard. Phase 2 lifts to enclosing CAE.
         new DoNotMutateOrchestrator<SimpleNameSyntax>(t =>
-            (t.Parent is MemberAccessExpressionSyntax ma && ma.Name == t)
-            || (t.Parent is MemberBindingExpressionSyntax mb && mb.Name == t)),
+            t.Parent is MemberBindingExpressionSyntax mb && mb.Name == t),
         // constants and constant fields
         new DoNotMutateOrchestrator<FieldDeclarationSyntax>(
             t => t.Modifiers.Any(x => x.IsKind(SyntaxKind.ConstKeyword))),
@@ -71,6 +69,10 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         // prevent mutations to happen within member access expression
         new MemberAccessExpressionOrchestrator<MemberAccessExpressionSyntax>(),
         new MemberAccessExpressionOrchestrator<MemberBindingExpressionSyntax>(),
+        // Sprint 143 (ADR-027 Phase 1): MA / MB .Name slot is strict-typed.
+        // The predicate-restricted handler MUST come first (TypeBasedStrategy
+        // takes FirstOrDefault per-type bucket).
+        new MemberAccessNameSlotOrchestrator(),
         new MemberAccessExpressionOrchestrator<SimpleNameSyntax>(),
         new MemberAccessExpressionOrchestrator<PostfixUnaryExpressionSyntax>(t =>
             t.IsKind(SyntaxKind.SuppressNullableWarningExpression)),
@@ -220,7 +222,14 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         {
             foreach (var mutation in mutator.Mutate(current, semanticModel, Options!))
             {
-                mutation.OriginalNode = current;
+                // Sprint 143 (ADR-027 Phase 1): respect mutator-set OriginalNode. The default
+                // contract is "OriginalNode is the visited node", but mutators may legitimately
+                // pivot a mutation up to an enclosing expression to keep the
+                // (OriginalNode, ReplacementNode) pair structurally valid for Roslyn's typed
+                // slot — e.g. UoiMutator on a MemberAccess.Name target lifts to the parent
+                // MemberAccess so the post-/pre-fix increment lands as a valid Expression rather
+                // than a SimpleNameSyntax-incompatible PostfixUnary in the .Name slot.
+                mutation.OriginalNode ??= current;
 
                 // Sprint 7 (ADR-017): equivalent-mutant filter. If a registered
                 // filter is highly confident the mutation is semantically

@@ -1,36 +1,45 @@
 ---
-current_sprint: "142"
-sprint_goal: "Hotfix v3.1.2 — Bug #9 (--mutation-profile All InvalidCastException) via UoiMutator pre-check + SpanReadOnly disable + global DoNotMutate"
-branch: "main"
+current_sprint: "143"
+sprint_goal: "v3.2.0-dev Phase 1 — type-position-aware mutation control: smart-pivot for MA.Name slot (UoiMutator + MemberAccessNameSlotOrchestrator + Mutator-set OriginalNode). KEIN Tag — multi-sprint refactor."
+branch: "feature/143-engine-refactor-part1-uoi-statement-lift"
 started_at: "2026-05-06"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
-sprint_backlog_written: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
+sprint_backlog_written: false
 semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 142 closed (v3.1.2 hotfix released)
+# Session State — Sprint 143 in progress (v3.2.0-dev Phase 1)
 
-## Sprint 142 closed cleanly
-- Bug #9 Maxential-decided fix-strategy: A+B (Mutator-pre-check + global DoNotMutate, Sprint 23 precedent) + SpanReadOnly disable
-- ADR-026 written + 0.8.0 history entry
-- 3 new UoiMutator regression tests + 2 reflection-property tests adapted with IntentionallyDisabledMutators-allowlist
-- Solution-wide: 2003 tests green, 27 legitimate skips
-- Semgrep: 0 findings
-- v3.1.2 published to NuGet.org, Banner shows `3.1.2`, `-T` returns `3.1.2`
+## Sprint 143 — ADR-027 Phase 1 implemented
 
-## Bug #9 Status: GEFIXT
-Calculator-tester real-life crash mit `--mutation-profile All` + `InvalidCastException(ParenthesizedExpression → TypeSyntax/SimpleNameSyntax)` ist behoben. Lokale Repro mit `data.Length`-Pattern: war crash, jetzt 61 mutants / score 65.22% / kein Crash. Tester kann mit `dotnet tool update -g dotnet-stryker-netx --version 3.1.2` updaten.
+User-Pushback aus Sprint 142 closing-review: "Hotfix-Skip ist symptomatisch, der Fehler hätte durch Engine-Rewrite (type-position-aware) entfernt werden müssen." → Multi-Sprint Engine-Refaktor; **KEIN v3.2.0 Tag** bis alle 3 Phasen fertig sind.
 
-## Open follow-ups (nicht Sprint 142)
-- **Sprint 143 (potential)**: Bug #4 (`--version` Tester-Sicht) + Bug #6 (`--reporters` plural Alias) — Tester sieht beide noch als unfixed obwohl Sprint 138/141 die additiv-Variante implementiert haben.
-- **Engine type-position-aware Refaktor**: Würde SpanReadOnlySpanDeclarationMutator wieder enable. Eigene ADR + multi-sprint, kein Commitment.
+### Phase 1 Implementiert (Sprint 143)
+- `CsharpMutantOrchestrator.GenerateMutationsForNode`: `mutation.OriginalNode = current` → `mutation.OriginalNode ??= current`. Mutatoren dürfen explizit eine Eltern-Node setzen.
+- `UoiMutator`: smart-pivot für `MA.Name` (data.Length). `OriginalNode = parent MA`, `ReplacementNode = PostfixUnary(MA)`. Sprint-142-Skip für MA.Name aus IsSafeToWrap entfernt; MB.Name-Skip bleibt (Phase 2).
+- `MemberAccessNameSlotOrchestrator` (neu): defers injection für SimpleName in MA.Name-Slot über `MutationControl.MemberAccess`. Mutationen blubbern in den umschließenden MA-Frame, dessen Inject-Call dann `sourceNode.InjectMutation(mutation)` mit valid Contains-check macht.
+- `CsharpMutantOrchestrator` BuildOrchestratorList: globalen DoNotMutate<SimpleName> für (MA.Name || MB.Name) auf nur MB.Name reduziert.
+- ADR-027 (Phase 1 detailed + Phase 2/3 skizziert) + 0.9.0 history entry.
+- Lokaler Bisect-Trail mit temporärer SpanTester.cs (vor commit entfernt — würde E2E-Baseline `Defaults_ProducesExpectedTotalAndScore = 5` brechen).
+- 3 UoiMutator-Tests adapted: `MutatesAtParentLevel_RightHandOfMemberAccess`, `StillMutates_LocalIdentifierInExpression`, `DoesNotMutate_RightHandOfMemberBinding` (Phase-2-deferred).
 
-## Cumulative Session-Stats (Sprints 95-142)
-- 48 Sprints, 47 Releases
-- 8 production-bug-fix Sprints
-- 2003 tests grün solution-wide
-- Calculator-Tester Bug-Report 1: 8/8 closed (Sprints 138-141)
-- Calculator-Tester Bug-Report 2: 1 critical Bug #9 fixed in Sprint 142; #4 + #6 disagreement bleibt offen
+### Verifikation
+- Lokal repro `--mutation-profile All --mutation-level Complete` auf Sample.Tests: läuft sauber durch, kein Crash. Calculator-Baseline 30/14, SpanTester 28 testbare Mutations (1 killed + 27 survived/compile-error klassifiziert).
+- Solution-wide build: 0 Warnings, 0 Errors.
+- Solution-wide tests grün (RedirectDebugAssert ist pre-existing nicht-deterministischer Flake aus Sprint 27).
+- Semgrep: 0 Findings auf 6 modifizierten Dateien.
+
+### Phase 2 + Phase 3 (geplant, kein Sprint-Commitment)
+- **Phase 2 (Sprint TBD)**: `MB.Name` (`data?.Length`) → CAE-aware Lifting. Pivot lift bis zur umschließenden ConditionalAccessExpression.
+- **Phase 3 (Sprint TBD)**: TypeSyntax-Engine für `SpanReadOnlySpanDeclarationMutator` re-enable.
+
+## Open follow-ups
+- Bug #4 (`--version` Tester-Sicht) + Bug #6 (`--reporters` plural Alias) bleiben aus Sprint 142 offen.
+- ADR-027 Phase 2 + 3 Sprints.
+
+## Cumulative Session-Stats (Sprints 95-143)
+- 49 Sprints, 47 Releases (kein neuer Tag in Sprint 143)
+- ADR-027 ist erste explizit Multi-Sprint-ADR mit Phasenplan
