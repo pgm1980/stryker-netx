@@ -1,31 +1,35 @@
-# HANDOVER — v3.1.0 + Sprint 140 Closing
+# HANDOVER — v3.1.1 + Sprint 141 Closing — alle 8 Bug-Report-Items geschlossen
 
-## Final State — v3.1.0 (Bug #1 Code-Side closed)
-- **Dogfood: 1184 green / 9 skip / 1193 total** (+9 new AutoBump-Tests in Sprint 140)
-- **Latest tag: v3.1.0** (Minor-bump: behaviour-change for mutation-profile auto-bump)
-- **NuGet.org: `dotnet-stryker-netx 3.1.0` öffentlich auffindbar und installierbar** ✓ (seit Sprint 140 / 2026-05-06)
-- **Banner zeigt korrekte Version** (production-verified): `Version: 3.1.0`
-- **Auto-Bump-Behavior production-verified** (ADR-025): `--mutation-profile Stronger` ohne expliziten Level bumped automatisch auf `Advanced`; analog `All`→`Complete`
+## Final State — v3.1.1 (Calculator-Tester Bug-Report vollständig abgearbeitet)
+- **Dogfood: 1184 green / 9 skip / 1193 total** (Sprint 141 hat 3 weitere CLI-Tests = 80 statt 77)
+- **Latest tag: v3.1.1** (Patch-bump: additive `--tool-version` flag + Doku + error-message-text — keine Behavior-Change)
+- **NuGet.org: `dotnet-stryker-netx 3.1.1` öffentlich auffindbar** ✓ (seit Sprint 141 / 2026-05-06)
+- **Banner zeigt korrekte Version**: `Version: 3.1.1`
+- **`--tool-version` / `-T` production-verified**: gibt `3.1.1` aus + exit 0
+- **Auto-Bump-Behavior production-verified** (ADR-025, Sprint 140)
 - Repo `pgm1980/stryker-netx`: **public** (Apache-2.0, NOTICE-attributed, "independent community fork")
+- **Versionssprung-Reihenfolge der letzten 4 Sprints:** v3.0.24 (Sprint 137 last v3.0.x) → v3.0.25 (Sprint 139 bug-batch) → v3.1.0 (Sprint 140 ADR-025 auto-bump, minor) → **v3.1.1 (Sprint 141 last bug-report items, patch)**
 
-## Cumulative Session (Sprints 95-140, 46 sprints)
-- Dogfood: **906/99 → 1184/9** (+278 green, -90 skip, +188 new tests)
-- 45 GitHub releases (v2.81.0 → v3.1.0); Sprint 138 had no version-bump (CI-reparation only)
-- 6 production bugs fixed:
+## Cumulative Session (Sprints 95-141, 47 sprints)
+- Dogfood: **906/99 → 1184/9** (+278 green, -90 skip, +188 new tests). CLI-Tests +3 = 80 in Sprint 141.
+- 46 GitHub releases (v2.81.0 → v3.1.1); Sprint 138 had no version-bump (CI-reparation only)
+- 7 production bug-fix sprints:
   - Sprint 99: MsBuildHelper.GetVersion missing-space + multi-line
   - Sprint 136: SseServer.Dispose double-close
   - Sprint 137: RoslynSemanticDiagnosticsEquivalenceFilter speculative-binding crash on MemberBindingExpression
   - Sprint 138: release.yml CI-reparation → **erstmaliger erfolgreicher NuGet.org-Push** (v3.0.24)
   - Sprint 139: Calculator-tester Bug-Report-Batch → 4 of 6 bugs closed in v3.0.25
   - Sprint 140: Bug #1 Stufe 2 Code-Side via ADR-025 — mutation-profile auto-bumps mutation-level → v3.1.0
+  - Sprint 141: last 3 bug-report items (Bug #4 + Hinweis #7 + #8) → v3.1.1 — **alle 8 Bug-Report-Items vollständig closed** ✓
 
-## Sprint 135-140 — Final Cleanup + Release Pipeline + Bug-Report-Batch + Auto-Bump
+## Sprint 135-141 — Final Cleanup + Release Pipeline + Bug-Report Vollständig
 - **Sprint 135 (v3.0.22):** Last attackable architectural-deferral ELIMINATED (CSharpRollbackProcess null-SourceTree)
 - **Sprint 136 (v3.0.23):** SseServer.Dispose production fix (best-effort per-writer disposal)
 - **Sprint 137 (v3.0.24):** RoslynSemanticDiagnosticsEquivalenceFilter speculative-binding fix (Sprint 23 known-bug ELIMINATED)
 - **Sprint 138 (no tag):** Release workflow + first NuGet.org push. CI-reparation only, no `src/` diff.
 - **Sprint 139 (v3.0.25):** Calculator-tester real-life bug report batch — 4 of 6 bugs closed (Bug #5 IsNullOrEmpty + Bug #2 version-sync + Bug #3 auto-resolved + Bug #1 Stufe 1 Profile×Level conjunctive doc). Auto-trigger via push-tag verified.
 - **Sprint 140 (v3.1.0):** Bug #1 Stufe 2 Code-Side — mutation-profile auto-bumps mutation-level (ADR-025). Decision-trail: ToT (5 branches) + Maxential (14 thoughts, 2 branches full-integration-merged). Auto-Bump production-verified.
+- **Sprint 141 (v3.1.1):** Last 3 bug-report items — Bug #4 (additive `--tool-version`/`-T` flag), Hinweis #7 (NuGet-indexing-doc), Hinweis #8 (Solution-mode hint in error-message + doc-section). **Calculator-tester Bug-Report VOLLSTÄNDIG ABGEARBEITET — alle 8 von 8 Items closed.** ✓
 
 ## Sprint 138 (CI-Reparatur + erster echter NuGet-Push)
 
@@ -54,11 +58,11 @@ Nach erfolgreicher Installation hat Calculator-Tester einen extrem strukturierte
 | #1 | 🔴 HOCH | Profile-Flag ohne sichtbaren Effekt | Doku-Lücke (Profile × Level conjunctive) — Stufe 1 (Doku): **Sprint 139 ✓**, Stufe 2 (Code): **Sprint 140 ✓** (ADR-025 Auto-Bump, production-verified mit `Version: 3.1.0` aus public NuGet) |
 | #2 | 🟡 MITTEL | Banner zeigt 1.0.0-preview.1 statt 3.0.24 | **Sprint 139** ✓ — Directory.Build.props + release.yml Version-Properties komplett gesetzt; production-verified |
 | #3 | 🟡 MITTEL | "Update verfügbar" obwohl bereits aktuell | **Sprint 139** ✓ (auto-behoben durch #2) |
-| #4 | 🟡 NIEDRIG | `--version` = Project-Version statt Tool-Version (upstream-Erbe) | **Sprint 141** (additiv `--tool-version` oder Breaking-Change zu v3.1) |
+| #4 | 🟡 NIEDRIG | `--version` = Project-Version statt Tool-Version (upstream-Erbe) | **Sprint 141 ✓** — additiv `--tool-version` / `-T` (kein Breaking-Change), production-verified |
 | #5 | 🟡 NIEDRIG | Log-Rauschen "Could not find a valid analysis for target  for project" | **Sprint 139** ✓ — IsNullOrEmpty-Check in InputFileResolver:509 |
 | #6 | 🟡 NIEDRIG | `--reporters` plural in unserer Doku, Tool akzeptiert nur `--reporter` singular | **Sprint 138 Closing** ✓ (3 Stellen in `_config_neuprojekte/` korrigiert) |
-| Hinweis #7 | 🟢 INFO | NuGet-Indexing-Latenz | **Sprint 141** — Doku-Hinweis |
-| Hinweis #8 | 🟢 NIEDRIG | Multi-Source-Project-Setup verlangt manuelles `--project` | **Sprint 141+** — `--all-source-projects` Feature |
+| Hinweis #7 | 🟢 INFO | NuGet-Indexing-Latenz | **Sprint 141 ✓** — Doku-Sektion "Häufige Stolpersteine" mit Real-World-Numbers |
+| Hinweis #8 | 🟢 NIEDRIG | Multi-Source-Project-Setup verlangt manuelles `--project` | **Sprint 141 ✓** — Solution-Mode existiert schon, Error-Message erweitert + Doku-Sektion "Multi-Source-Project Setups" |
 
 ## Final 9 Skips Breakdown — ALL legitimate (unverändert seit Sprint 137)
 
