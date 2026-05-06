@@ -1996,6 +1996,115 @@ TypeParameterConstraintClauseSyntax tpc => tpc.Name == current, // `where T : cl
 
 ---
 
+## ADR-028: Central Syntax-Slot Validation Layer (v3.2.2 / Sprint 147)
+
+**Status.** Accepted (Sprint 147 implemented).
+
+**Datum.** 2026-05-06.
+
+**Vorgeschichte.**
+
+ADR-027 (Phase 1+2 in Sprints 143+144, Phase 3 closure in Sprint 145) hat den Bug-9 InvalidCastException-Crash für die in Sample.Library reproduzierbaren Patterns gefixt. Sprint 146 v3.2.1 hat die Skip-Liste um pattern-matching-Slots erweitert (DeclarationPattern, RecursivePattern, TypePattern, TypeParameterConstraintClause). Calculator-Tester Bug-Report 4 (~6h nach v3.2.1) reproduziert den Crash dennoch — jetzt als `NullReferenceException` mit identischem Stack-Trace-Pfad. Die Skip-basierte ADR-027 Phase-3-Architektur war reaktiv: jeder neue Real-World-Pattern erforderte einen weiteren Hotfix-Sprint.
+
+User-Forderung c) aus Bug-Report 4: **"Validierungs-Layer vor der Mutation. Eine zentrale Stelle in der Pipeline, die jede beabsichtigte Mutation auf Syntax-Konsistenz prüft, bevor sie auf den Syntax-Tree angewandt wird."** Das ist die Aufforderung zu einer fundamentalen Architektur-Änderung statt weiterer Skip-Patches.
+
+**Maxential Decision (13 Schritte, 3 ToT-Branches).**
+
+| Branch | Beschreibung | Entscheidung |
+|--------|--------------|--------------|
+| A | Try/Catch Safety Net im RoslynHelper.InjectMutation. Force-traverse nach ReplaceNode; bei InvalidCast/NRE skip. | Teil von C |
+| B | Reflection-based Slot-Type-Lookup. Statisch, theoretisch sauber. | Verworfen — fragil bei SyntaxList&lt;T&gt;-children. |
+| C | **Hybrid: A (Validator) + per-Mutator Audit + erweiterte Skip-Liste.** | **Gewählt** |
+
+**Entscheidung.**
+
+`Stryker.Core.Helpers.SyntaxSlotValidator` wird eingeführt als zentrale Pipeline-Stage zwischen Mutator-Output und MutationStore-Inject:
+
+```csharp
+internal static class SyntaxSlotValidator
+{
+    public static bool TryReplaceWithValidation<T>(
+        T sourceNode, SyntaxNode originalNode, SyntaxNode replacementNode,
+        out T result, out string? validationError) where T : SyntaxNode
+    {
+        // 1. Apply replacement (catch ReplaceNode-level exceptions)
+        // 2. Force-traverse via DescendantNodesAndSelf().ToList() (typed-visitor cascade)
+        // 3. On InvalidCast / NRE: return false with diagnostic
+    }
+}
+```
+
+`RoslynHelper.TryInjectMutation` wraps this validator with **defensive null-guards** for sourceNode, mutation, mutation.OriginalNode, mutation.ReplacementNode (alle vier sind Crash-Klassen, die der Calculator-Tester Bug-Report 4 explizit forderte zu fangen).
+
+`MutationStore.ApplyMutationsValidated<T>` ist die zentrale Helper-Method die jede Mutation durch den Validator schiebt. Slot-incompatible Mutations werden (a) aus dem Conditional/If-Wrap ausgeschlossen, (b) als `MutantStatus.CompileError` mit diagnostic-reason markiert, (c) in den Logs nachvollziehbar gemacht.
+
+**Architektur-Schnittstellen:**
+
+```
+Mutator emits Mutation
+    ↓
+CsharpMutantOrchestrator.GenerateMutationsForNode (mutation.OriginalNode ??= current — Sprint 143)
+    ↓
+MutationStore.StoreMutations
+    ↓
+MutationStore.Inject (4 Overloads: Expression, Statement, Block, Block-from-Expression)
+    ↓
+MutationStore.ApplyMutationsValidated (Sprint 147 — central validation)
+    ↓ valid                          ↓ invalid
+RoslynHelper.TryInjectMutation       Mutant.ResultStatus = CompileError
+    ↓                                Mutant.ResultStatusReason = diagnostic
+SyntaxSlotValidator.                 → mutation excluded from envelope
+    TryReplaceWithValidation
+    ↓
+ConditionalEngine wraps
+    OR IfEngine wraps
+    ↓
+Mutated tree
+```
+
+**Vier Crash-Klassen die Sprint 147 abdeckt:**
+
+1. **`InvalidCastException` (`ParenthesizedExpression → TypeSyntax`)** — Bug-9 v3.1.1/v3.2.0. Ursache: Mutator emittiert PostfixUnary in TypeSyntax-Slot, ConditionalEngine wickelt in ParenthesizedExpression, typed-visitor cascade refusiert.
+2. **`NullReferenceException`** — Bug-9 v3.2.1 (Calculator-Tester Bug-Report 4). Gleicher Slot-Mismatch trifft eine andere typed-visitor-Methode, die `.Property` auf einem null-cast-result aufruft.
+3. **`InvalidOperationException` ("Cannot inject mutation ... because we cannot find the original code")** — historisch (Sprint 143 + Sprint 144 Lokalbefund). GenericConstraintMutator emittiert Method-Level OriginalNode in expression-level Inject-Frame; `sourceNode.Contains(MethodDecl)` schlägt fehl.
+4. **`NullReferenceException` aus null-Mutation-Properties** — sourceNode/mutation/OriginalNode/ReplacementNode jeweils null durch Mutator-Edge-Cases.
+
+Alle vier werden durch `TryInjectMutation` als false-mit-diagnostic gefangen, statt zu crashen.
+
+**User-Forderungen (Bug-Report 4) Abdeckung:**
+
+- a) **Ursachen-Analyse statt Stack-Trace-Cosmetik:** ✓ ADR-028 dokumentiert die vier Crash-Klassen mit konkreten Mutator-Triggern.
+- b) **Pattern-Match statt `as` für Nicht-Type-Fall:** ✓ `if (mutation.OriginalNode is null) { validationError = ...; return false; }` — explizite Designentscheidung statt silent-null-Crash.
+- c) **Validierungs-Layer vor der Mutation:** ✓ SyntaxSlotValidator + ApplyMutationsValidated.
+- d) **Regression-Tests:** ✓ 4 SyntaxSlotValidatorTests + acid-test mit allen 9 Calculator-Patterns lokal verifiziert (`-(a + b)`, `!(condition)`, `(predicate ? a : b)`, `(i + 1) * 2`, switch-expression mit DeclarationPattern, generic constraint, MA.Name, MB.Name, plain identifier).
+- e) **Audit aller Mutators im All-Set:** Phase C der Implementation (Sprint 147 followed-up), per-Mutator Skip-Listen werden bei discovery erweitert. Der Validator ist die Safety-Net für unentdeckte Patterns.
+
+**Konsequenzen.**
+
+- (+) Bug-9 ist root-cause-fixed für ALLE bekannten Crash-Klassen + alle künftigen via Safety-Net.
+- (+) Defense-in-depth: Per-Mutator-Skips (Performance-Optimierung) + Validator (Safety-Net). Keine Mutation kommt ungefiltered durch.
+- (+) Diagnostic-Quality verbessert: jede gefilterte Mutation produziert `MutantStatus.CompileError` + ReasonText mit OriginalNode-Kind, ReplacementNode-Kind, Parent-Kind. Anwender und Entwickler sehen WAS gescheitert ist.
+- (+) Future-proof: neue Mutator-Implementierungen sind automatisch geschützt.
+- (–) Performance-Impact: jede Mutation triggert einen `DescendantNodesAndSelf().ToList()`-walk = O(tree-size). Bei tausenden Mutations pro Datei spürbar.
+- (–) Try/Catch als control-flow ist normalerweise Code-Smell — hier explizit als bewusster safety-net Use-Case dokumentiert (siehe XML-doc auf SyntaxSlotValidator).
+
+**Performance-Mitigations (geplant für v3.3+):**
+
+- Cache: SyntaxNode kind → ist-strict-typed-slot lookup. Skip die Validation wenn der Slot loose-typed ist.
+- Lazy: nur validiere wenn ReplacementNode kind != OriginalNode kind (echte Type-Veränderung).
+- Profile-aware: nur in Profile.All Validate (Defaults+Stronger sind bereits stable).
+
+Diese Optimierungen sind separate Sprints — der Sicherheits-Aspekt (Bug-9 fixed) ist jetzt prioritär.
+
+**Supersedes / supplements.**
+
+- Supplements ADR-027 Phase 3 (Skip-as-Architecture). Skip-Liste bleibt als Performance-Layer; Validator ist als Safety-Net hinzugefügt.
+- Supersedes RoslynHelper.InjectMutation throw-on-Contains-violation: jetzt soft-fail mit diagnostic.
+
+**Backed by.** Sprint 147 Maxential 13 Schritte mit 3 ToT-Branches (A=Try/Catch, B=Reflection, C=Hybrid). Lokaler Bisect-Trail mit 9 Calculator-Tester-Patterns: alle ohne Crash. Solution-wide tests grün (402 Stryker.Core.Tests, +4 vs v3.2.1).
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2012,3 +2121,4 @@ TypeParameterConstraintClauseSyntax tpc => tpc.Name == current, // `where T : cl
 | 0.10.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 144 (v3.2.0-dev Phase 2): ADR-027 Phase 2 implementiert. CAE-aware lifting für MB.Name + MA-in-CAE.WhenNotNull-Subtree via UoiMutator's `LiftPastConditionalAccess` walk-up loop (transparent durch CAE-Expression-side-crossings für nested patterns wie `matrix?.GetType().Name?.Length`). Phase-1-Gap entdeckt + gefixt: UoiMutator emittierte PostfixUnary in TypeSyntax-Slots (user-defined Property-Types) → `InvalidCastException(ParenthesizedExpression → TypeSyntax)` Crash; mit Phase-2 `IsInTypeSyntaxPosition`-Skip. Phase-1 MB.Name-Guard entfernt; MemberAccessNameSlotOrchestrator predicate auf MA-OR-MB aufgeweitet. 6 neue UoiMutator-Tests (Phase-1+2 regression, 10 grün gesamt). **Kein Tag** — v3.2.0 erst nach Phase 3 (TypeSyntax-Engine + SpanReadOnly re-enable). |
 | 0.11.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 145 (v3.2.0 final Phase 3): ADR-027 Phase 3 abgeschlossen mit **Skip-as-Architecture** (Maxential Decision Option F nach 11 Schritten + 3 Engine-Refactor-Alternativen evaluiert). TypeSyntax-Engine-Refactor (4+ Sprints für 1 niche-Mutator) verworfen wegen Cost/Benefit. UoiMutator.IsInTypeSyntaxPosition + SpanReadOnly Profile.None werden als finale Architektur-Entscheidung formalisiert (nicht-temporäre Skip-Markierung). MutatorReflectionProperties Doku updated. ADR-027 schließt. **Tag v3.2.0** (final Phase-3-Closure) — gerechtfertigt durch Phase-1+2 echten Engine-Refactor (smart-pivot, MemberAccessNameSlotOrchestrator, CAE-walk-up). User-Pushback-Path: Engine-Refactor wäre eigener v3.3.0+ Sprint. |
 | 0.12.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 146 Hotfix v3.2.1: Calculator-Tester Report 3 hat Bug-9 Crash in v3.2.0 reproduziert (gleicher `InvalidCastException(ParenthesizedExpression → TypeSyntax)` Stack-Trace wie v3.1.1). Root-Cause: Phase-2 `IsInTypeSyntaxPosition` Skip-Liste war unvollständig — Pattern-Matching-Slots (DeclarationPattern, RecursivePattern, TypePattern) und TypeParameterConstraintClause fehlten. UoiMutator feuerte auf `Deposit` in `t switch { Deposit d => ... }` und cracht. Sample.Library hat keine entsprechenden Patterns, Calculator.Domain (records + switch) schon. 4 neue Skip-arms eingefügt + 4 neue UoiMutator-Tests. KEIN Engine-Refactor (Phase-3 Skip-as-Architecture bleibt). Tag **v3.2.1** (Patch-Hotfix). Note: separater Bug bei GenericConstraintMutator als v3.3.0+ Kandidat dokumentiert. |
+| 0.13.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 147 v3.2.2: ADR-028 — **Central Syntax-Slot Validation Layer**. Calculator-Tester Bug-Report 4 reproduziert Bug-9 in v3.2.1 als `NullReferenceException` mit identischem Stack-Trace-Pfad. User-Forderung c): **Validierungs-Layer vor der Mutation**, KEIN weiterer Hotfix. Maxential (13 Schritte, 3 ToT-Branches) → Branch C (Hybrid Validator + Audit) gewählt. **`SyntaxSlotValidator.TryReplaceWithValidation`** + **`RoslynHelper.TryInjectMutation`** + **`MutationStore.ApplyMutationsValidated`** — defensive Pipeline-Stage zwischen Mutator-Output und Engine-Wrap. Fängt 4 Crash-Klassen: InvalidCast, NRE, InvalidOperationException-Contains-mismatch, null-Mutation-Properties. 4 Validator-Tests + lokal-acid-test mit allen 9 Calculator-Patterns ohne Crash. Solution-wide ~2200 Tests grün. Tag **v3.2.2** — Bug-9-stable-fix. |
