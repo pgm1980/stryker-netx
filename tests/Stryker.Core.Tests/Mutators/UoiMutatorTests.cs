@@ -54,50 +54,64 @@ public class UoiMutatorTests : MutatorTestBase
         }
     }
 
-    // ----- Sprint 142 (Bug #9 from Calculator-tester report) regression tests -----
-    // The .Name slot on MemberAccess and MemberBinding has the same crash class as
-    // QualifiedName: Roslyn's typed visitor rejects ParenthesizedExpression in a
-    // SimpleNameSyntax slot. Sprint 142 fix: UoiMutator.IsSafeToWrap() skips both.
+    // ----- Sprint 143 (ADR-027 Phase 1 — type-position-aware pivot) regression tests -----
+    // The .Name slot on MemberAccess is strict-typed (SimpleNameSyntax). Sprint 142 mitigated
+    // the resulting crash via a hard skip; Sprint 143 supersedes that with a parent-pivot:
+    // the mutation now lands on the enclosing MA so the engine's ParenthesizedExpression
+    // envelope ends up in an Expression-typed slot instead of a SimpleName-typed one.
+    // The MB.Name twin (data?.Length) still requires the legacy skip — see Phase 2.
 
     [Fact]
-    public void DoesNotMutate_RightHandOfMemberAccess()
+    public void MutatesAtParentLevel_RightHandOfMemberAccess()
     {
-        // Repro: `data.Length` — UoiMutator used to fire on `Length`, producing
-        // ParenthesizedExpression in MemberAccess.Name slot → InvalidCastException
-        // at OrchestrateChildrenMutation.
+        // Sprint 143 Phase 1 — pivot for member-access right-hand. UOI now emits 4
+        // mutations whose OriginalNode is the parent MemberAccess and whose
+        // ReplacementNode wraps the full member-access expression in postfix or
+        // prefix increment / decrement.
         var tree = CSharpSyntaxTree.ParseText("class C { int Probe(System.ReadOnlySpan<int> data) => data.Length; }");
         var memberAccess = tree.GetRoot().DescendantNodes().OfType<MemberAccessExpressionSyntax>().Single();
         var rhs = (IdentifierNameSyntax)memberAccess.Name;
 
-        ApplyMutations(new UoiMutator(), rhs).Should().BeEmpty(
-            "UOI must skip MemberAccess.Name slots (right-hand) — producing parenthesized control there crashes Roslyn's typed visitor (Bug #9)");
+        var mutations = ApplyMutations(new UoiMutator(), rhs).ToList();
+        mutations.Should().HaveCount(4,
+            "UOI must emit all 4 increment/decrement variants for MA.Name targets via parent-pivot");
+        mutations.Should().AllSatisfy(m =>
+            m.OriginalNode.Should().BeSameAs(memberAccess,
+                "Sprint 143 pivot lifts OriginalNode to the enclosing MemberAccess so the (OriginalNode, ReplacementNode) pair is structurally valid for an Expression-typed slot"));
     }
 
     [Fact]
     public void StillMutates_LocalIdentifierInExpression()
     {
-        // Sanity-check that the new MemberAccess.Name skip did not over-block:
-        // a plain local identifier in expression position must still receive
-        // four UOI mutations (postfix and prefix increment plus decrement).
+        // Sanity-check that the parent-pivot logic does not over-block plain local
+        // identifiers in expression position — they must still receive four UOI
+        // mutations rooted at the identifier itself (no pivot needed).
         var tree = CSharpSyntaxTree.ParseText("class C { int Probe(int x) => x; }");
         var localRef = tree.GetRoot().DescendantNodes()
             .OfType<IdentifierNameSyntax>()
             .Single(n => string.Equals(n.Identifier.Text, "x", System.StringComparison.Ordinal) && n.Parent is ArrowExpressionClauseSyntax);
 
-        ApplyMutations(new UoiMutator(), localRef).Should().HaveCount(4,
+        var mutations = ApplyMutations(new UoiMutator(), localRef).ToList();
+        mutations.Should().HaveCount(4,
             "UOI must still emit all 4 increment/decrement variants on plain local references");
+        mutations.Should().AllSatisfy(m =>
+            m.OriginalNode.Should().BeSameAs(localRef,
+                "no parent-pivot for plain identifier — OriginalNode stays at the IdentifierName itself"));
     }
 
     [Fact]
     public void DoesNotMutate_RightHandOfMemberBinding()
     {
-        // The conditional-access dual: `data?.Length` — `Length` lives on a
-        // MemberBindingExpression.Name slot. Same crash class as MemberAccess.
+        // Sprint 143 Phase 1 deferred: `data?.Length` — pivoting `Length` to its
+        // MemberBinding parent would put the post-/pre-fix in CAE.WhenNotNull,
+        // which the binder rejects (must be binding-led: `.` or `[`). The legacy
+        // hard-skip remains in place until Phase 2 lifts the pivot to the
+        // enclosing ConditionalAccessExpression.
         var tree = CSharpSyntaxTree.ParseText("class C { int Probe(System.ReadOnlySpan<int>? data) => data?.Length ?? 0; }");
         var memberBinding = tree.GetRoot().DescendantNodes().OfType<MemberBindingExpressionSyntax>().Single();
         var rhs = (IdentifierNameSyntax)memberBinding.Name;
 
         ApplyMutations(new UoiMutator(), rhs).Should().BeEmpty(
-            "UOI must skip MemberBinding.Name slots (right-hand of conditional access) — same crash class as MemberAccess (Bug #9)");
+            "UOI must still skip MemberBinding.Name slots — Phase 1 limits pivot to MA.Name only; MB pivot is Phase 2 (CAE-aware lifting)");
     }
 }

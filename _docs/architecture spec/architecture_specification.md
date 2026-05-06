@@ -1831,6 +1831,88 @@ Sprint 23-Pattern (Mutator-internal pre-check + global Belt-and-suspenders) auf 
 
 ---
 
+## ADR-027: Type-Position-Aware Mutation Control — Multi-Sprint Engine-Refactor (v3.2.0-dev / Sprint 143+)
+
+**Status.** Accepted (Phase 1 implemented in Sprint 143; Phase 2+ planned).
+
+**Datum.** 2026-05-06.
+
+**Vorgeschichte.**
+
+ADR-026 (Sprint 142 Hotfix v3.1.2) hat Bug #9 (`--mutation-profile All` Crash) durch eine **defensive Mutator-Skip-Strategie** geschlossen: betroffene Mutator-Stellen wurden konservativ ausgeschlossen, um den `InvalidCastException(ParenthesizedExpression → SimpleNameSyntax/TypeSyntax)`-Crash zu vermeiden. **Begründung damals:** schneller Patch-Release ohne breaking-engine-changes.
+
+**User-Pushback (Sprint 142 Closing-Review).** Der User hat explizit kritisiert, dass ADR-026 eine **symptomatische** Lösung ist: "Aber durch den Hotfix werden die 'Fehlerverursacher' ja nur 'geskippt' und das Tool läuft ohne Fehler durch. Das kann doch aber nicht die Lösung sein. Für einen schnellen HotFix vielleicht. Aber der Fehler hätte durch ein Engine-Rewrite (type-position-aware) entfernt werden müssen, auch wenn das invasiv ist." → Sprint 143+ wird als **Multi-Sprint Engine-Refaktor** beauftragt; v3.2.0-Tag erst nach Abschluss aller Phasen, kein vorzeitiger Patch-Tag.
+
+**Entscheidung.**
+
+Die Mutation-Pipeline wird in **drei Phasen** type-position-aware gemacht. Jede Phase hat einen eigenen Sprint (oder mehr), eigene Verifikation, eigene Tests; KEIN finaler Tag bis zum Abschluss aller Phasen.
+
+### Phase 1 (Sprint 143) — Smart-Pivot für `MemberAccess.Name`-Slot ✅ implementiert
+
+**Mechanismus.** Statt einer Mutation auf der `IdentifierName` (die in einem strikt-typisierten `SimpleNameSyntax`-Slot steckt) lift der Mutator die `OriginalNode` auf die umschließende `MemberAccessExpressionSyntax` und der `ReplacementNode` wickelt den vollen Member-Access-Ausdruck in den Postfix/Prefix-Operator. Beispiel: `data.Length` → `data.Length++` (statt des Sprint-142-Hotfix-Skips).
+
+**Drei kooperierende Änderungen.**
+
+1. **`CsharpMutantOrchestrator.GenerateMutationsForNode`** (Z.222–230): `mutation.OriginalNode = current` → `mutation.OriginalNode ??= current`. Der Default-Vertrag bleibt "OriginalNode ist die besuchte Node", aber Mutatoren dürfen explizit eine Eltern-Node setzen. Reine Erweiterung — kein bestehender Mutator wird betroffen.
+2. **`UoiMutator.ApplyMutations`** (Sprint 10): erkennt `node.Parent is MemberAccessExpressionSyntax ma && ma.Name == node` und setzt `pivot = ma`. Die vier Postfix/Prefix-Mutations werden auf `pivot` gewickelt (`OriginalNode = ma`, `ReplacementNode = PostfixUnary(ma)` etc.). Gegenstück: Sprint-142-Skip für `MemberAccess.Name` aus `IsSafeToWrap` entfernt.
+3. **`MemberAccessNameSlotOrchestrator`** (neu): `NodeSpecificOrchestrator<SimpleNameSyntax, ExpressionSyntax>` mit `CanHandle = ma.Name == t`. Tritt VOR dem generischen `MemberAccessExpressionOrchestrator<SimpleNameSyntax>` ein und ruft `context.Enter(MutationControl.MemberAccess)` auf. Konsequenz: `MutationStore.Inject` wird auf SimpleName-Ebene unterdrückt (`Control == MemberAccess` Bail-Out), die mutationen blubbern auf der `Leave()`-Pop in den umschließenden `MemberAccess`-Frame, dessen Inject-Call dann `sourceNode.InjectMutation(mutation)` mit `sourceNode = MA, mutation.OriginalNode = MA` aufruft — `Contains` ist `true`, `ReplaceNode` produziert das gewünschte Tree.
+
+**`MemberBinding.Name` (`data?.Length`) bleibt in Phase 1 geskippt** über einen reduzierten DoNotMutateOrchestrator. Begründung: ein analoger Pivot zu MB würde `PostfixUnary(MB)` in `ConditionalAccessExpression.WhenNotNull` legen, was strukturell valid ist, aber den Roslyn-Binder bricht (WhenNotNull muss binding-led — `.` oder `[` — sein). Der Bug ist kein Roslyn-Visitor-Crash, sondern ein Binder-Error, der die Compilation der gesamten mutierten Datei vergiftet (alle Mutations auf der Datei werden CompileError statt selektiv klassifiziert).
+
+**Phase 1 Verifikation (Sprint 143).**
+
+- Lokaler Repro `samples/Sample.Library/SpanTester.cs` (`data.Length > 0 ? data[0] : 0` + `data?.Length ?? 0`): `--mutation-profile All --mutation-level Complete` läuft sauber durch — kein Crash, +28 testbare Mutations auf der Repro-Datei, Calculator-Baseline (30 killed / 14 survived) unverändert.
+- `tests/Stryker.Core.Tests/Mutators/UoiMutatorTests.cs`: `MutatesAtParentLevel_RightHandOfMemberAccess` (4 Mutations mit `OriginalNode = parent MA`), `StillMutates_LocalIdentifierInExpression` (Pivot fired NICHT für plain identifier), `DoesNotMutate_RightHandOfMemberBinding` (Phase-2-deferred-Skip dokumentiert).
+- Solution-wide: 0 Warnings, 0 Errors, ~2200 Tests grün (RedirectDebugAssert ist pre-existing nicht-deterministischer Flake aus Sprint 27, unabhängig).
+- Semgrep: 0 Findings auf den 6 modifizierten Dateien.
+
+### Phase 2 (Sprint TBD) — CAE-aware Lifting für `MemberBinding.Name`-Slot
+
+**Problem.** Der `WhenNotNull`-Slot eines `ConditionalAccessExpression` (`?.`-Operator) verlangt eine binding-led Expression (Start mit `.` oder `[`). Ein Phase-1-style Pivot auf `MemberBindingExpression` produziert `(?.Length)++` Tree-shape, was Roslyn-Binder rejects. Stattdessen muss bei `MB.Name` der Pivot **bis zum umschließenden CAE** gehoben werden, sodass der Postfix-/Prefix-Operator das gesamte `data?.Length` umschließt.
+
+**Geplante Änderungen.**
+
+1. **`UoiMutator`-Erweiterung**: `MB.Name` → `pivot = enclosing CAE`. Walk up die Parent-Kette, bis wir den nicht-Conditional-WhenNotNull-Ancestor gefunden haben.
+2. **`MemberAccessNameSlotOrchestrator`-Predicate**: aufweiten auf `MB.Name`-Slots (oder ein zweiter Orchestrator), Inject-Defer bis zum CAE-Frame.
+3. Verallgemeinerung: jede Pivot-Kette (`MA → outer-MA → CAE → ...`) muss konsistent in den ersten loose-typed-Expression-Slot landen.
+
+**Fallout.** Der `DoNotMutateOrchestrator<SimpleNameSyntax>(predicate)` Phase-1-Guard wird entfernt. UOI-Coverage wird auch auf Conditional-Access-Right-Hands aktiv.
+
+**Verifikation.** Repro-Fixture um `data?.Length`-Variante erweitern, alle 4 Mutations als Pivot-zu-CAE testen.
+
+### Phase 3 (Sprint TBD) — Type-Position-Aware Engine für `TypeSyntax`-Slots (`SpanReadOnlySpanDeclarationMutator` re-enable)
+
+**Problem.** ADR-026 hat `SpanReadOnlySpanDeclarationMutator` auf `MutationProfile.None` gesetzt, weil seine `GenericNameSyntax`-Replacements in TypeSyntax-Slots (Parameter-Typ, Return-Typ, Variable-Typ) liegen, und der `ConditionalInstrumentationEngine` dort eine `ParenthesizedExpressionSyntax` als Envelope produziert. Die Engine muss type-aware werden.
+
+**Optionen (Maxential-Branch zu Sprint-Beginn).**
+
+- **Option A**: dedizierter `TypeAwareInstrumentationEngine` der in TypeSyntax-Positionen ohne Conditional-Wrap mutated (Mutation als hard substitute, kein Runtime-Switch — der Mutant ist nur compile-error-detected; vergleichbar mit dem Trampoline-Pattern aus dem alten ADR-016).
+- **Option B**: `MutantPlacer` lernt, in TypeSyntax-Slots eine alternative Envelope-Form zu generieren (z.B. `[ConditionalCompilation("MUTANT_N")]`-style mit C# Preprocessor-Direktiven — viel schwerer).
+- **Option C**: re-architecting der Mutation-Generation, sodass TypeSyntax-Mutations auf einem höheren Syntax-Level (Method-, Class-, Compilation-Unit) emittiert werden statt am Type-Slot selbst.
+
+**Vermutlich Option A**; Maxential-Decision wird zum Sprint-Beginn formalisiert.
+
+**Verifikation.** Re-enable `SpanReadOnlySpanDeclarationMutator` von `Profile.None` zurück auf `Profile.All`. Die `IntentionallyDisabledMutators`-FsCheck-Property in `MutatorReflectionPropertyTests.cs` muss um `SpanReadOnlySpanDeclarationMutator` reduziert werden.
+
+### Maxential / ToT Decision-Trail
+
+- **Naive Plan rev1 (verworfen).** "Lift UoiMutator auf einen `MutateAtExpressionLevelOrchestrator<IdentifierNameSyntax>` der die Mutation an die Expression-Ebene escaliert." Lokal getestet → der Crash hat sich nur eine Layer früher in der Stack manifestiert (`InvalidCastException(PostfixUnary → SimpleName)` statt Parens → SimpleName), weil `RoslynHelper.InjectMutation` mit `oldNode = IdentifierName` immer noch die strikte Slot-Substitution macht, BEVOR die Engine wrapt. Erkenntnis: das Problem ist nicht der Inject-Frame-Level, sondern der `(OriginalNode, ReplacementNode)`-Pair self.
+- **Plan rev2 (akzeptiert).** Pivot der `OriginalNode` selbst — der Mutator entscheidet wo die Mutation strukturell sitzt. Engine respektiert das via `??=`. Phase-1 für MA, Phase-2 für MB-via-CAE, Phase-3 für TypeSyntax.
+
+**Backed by.** Sprint 143 lokaler Bisect-Trail (mehrere `dotnet stryker-netx` Re-runs auf SpanTester.cs zwischen rev1- und rev2-Plan), User-Feedback aus Sprint-142-Closing-Review (zitiert oben), `Stryker.Core.Mutants.MutationStore.Inject` Code-Lesung zur Klärung der Frame-Bubble-Mechanik.
+
+**Konsequenzen.**
+
+- (+) Root-cause-fix: die Engine wird wirklich type-position-aware, nicht symptombezogen-skipped.
+- (+) Phase 1 stellt UOI-Coverage auf MA.Name wieder her (war Sprint-142-Hotfix-Verlust).
+- (+) Phase-Plan ist incremental: jede Phase ist verifizierbar, ein Phase-Fail blockt nicht das v3.2.0-Tag (er verschiebt es).
+- (–) Multi-Sprint commitment — kein 3.x.x-Patch-Tag bis Phase 3 fertig.
+- (–) Phase 3 ist die invasivste Änderung (möglich neuer Engine-Typ), kann mehrere Sprints brauchen.
+
+**Supersedes.** Teile von ADR-026: der `DoNotMutateOrchestrator<SimpleNameSyntax>(MA.Name || MB.Name)` Guard wird zu `MB.Name only` reduziert; Phase 2 entfernt ihn ganz. Der `SpanReadOnlySpanDeclarationMutator: Profile.None` Guard wird in Phase 3 zurückgenommen. UoiMutator's `IsSafeToWrap`-Skip für MA.Name aus Sprint 142 wird durch Pivot ersetzt.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -1843,3 +1925,4 @@ Sprint 23-Pattern (Mutator-internal pre-check + global Belt-and-suspenders) auf 
 | 0.6.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 17 (v2.4.0): ADR-024 — JsonReport full AOT-trim als v3.0-scope deferral. Plus RoslynSemanticDiagnosticsFilter + GenericConstraintLoosen interface-pair extension. |
 | 0.7.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 140 (v3.1.0): ADR-025 — Mutation-Profile Auto-Bump für Mutation-Level. Code-Side Reparatur des silent-no-op-Bugs aus Calculator-Tester-Bug-Report (#1). ToT (5 Branches) + Maxential (14 Thoughts, 2 Branches) Decision-Trail. |
 | 0.8.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 142 (v3.1.2 Hotfix): ADR-026 — ConditionalInstrumentation × TypeSyntax-/SimpleName-Slot incompat. Bug #9 aus Calculator-Tester-Bug-Report-Update (`--mutation-profile All` crash). UoiMutator-pre-check erweitert + SpanReadOnlySpanDeclarationMutator disabled (Profile.None) + global DoNotMutateOrchestrator<SimpleNameSyntax> mit predicate. Sprint 23-Pattern auf neue crash-Klassen übertragen. |
+| 0.9.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 143 (v3.2.0-dev Phase 1): ADR-027 — Type-Position-Aware Mutation Control. Multi-Sprint Engine-Refaktor zur Root-Cause-Fix von Bug #9 statt Sprint-142-Symptom-Skip (User-Feedback). Phase 1 implementiert: Smart-Pivot in UoiMutator für MA.Name + neuer MemberAccessNameSlotOrchestrator + Mutator-set OriginalNode (`??=`). Phase 2 (MB.Name CAE-aware Lifting) und Phase 3 (TypeSyntax-Engine, SpanReadOnly re-enable) geplant. **Kein Tag** — v3.2.0 erst nach Phase 3. |
