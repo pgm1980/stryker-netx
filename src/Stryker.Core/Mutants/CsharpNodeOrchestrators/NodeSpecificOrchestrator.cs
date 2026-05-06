@@ -72,17 +72,28 @@ internal class NodeSpecificOrchestrator<TNode, TBase> : INodeOrchestrator where 
         context.AddMutations(mutations);
 
     /// <summary>
-    /// Mutate children, grandchildren (recursively). 
+    /// Mutate children, grandchildren (recursively).
     /// </summary>
     /// <param name="node">Node which children will be mutating</param>
     /// <param name="semanticModel"></param>
     /// <param name="context">Mutation status</param>
     /// <returns>A <typeparamref name="TBase"/> instance with the mutated children.</returns>
-    /// <remarks>Override this method if you want to control how the node's children are mutated. Simply return <paramref name="node"/> if you want to
-    /// skip mutating the children node.</remarks>
+    /// <remarks>
+    /// Override this method if you want to control how the node's children are mutated. Simply return <paramref name="node"/> if you want to
+    /// skip mutating the children node.
+    /// <para>
+    /// Sprint 151 (ADR-032, Bug-Report 5 systemic Bug-9 fix): the previous implementation
+    /// used <c>node.ReplaceNodes</c> directly, which crashed if any child mutation produced
+    /// a slot-incompatible replacement (e.g. <c>ParenthesizedExpressionSyntax</c> in an
+    /// <c>IdentifierNameSyntax</c>-typed slot). Now routed through
+    /// <see cref="OrchestrationHelpers.ReplaceChildrenValidated{TParent}"/> for per-child
+    /// slot validation, with the bulk-replace wrapped in a final safety-net.
+    /// </para>
+    /// </remarks>
     protected virtual TBase OrchestrateChildrenMutation(TNode node, SemanticModel semanticModel, MutationContext context) =>
-        node.ReplaceNodes(node.ChildNodes(),
-            computeReplacementNode: (original, _) => context.Mutate(original, semanticModel));
+        OrchestrationHelpers.ReplaceChildrenValidated(
+            node, node.ChildNodes(),
+            original => context.Mutate(original, semanticModel));
 
     /// <summary>
     /// Set up the mutation context before triggering mutation.

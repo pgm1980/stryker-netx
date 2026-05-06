@@ -1,49 +1,44 @@
 ---
-current_sprint: "150"
-sprint_goal: "Bug #8 P1 (Multi-Project Test-Setup-UX): neue --all-projects Flag damit Test-Projekt mit mehreren Source-References ALLE referenced Source-Projekte mutiert. Calculator-Tester Bug-Report 4. ADR-031. v3.2.5. SCHLIESST Bug-Report 4 vollständig."
-branch: "feature/150-bug8-all-projects"
+current_sprint: "151"
+sprint_goal: "Bug #9 v3.2.5 systemic audit (Bug-Report 5): Sprint-147 Validator extension von Injection-Phase auf Orchestration-Phase, projektweites Cast-Site-Audit + Listing als Patch-Note. ADR-032. v3.2.6."
+branch: "feature/151-bug9-systemic-cast-audit"
 started_at: "2026-05-06"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
-sprint_backlog_written: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
+sprint_backlog_written: false
 semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 150 closed (Bug-Report 4 vollständig geschlossen)
+# Session State — Sprint 151 in progress (Bug #9 systemic audit)
 
-## Sprint 150 Status: ✅ closed
+## Bug-Report 5 — der Auftrag
 
-**Tag:** v3.2.5 (2026-05-06)
-**PR:** #239 (squash-merged)
-**Commit auf main:** `48feb49` feat(sprint-150): v3.2.5 — ADR-031 --all-projects multi-project mutation flag (Bug #8) (#239)
-**GitHub Release:** https://github.com/pgm1980/stryker-netx/releases/tag/v3.2.5
-**NuGet-Push:** in_progress (Workflow run 25447895906)
+Calculator-Tester Bug-Report 5: in v3.2.5 reproduziert sich der Cast-Crash auf Calculator.Infrastructure als NEUER Cast `ParenthesizedExpressionSyntax → IdentifierNameSyntax`. User-Forderung verschärft: "projektweite Suche nach allen Casts in Mutator-Code-Pfaden + Listing als Patch-Note + **systemischer** Eingriff (Symptom-Behandlung wäre nicht akzeptabel)".
 
-## Bug-Report 4 — VOLLSTÄNDIG GESCHLOSSEN
+**Architektonischer Trugschluss von Sprint 147 korrigiert:** ADR-028 Validator deckt nur Injection-Phase, nicht Orchestration-Phase. Der ursprüngliche Sprint-147-Punkt (e) "Audit aller Mutators" wurde nicht durchgeführt — Trugschluss "Validator als Safety-Net macht Audit unnötig". Sprint 151 holt das nach.
 
-Alle 4 Bugs aus Calculator-Tester Bug-Report 4 sind über Sprints 147-150 architektonisch fixed:
+## Sprint 151 — Branch S3 Hybrid (Maxential 5-Schritte mit 3 ToT-Branches)
 
-| Sprint | Tag | Bug | ADR | Maxential |
-|--------|-----|-----|-----|-----------|
-| 147 | v3.2.2 | #9 P0 (--mutation-profile All NRE-Crash) | ADR-028 | 13-step + 3-Branch ToT (A/B/**C** chosen) |
-| 148 | v3.2.3 | #4 P1 (--version Konvention) | ADR-029 | 11-step + 3-Way ToT (**O1** chosen) |
-| 149 | v3.2.4 | #6 P1 (--reporters Plural) | ADR-030 | 3-step branchless (**Option A** chosen) |
-| 150 | v3.2.5 | #8 P1 (Multi-Project UX) | ADR-031 | 11-step + 2-Branch ToT (**B1** chosen) |
+**Decision:** S3 Hybrid (per-child validation + final safety-net):
+- Per-Site fix für 4 unsafe Orchestrator `ReplaceNodes`-Sites (Base + 3 derived)
+- `OrchestrationHelpers.ReplaceChildrenValidated`: per-child `SyntaxSlotValidator.TryReplaceWithValidation` + bulk try/catch
+- Konsistent mit Sprint-147-Defense-in-Depth-Architektur
+- Audit-Listing als Patch-Note in ADR-032 (8 safe + 4 unsafe sites projektweit)
 
-## Housekeeping abgeschlossen
+## Sprint-151-Phasen
 
-- ✅ Solution-wide build (0 W / 0 E)
-- ✅ Solution-wide Tests (2035 grün)
-- ✅ Semgrep clean (alle modifizierten Dateien)
-- ✅ MEMORY.md updated (Sprints 147-150 consolidated entry)
-- ✅ bug_report_4_stryker_netx.md mit Maintainer-Response geschlossen
-- ✅ ADRs 028-031 dokumentiert in architecture_specification.md (0.13.0 → 0.16.0 history)
-- ✅ Keine offenen GitHub-Issues mit Bug-Report-4-Bezug (nur #191 Sprint-107-Task ist open)
+- **Phase A** ✅ Maxential 5-step (3 ToT branches) — S3 Hybrid chosen
+- **Phase B** ✅ Audit aller Cast-Patterns projektweit (Mutators + Orchestrators + Initialisation)
+- **Phase C** ✅ OrchestrationHelpers.ReplaceChildrenValidated implementiert (116 LOC + 2 LoggerMessage)
+- **Phase D** ✅ 4 Orchestrator-Sites umgeroutet (Base NodeSpecific + 3 derived: Conditional/Invocation/ExpressionBodiedProperty). Andere 2 Sites (StaticField/StaticConstructor) safe-by-construction.
+- **Phase E** ✅ 12 neue Tests (10 OrchestrationSlotValidationTests + 2 OrchestrationHelpersTests)
+- **Phase F** ✅ Solution-wide build (0 W / 0 E), 2047 Tests grün, Semgrep clean
+- **Phase G** ✅ ADR-032 + Audit-Listing als Patch-Note + 0.17.0 history-row
+- **Phase H** PR + merge + tag v3.2.6
 
-## Nächster Sprint: 151+
+## Bug-Report 5 Status
 
-Bug-Report 4 ist der direkte Anlass für Sprints 147-150. Mit der Schließung steht der nächste Roadmap-Schritt offen — entweder weitere User-Bug-Reports oder Sprint-151+ aus Tech-Debt-Backlog (siehe MEMORY.md für deferred Sprint-Items).
-
-Tag-Strategy für nächste v3.3.0 / Sprint 151+: dynamisch auf Basis User-Feedback.
+- Bug #9 (verschärft) ✓ closing mit ADR-032 (Sprint 151 / v3.2.6) — Audit durchgeführt, 4 unsafe Sites gefixt, 8 safe Sites dokumentiert.
+- Bugs #4, #6, #8 ✓ unverändert closed mit Bug-Report-4-Sprint-Sweep (147-150).

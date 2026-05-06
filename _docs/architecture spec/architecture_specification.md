@@ -2281,6 +2281,75 @@ Diese Optimierungen sind separate Sprints — der Sicherheits-Aspekt (Bug-9 fixe
 
 ---
 
+## ADR-032: Orchestration-Phase Slot Validation — systemic Bug-9 audit (v3.2.6 / Sprint 151)
+
+**Status.** Accepted — Sprint 151 (v3.2.6, 2026-05-06).
+
+**Kontext.** Calculator-Tester Bug-Report 5, Bug #9 (verschärfte Forderung): in v3.2.5 reproduzierte das `Calculator.Infrastructure`-Projekt mit `--mutation-profile All` einen NEUEN Cast-Crash mit identischem Stack-Trace-Pfad: `InvalidCastException: ParenthesizedExpressionSyntax → IdentifierNameSyntax` (statt v3.1.1–v3.2.0's `→ TypeSyntax`). Der User stellte explizit fest, dass Sprint 147 ADR-028 zwar Punkte (a–d) der Bug-Report-4-Forderung umgesetzt hatte, aber Punkt (e) — "Audit aller Mutatoren auf ähnliche unbedacht-blind-castende Stellen" — nicht durchgeführt wurde. Die Maintainer-Selbst-Diagnose von Sprint 147 ("Validator als Safety-Net macht per-Mutator-Audit zur Performance-Optimierung statt Sicherheits-Voraussetzung") war ein **architektonischer Trugschluss**: der Sprint-147 `SyntaxSlotValidator` deckte nur die **Injection-Phase** (`MutationStore.Inject` → `RoslynHelper.TryInjectMutation`), nicht die **Orchestration-Phase** (`NodeSpecificOrchestrator.OrchestrateChildrenMutation` → `node.ReplaceNodes`).
+
+User-Forderung (verschärft): "Eine projektweite Suche nach allen impliziten oder expliziten Casts in Mutator-Code-Pfaden, die einen Syntax-Knoten in einen spezifischeren Subtyp casten, mit Listing als Patch-Note in der nächsten Version. Eine reine Symptom-Behandlung ('der zweite Cast wird auch gefixt') wäre erneut keine Erfüllung der ursprünglichen Forderung — wir erwarten den **systemischen** Eingriff."
+
+**Audit-Ergebnis (User-Forderung "Listing als Patch-Note").**
+
+Projektweites Pattern-Match aller Cast-Stellen `(SyntaxType)expr` und `expr as SyntaxType` in `src/Stryker.Core/Mutators/` und `src/Stryker.Core/Mutants/`:
+
+| Site | File | Line | Klassifikation | Anmerkung |
+|------|------|------|----------------|-----------|
+| `(ExpressionSyntax)getResult` | `Mutators/AsyncAwaitMutator.cs` | 50 | ✅ safe by construction | upcast — `getResult` ist `MemberAccessExpressionSyntax`, beide sind `ExpressionSyntax` |
+| `(ExpressionSyntax)resultAccess` | `Mutators/AsyncAwaitResultMutator.cs` | 60 | ✅ safe by construction | upcast — wie oben |
+| `(LiteralExpressionSyntax)patternExpression` | `Mutators/RegexMutator.cs` | 44 | ✅ safe | preceded by `if (… is LiteralExpressionSyntax)` typecheck |
+| `(IdentifierNameSyntax)((QualifiedNameSyntax)n.Name).Right` | `Initialisation/CsharpProjectComponentsBuilder.cs` | 145 | ✅ safe | preceded by 2× `Kind() == SyntaxKind.QualifiedName/IdentifierName` typecheck |
+| `result as BlockSyntax ?? SyntaxFactory.Block(result)` | `Mutants/MutationStore.cs` | 196, 223 | ✅ safe | `as`-Cast mit `??`-Fallback |
+| `code as BlockSyntax ?? SyntaxFactory.Block(code)` | `Instrumentation/IfInstrumentationEngine.cs` | 28 | ✅ safe | wie oben |
+| **`node.ReplaceNodes(node.ChildNodes(), …)`** | **`Mutants/CsharpNodeOrchestrators/NodeSpecificOrchestrator.cs`** | **84–85** | 🔴 **unsafe** | **Bug-9-Hauptverdächtiger** — Roslyn rebuilt Parent-Slot, mutated child kann typed-slot-Mismatch produzieren |
+| `node.ReplaceNodes(node.ChildNodes(), …)` | `Mutants/CsharpNodeOrchestrators/ConditionalExpressionOrchestrator.cs` | 12 | 🔴 unsafe | wie oben |
+| `node.ReplaceNodes(node.ChildNodes(), …)` | `Mutants/CsharpNodeOrchestrators/InvocationExpressionOrchestrator.cs` | 20 | 🔴 unsafe | **Bug-Report-5-Hauptverdächtiger** — `(x).Method()` Pattern |
+| `node.ReplaceNodes(node.ChildNodes(), …)` | `Mutants/CsharpNodeOrchestrators/ExpressionBodiedPropertyOrchestrator.cs` | 40 | 🔴 unsafe | wie oben |
+| `result.ReplaceNodes(…)` | `Mutants/CsharpNodeOrchestrators/StaticFieldDeclarationOrchestrator.cs` | 28 | ✅ safe by construction | replacement = `PlaceStaticContextMarker(ExpressionSyntax) → ExpressionSyntax`, type-preserving |
+| `mutated.ReplaceNode(mutated.Body!, context.PlaceStaticContextMarker(mutated.Body!))` | `Mutants/CsharpNodeOrchestrators/StaticConstructorOrchestrator.cs` | 35 | ✅ safe by construction | replacement = `PlaceStaticContextMarker(BlockSyntax) → BlockSyntax`, type-preserving |
+
+**Fazit des Audits:** alle Cast-Patterns in Mutator-Code sind safe (entweder upcast, by-construction, oder mit `??`-Fallback). Die unsafe Cast-Sites liegen nicht in Mutator-Code, sondern in den **Orchestrator-`ReplaceNodes`-Calls**, wo Roslyn intern beim Rebuild des Parents typed-Slots überprüft. 4 Sites sind unsafe (1 Base + 3 Derived); 2 Sites (StaticField/StaticConstructor) sind safe-by-construction weil sie type-preserving Replacements verwenden.
+
+**Entscheidung.** **Hybrid-Strategie (Branch S3, Maxential 5-Schritte):**
+1. **Phase A (per-site fix):** alle 4 unsafe Orchestrator-Sites werden auf einen neuen `OrchestrationHelpers.ReplaceChildrenValidated`-Helper umgeroutet, der pro-child via `SyntaxSlotValidator.TryReplaceWithValidation` validiert. Slot-incompatible Replacements werden silent dropped, das Original-Child wird beibehalten.
+2. **Phase B (final safety net):** der Helper wrappt zusätzlich den finalen `node.ReplaceNodes(validated)`-Bulk-Call in try/catch; falls individuell-valide Replacements interagieren und trotzdem crashen, wird das gesamte Set silent dropped (return `node` unchanged).
+3. **Phase C (Listing als Patch-Note):** dieses Audit-Listing oben.
+
+**Begründung der Wahl.** Maxential 5-Schritte mit 3 ToT-Branches (S1 / S2 / S3):
+- **S1 (Per-Site-Pattern-Match)**: jede Site einzeln zu `if (node is …) … else skip` umschreiben. Verworfen: Sprint-147 hat bereits den `SyntaxSlotValidator` etabliert, ein zweiter Pattern-Match-Layer pro Site wäre Duplikation.
+- **S2 (try/catch um ganze OrchestrateChildrenMutation)**: alle Children-Mutations bei single-child-Crash verwerfen. Verworfen: zu coarse-grained, würde gute Mutations einer Mehrheit der Children mit-verlieren.
+- **S3 (Hybrid: per-child validation + final safety-net)**: gewählt. Per-child fix preserviert valide Mutations; final safety-net deckt edge-cases. Konsistent mit Sprint-147-ADR-028-Architektur (Defense-in-Depth).
+
+**Implementation.**
+
+- `src/Stryker.Core/Mutants/CsharpNodeOrchestrators/OrchestrationHelpers.cs` (neu, 116 LOC): static partial class mit `ReplaceChildrenValidated<TParent>(TParent, IEnumerable<SyntaxNode>, Func<SyntaxNode, SyntaxNode>) → TParent`. Logging via `[LoggerMessage]` für rejected children + bulk-replace-fallback.
+- `src/Stryker.Core/Mutants/CsharpNodeOrchestrators/NodeSpecificOrchestrator.cs` (Z. 83–93): default `OrchestrateChildrenMutation` routes durch `OrchestrationHelpers.ReplaceChildrenValidated`.
+- `src/Stryker.Core/Mutants/CsharpNodeOrchestrators/ConditionalExpressionOrchestrator.cs`, `InvocationExpressionOrchestrator.cs`, `ExpressionBodiedPropertyOrchestrator.cs`: alle 3 Override-`OrchestrateChildrenMutation` umgeroutet auf `OrchestrationHelpers.ReplaceChildrenValidated` mit den jeweiligen lambda-bodies preserved.
+- `tests/Stryker.Core.Tests/Mutants/CsharpNodeOrchestrators/OrchestrationHelpersTests.cs` (neu): 2 Unit-Tests (no-mutation identity preservation + compatible mutation propagation). Note: ein dritter Test "incompatible mutation dropped" erwies sich als unrealistisch konstruierbar auf unit-test-Level — Roslyn's public APIs crashen selbst beim Setup.
+- `tests/Stryker.Core.Tests/Integration/OrchestrationSlotValidationTests.cs` (neu): 10 Integration-Tests mit `MutationProfile.All` über die volle Orchestrator-Pipeline. 4 Sprint-147-Patterns (Bug-Report 4 baseline, kept as regression) + 4 Sprint-151-Patterns (Bug-Report 5 closure) + 2 explicit `(x).Method()`-Pattern-Repros. Jeder Test asserts: keine unhandled exception + mutated tree re-parses cleanly.
+
+**Konsequenzen.**
+
+- (+) Bug-Report-5 Bug-9-Crash ist root-cause-fixed. Die zweite Cast-Site (`→ IdentifierNameSyntax`) UND alle künftigen Cast-Sites in Orchestrator-`ReplaceNodes`-Calls werden vom Validator abgefangen.
+- (+) Defense-in-Depth zwischen Sprint-147 (Injection-Phase) + Sprint-151 (Orchestration-Phase) deckt jetzt die ZWEI Phasen ab, in denen Roslyn typed-slot-checks durchführt.
+- (+) Audit-Listing dokumentiert alle Cast-Sites projektweit — User-Forderung "Listing als Patch-Note" erfüllt. Die safe-Sites (8 Stück) sind explizit klassifiziert und dokumentiert; die unsafe-Sites (4 Stück) sind gefixt.
+- (–) Performance-Cost: jede Children-Mutation triggert pro Child einen `SyntaxSlotValidator.TryReplaceWithValidation`-Call (= Roslyn `ReplaceNode` + descendant-walk). Bei Tausenden Mutations pro Datei spürbar — Sprint-147 ADR-028 hatte denselben Cost-Trade-off bereits akzeptiert. Performance-Optimierungen sind Kandidaten für v3.3+ (z. B. cache von "slot-type kombinationen die bekanntermaßen safe sind").
+- (–) Try/catch als control-flow ist Code-Smell — wie schon bei ADR-028 explizit als bewusster safety-net Use-Case dokumentiert (siehe XML-doc auf SyntaxSlotValidator + OrchestrationHelpers).
+
+**Supersedes / supplements.**
+
+- **Supplements** ADR-028 (Sprint 147 Central Syntax-Slot Validation Layer). ADR-028 deckt Injection-Phase, ADR-032 deckt Orchestration-Phase. Zusammen vollständige Pipeline-Coverage.
+- **Korrigiert** den Sprint-147-architektonischen-Trugschluss "Validator als Safety-Net macht per-Mutator-Audit unnötig". Per-Mutator-Audit war zwar nicht nötig (alle Mutator-Cast-Sites sind safe), aber Per-Orchestrator-Audit war nötig.
+
+**Backed by.** Sprint 151 Maxential 5 Schritte mit 3 ToT-Branches (S1 / S2 / S3, **S3 Hybrid gewählt**). 12 neue Tests (10 Integration + 2 Unit) all green; Solution-wide 2047 Unit-Tests grün (vs Sprint 150 = 2035, +12), Semgrep clean (0 Findings auf 7 modifizierten Dateien). Audit-Listing oben enumeriert 12 projektweite Cast-Sites mit Sicherheits-Klassifikation.
+
+**Bezug zu offenen Bugs aus Bug-Report 5.**
+
+- Bug #9 (verschärft) ✓ closed mit ADR-032 (Sprint 151 / v3.2.6) — Audit durchgeführt, 4 unsafe Sites gefixt, 8 safe Sites dokumentiert.
+- Bugs #4, #6, #8 ✓ unverändert closed mit Bug-Report-4-Sprint-Sweep (147–150).
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2301,3 +2370,4 @@ Diese Optimierungen sind separate Sprints — der Sicherheits-Aspekt (Bug-9 fixe
 | 0.14.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 148 v3.2.3: ADR-029 — `--version` Tool-Convention + `--project-version` **Hard Rename**. Calculator-Tester Bug-Report 4, Bug #4: `dotnet stryker-netx --version` druckt jetzt konvention-konform die Tool-Version statt als Project-Version-Wert interpretiert zu werden. Maxential (3-Weg ToT: O1=Hard-Rename, O2=Soft-Detection, O3=Status-Quo) → O1 gewählt. **Breaking-Change**: `--version <value>` → `--project-version <value>` Migration. `--tool-version` / `-T` (Sprint-141-Aliase) bleiben transitional. `StrykerCli.TryHandleToolVersionFlag` short-circuited bare-Flag BEFORE McMaster-Parser-Pipeline. RunAsync zerlegt in `BuildCommandLineApplication` + `ExecuteWithErrorHandlingAsync` (MA0051-Cap). 4 neue Sprint-148-Tests + ShouldSetProjectVersion umgestellt auf `--project-version`. Solution-wide 817 Unit-Tests grün, Semgrep clean. Tag **v3.2.3** — Bug #4 closed. Bugs #6, #8 → separate Sprints 149/150. |
 | 0.15.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 149 v3.2.4: ADR-030 — `--reporters` Plural-Alias via args-Pre-Processor. Calculator-Tester Bug-Report 4, Bug #6: externe Tutorials/Doku schreiben oft `--reporters` (Plural), McMaster lehnt das mit "Unrecognized option" + "Did you mean: reporter" ab. Maxential (3-Schritte): Option A (args-rewrite) gewählt vs B (zweite Option-Registrierung) vs C (McMaster-Subclass). `RewriteReportersAlias(string[]) → string[]` rewrites `--reporters`, `--reporters=…`, `--reporters:…` zu Singular-Form BEFORE McMaster sieht args. Konsistent mit Sprint-148-Pattern (Pre-Processor). False-Positive-Guard: `--reportersx` fällt durch zu McMaster's "Did you mean"-Hilfe. 10 neue Tests (5 Rewrite + 4 Non-Rewrite + 1 E2E). Solution-wide 844 Unit-Tests grün (vs Sprint 148 = 834, +10), Semgrep clean. Tag **v3.2.4** — Bug #6 closed. Bug #8 → Sprint 150. |
 | 0.16.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 150 v3.2.5: ADR-031 — `--all-projects` Multi-Project-Mutation Flag. Calculator-Tester Bug-Report 4, Bug #8: Test-Projekte mit mehreren Source-Project-Referenzen (Clean-Architecture: Domain + Infrastructure + App) krachten mit "Test project contains more than one project reference. Please set the project option…". Sprint-141-Workaround `--solution` setzt Solution-Datei voraus + scannt ALLE Solution-Projekte; User wollte per-Test-Project-Scope. Maxential 11 Schritte mit 2 ToT-Branches → B1 (Flag) gewählt vs B2 (Multi-`--project` MultipleValue, breaking-change auf SourceProjectName). Neue `AllProjectsInput` (NoValue, long-only) + IStrykerOptions.IsAllProjectsMode + InputFileResolver.ResolveMultiReferenceCase Helper (MA0051-Cap-Refactor). Bei `--all-projects` UND multi-reference → return alle SourceProjectInfo statt throw. ProjectOrchestrator iteriert ohnehin (Solution-Mode-Pfad), kein Engine-Refactor nötig. Verbesserte Fehlermeldung: zeigt jetzt `--all-projects` UND `--solution` als Alternativen. 7 neue Tests (5 AllProjectsInputTests + 2 CLI-Plumbing). Solution-wide 2035 Unit-Tests grün, Semgrep clean. Tag **v3.2.5** — Bug #8 closed. **Bug-Report 4 vollständig geschlossen** (Bugs #4, #6, #8, #9 alle via ADRs 028–031 architektonisch fixed). |
+| 0.17.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 151 v3.2.6: ADR-032 — **Orchestration-Phase Slot Validation**. Calculator-Tester Bug-Report 5 (verschärfte Bug-9-Forderung): in v3.2.5 reproduziert sich der Cast-Crash auf Calculator.Infrastructure als `ParenthesizedExpressionSyntax → IdentifierNameSyntax` (statt v3.2.x's `→ TypeSyntax`). User-Forderung verschärft: "projektweite Suche nach allen impliziten oder expliziten Casts in Mutator-Code-Pfaden + Listing als Patch-Note + systemischer Eingriff statt Symptom". Maxential 5-Schritte mit 3-Branch ToT (S1/S2/**S3 Hybrid chosen**). **Architektonischer Trugschluss von Sprint 147 korrigiert**: ADR-028 Validator deckt nur Injection-Phase, nicht Orchestration-Phase. Audit aller 12 projektweiten Cast-Sites in Mutator/Orchestrator-Code: 8 safe (upcast/by-construction/`??`-Fallback), 4 unsafe (NodeSpecific/Conditional/Invocation/ExpressionBodiedProperty Orchestrators' `node.ReplaceNodes`-Calls). Neue `OrchestrationHelpers.ReplaceChildrenValidated`: per-child `SyntaxSlotValidator.TryReplaceWithValidation` + bulk-replace try/catch safety-net. Defense-in-Depth zwischen Sprint-147 (Injection) + Sprint-151 (Orchestration). 12 neue Tests (10 Integration mit MutationProfile.All über Bug-Report-4+5 Patterns + 2 Unit). Solution-wide 2047 Unit-Tests grün (vs Sprint 150 = 2035, +12), Semgrep clean. Tag **v3.2.6** — Bug #9 systemic fix + audit listing als Patch-Note. **Bug-Report 5 closed.** |

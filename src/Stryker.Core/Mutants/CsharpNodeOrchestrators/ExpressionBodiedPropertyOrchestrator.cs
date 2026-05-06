@@ -30,6 +30,7 @@ internal sealed class ExpressionBodiedPropertyOrchestrator : BaseFunctionOrchest
             WithSemicolonToken(SyntaxFactory.MissingToken(SyntaxKind.SemicolonToken));
     }
 
+    // Sprint 151 (ADR-032): routed through OrchestrationHelpers.ReplaceChildrenValidated.
     protected override PropertyDeclarationSyntax OrchestrateChildrenMutation(PropertyDeclarationSyntax node, SemanticModel semanticModel, MutationContext context)
     {
         if (node.Initializer == null)
@@ -37,11 +38,12 @@ internal sealed class ExpressionBodiedPropertyOrchestrator : BaseFunctionOrchest
             return base.OrchestrateChildrenMutation(node, semanticModel, context);
         }
 
-        var children = node.ReplaceNodes(node.ChildNodes(), (original, _) =>
-        {
-            var determinedContext = original == node.Initializer ? context.EnterStatic() : context;
-            return determinedContext.Mutate(original, semanticModel);
-        });
+        var children = OrchestrationHelpers.ReplaceChildrenValidated(node, node.ChildNodes(),
+            original =>
+            {
+                var determinedContext = original == node.Initializer ? context.EnterStatic() : context;
+                return determinedContext.Mutate(original, semanticModel);
+            });
         return children.WithInitializer(children.Initializer!.WithValue(context.PlaceStaticContextMarker(children.Initializer.Value)));
     }
 }
