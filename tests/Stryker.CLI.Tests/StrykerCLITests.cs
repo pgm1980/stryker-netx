@@ -107,12 +107,15 @@ public class StrykerCLITests
         _nugetClientMock.VerifyNoOtherCalls();
     }
 
-    // ----- Sprint 141 (Bug #4) — additive --tool-version flag tests -----
+    // ----- Sprint 148 (Bug #4 from Calculator-Tester Bug-Report 4) — --version short-circuit tests -----
+    // Sprint 148 supersedes Sprint 141: --version / -V is the .NET-tool-platform-conventional way
+    // to print the tool version. Sprint-141's --tool-version / -T aliases remain functional as a
+    // transitional deprecated path for users who already adopted them.
 
     [Fact]
-    public async Task ToolVersionFlag_LongForm_PrintsToolVersionAndReturnsZero()
+    public async Task VersionFlag_LongForm_PrintsToolVersionAndReturnsZero()
     {
-        // --tool-version short-circuits before any McMaster parsing → no NuGet client call,
+        // --version short-circuits before any McMaster parsing → no NuGet client call,
         // no logo, no mutation run. Exit code 0.
         var mock = new Mock<IStrykerRunner>(MockBehavior.Strict);
         var nugetMock = new Mock<IStrykerNugetFeedClient>(MockBehavior.Strict);
@@ -120,18 +123,47 @@ public class StrykerCLITests
         var fileSystemMock = new Mock<IFileSystem>();
         var target = new StrykerCli(mock.Object, new ConfigBuilder(), Mock.Of<ILoggingInitializer>(), nugetMock.Object, consoleMock.Object, fileSystemMock.Object);
 
-        var exitCode = await target.RunAsync(["--tool-version"]);
+        var exitCode = await target.RunAsync(["--version"]);
 
         exitCode.Should().Be(ExitCodes.Success);
-        // Strict-mode mocks would throw if any calls happened — proves short-circuit before further parsing.
         mock.VerifyNoOtherCalls();
         nugetMock.VerifyNoOtherCalls();
     }
 
     [Fact]
-    public async Task ToolVersionFlag_ShortForm_ReturnsZero()
+    public async Task VersionFlag_ShortForm_ReturnsZero()
     {
-        // -T is the shorthand for --tool-version.
+        // -V is the shorthand for --version.
+        var mock = new Mock<IStrykerRunner>(MockBehavior.Strict);
+        var nugetMock = new Mock<IStrykerNugetFeedClient>(MockBehavior.Strict);
+        var target = new StrykerCli(mock.Object, new ConfigBuilder(), Mock.Of<ILoggingInitializer>(), nugetMock.Object, Mock.Of<IAnsiConsole>(), Mock.Of<IFileSystem>());
+
+        var exitCode = await target.RunAsync(["-V"]);
+
+        exitCode.Should().Be(ExitCodes.Success);
+        mock.VerifyNoOtherCalls();
+        nugetMock.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ToolVersionFlag_Sprint141Alias_LongForm_StillWorks()
+    {
+        // Sprint-141 alias --tool-version remains functional for users who already adopted it.
+        var mock = new Mock<IStrykerRunner>(MockBehavior.Strict);
+        var nugetMock = new Mock<IStrykerNugetFeedClient>(MockBehavior.Strict);
+        var target = new StrykerCli(mock.Object, new ConfigBuilder(), Mock.Of<ILoggingInitializer>(), nugetMock.Object, Mock.Of<IAnsiConsole>(), Mock.Of<IFileSystem>());
+
+        var exitCode = await target.RunAsync(["--tool-version"]);
+
+        exitCode.Should().Be(ExitCodes.Success);
+        mock.VerifyNoOtherCalls();
+        nugetMock.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ToolVersionFlag_Sprint141Alias_ShortForm_StillWorks()
+    {
+        // Sprint-141 alias -T remains functional.
         var mock = new Mock<IStrykerRunner>(MockBehavior.Strict);
         var nugetMock = new Mock<IStrykerNugetFeedClient>(MockBehavior.Strict);
         var target = new StrykerCli(mock.Object, new ConfigBuilder(), Mock.Of<ILoggingInitializer>(), nugetMock.Object, Mock.Of<IAnsiConsole>(), Mock.Of<IFileSystem>());
@@ -434,10 +466,15 @@ public class StrykerCLITests
     }
 
     [Theory]
-    [InlineData("--version", "master")]
-    [InlineData("-v", "master")]
+    [InlineData("--project-version", "master")]
     public async Task ShouldSetProjectVersionFeatureWhenPassed(string arg, string value)
     {
+        // Sprint 148 (Bug #4 from Calculator-Tester Bug-Report 4): the project version
+        // (dashboard/baseline feature) was historically registered under --version/-v,
+        // colliding with the .NET-tool convention that --version prints the tool version.
+        // Sprint 148 freed up --version/-v: it is now handled by TryHandleToolVersionFlag
+        // in StrykerCli (prints tool version + exits 0). The project version moves to
+        // --project-version (long-only — no short alias). Documented in ADR-029.
         await _target.RunAsync([arg, value]);
 
         _strykerRunnerMock.VerifyAll();

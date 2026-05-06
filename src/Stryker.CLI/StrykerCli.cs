@@ -57,13 +57,36 @@ public partial class StrykerCli
     /// <param name="args">User input</param>
     public async Task<int> RunAsync(string[] args)
     {
-        // Sprint 141 Bug #4: short-circuit --tool-version / -T before any other parsing.
+        // Sprint 148 (Bug #4 from Calculator-Tester Bug-Report 4): short-circuit
+        // --version / -V before any other parsing. Print the tool version + exit 0.
         if (TryHandleToolVersionFlag(args, out var earlyExitCode))
         {
             await Console.Out.WriteLineAsync(GetToolVersionString()).ConfigureAwait(false);
             return earlyExitCode;
         }
 
+        var app = BuildCommandLineApplication();
+        var inputs = new StrykerInputs();
+        var cmdConfigReader = new CommandLineConfigReader(_console);
+
+        cmdConfigReader.RegisterCommandLineOptions(app, inputs);
+        cmdConfigReader.RegisterInitCommand(app, _fileSystem, inputs, args);
+
+        app.OnExecuteAsync(async (cancellationToken) =>
+        {
+            PrintStrykerASCIIName();
+            _configReader.Build(inputs, args, app, cmdConfigReader);
+            _loggingInitializer.SetupLogOptions(inputs);
+            _ = PrintStrykerVersionInformationAsync(cmdConfigReader.GetSkipVersionCheckOption(args, app)?.HasValue() ?? false);
+            await RunStrykerAsync(inputs).ConfigureAwait(false);
+            return ExitCode;
+        });
+
+        return await ExecuteWithErrorHandlingAsync(app, args).ConfigureAwait(false);
+    }
+
+    private CommandLineApplication BuildCommandLineApplication()
+    {
         var app = new CommandLineApplication(new ConsoleWrapper(_console))
         {
             Name = "Stryker",
@@ -73,27 +96,11 @@ public partial class StrykerCli
             HelpTextGenerator = new GroupedHelpTextGenerator()
         };
         _ = app.HelpOption();
+        return app;
+    }
 
-        var inputs = new StrykerInputs();
-        var cmdConfigReader = new CommandLineConfigReader(_console);
-
-        cmdConfigReader.RegisterCommandLineOptions(app, inputs);
-        cmdConfigReader.RegisterInitCommand(app, _fileSystem, inputs, args);
-
-        app.OnExecuteAsync(async (cancellationToken) =>
-        {
-            // app started
-            PrintStrykerASCIIName();
-
-            _configReader.Build(inputs, args, app, cmdConfigReader);
-            _loggingInitializer.SetupLogOptions(inputs);
-
-            // Print version info. Don't await, let it run in the background for performance reasons
-            _ = PrintStrykerVersionInformationAsync(cmdConfigReader.GetSkipVersionCheckOption(args, app)?.HasValue() ?? false);
-            await RunStrykerAsync(inputs).ConfigureAwait(false);
-            return ExitCode;
-        });
-
+    private static async Task<int> ExecuteWithErrorHandlingAsync(CommandLineApplication app, string[] args)
+    {
         try
         {
             return await app.ExecuteAsync(args).ConfigureAwait(false);
@@ -101,7 +108,6 @@ public partial class StrykerCli
         catch (CommandParsingException ex)
         {
             await Console.Error.WriteLineAsync(ex.Message).ConfigureAwait(false);
-
             if (ex is UnrecognizedCommandParsingException uex && uex.NearestMatches.Any())
             {
                 await Console.Error.WriteLineAsync().ConfigureAwait(false);
@@ -111,7 +117,6 @@ public partial class StrykerCli
                     await Console.Error.WriteLineAsync("    " + match).ConfigureAwait(false);
                 }
             }
-
             return ExitCodes.OtherError;
         }
     }
@@ -232,20 +237,61 @@ Since this is a preview feature things might not work as expected! Please report
     private static partial void LogStrykerStarting(ILogger logger, SemanticVersion version);
 
     /// <summary>
-    /// Sprint 141 (Bug #4 from Calculator-tester report): detect <c>--tool-version</c>
-    /// or <c>-T</c> in the raw args BEFORE any other parsing. We can't reuse
-    /// <c>--version</c> / <c>-v</c> because those are bound to the project-version
-    /// (dashboard / baseline feature) inherited 1:1 from upstream Stryker.NET. The
-    /// separate <c>--tool-version</c> flag preserves CLI-schema-compat while giving
-    /// users the platform-conventional way to discover which tool version they have.
+    /// Sprint 148 (Bug #4 from Calculator-Tester Bug-Report 4) supersedes Sprint 141:
+    /// detect <c>--version</c> / <c>-V</c> in the raw args BEFORE any other parsing.
+    /// Print the tool version on stdout + exit 0 — the .NET-tool platform convention.
+    ///
+    /// <para>
+    /// The Sprint-141 workaround (<c>--tool-version</c> / <c>-T</c>) was rejected by
+    /// the Calculator-Tester in Bug-Report 4 as not matching the platform convention.
+    /// This sprint frees <c>--version</c> by renaming the historical project-version
+    /// flag to <c>--project-version</c> (CommandLineConfigReader.cs Z.237). The
+    /// Sprint-141 <c>--tool-version</c>/<c>-T</c> aliases remain functional as a
+    /// transitional deprecated path for users who already adopted them — both
+    /// surface the same tool-version-string. ADR-029 documents the breaking change
+    /// for project-version users.
+    /// </para>
     /// </summary>
     private static bool TryHandleToolVersionFlag(string[] args, out int exitCode)
     {
-        var match = args.Any(static a =>
-            string.Equals(a, "--tool-version", StringComparison.Ordinal)
-            || string.Equals(a, "-T", StringComparison.Ordinal));
-        exitCode = match ? ExitCodes.Success : 0;
-        return match;
+        // Sprint 148 primary: --version / -V; Sprint-141 alias: --tool-version / -T.
+        // For --version, only short-circuit if it's the bare flag (no value follows).
+        // The legacy `--version <value>` shape now falls through to McMaster which
+        // surfaces "Unrecognized option" — the help text shows --project-version as
+        // the migration cue.
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (IsToolVersionAliasFlag(args[i]))
+            {
+                exitCode = ExitCodes.Success;
+                return true;
+            }
+            if (IsBareVersionFlag(args, i))
+            {
+                exitCode = ExitCodes.Success;
+                return true;
+            }
+        }
+        exitCode = 0;
+        return false;
+    }
+
+    private static bool IsToolVersionAliasFlag(string arg) =>
+        string.Equals(arg, "--tool-version", StringComparison.Ordinal)
+        || string.Equals(arg, "-T", StringComparison.Ordinal);
+
+    private static bool IsBareVersionFlag(string[] args, int i)
+    {
+        var a = args[i];
+        var isVersion = string.Equals(a, "--version", StringComparison.Ordinal)
+                        || string.Equals(a, "-V", StringComparison.Ordinal);
+        if (!isVersion)
+        {
+            return false;
+        }
+        var nextArg = i + 1 < args.Length ? args[i + 1] : null;
+        var hasValue = nextArg is not null && !nextArg.StartsWith('-');
+        return !hasValue;
     }
 
     /// <summary>
