@@ -1,7 +1,7 @@
 ---
-current_sprint: "146"
-sprint_goal: "Hotfix v3.2.1 — Calculator-Tester Report 3: Bug-9 v3.2.0 Skip-list-Gap. UoiMutator IsInTypeSyntaxPosition erweitert um DeclarationPattern + TypePattern + RecursivePattern + TypeParameterConstraintClause."
-branch: "fix/146-bug9-typesyntax-pattern-slots"
+current_sprint: "147"
+sprint_goal: "Bug #9 P0 Architektur-Refactor (Bug-Report-4-Trigger): Validation-Layer im RoslynHelper.InjectMutation + Mutator-Audit + Regression-Tests aus Calculator-Tester-Forderungen. KEIN Hotfix mehr — defense-in-depth zentrale Lösung."
+branch: "feature/147-bug9-validation-layer"
 started_at: "2026-05-06"
 housekeeping_done: false
 memory_updated: false
@@ -11,52 +11,46 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 146 in progress (v3.2.1 hotfix)
+# Session State — Sprint 147 in progress (Bug #9 Architektur-Refactor)
 
-## Sprint 146 — Calculator-Tester Bug Report 3
+## Bug-Report 4 — der Auftrag
 
-**Befund:** Calculator-Tester Report 3 (2026-05-06, ~6h nach v3.2.0-Release)
-zeigt Bug-9 reproduziert in v3.2.0 mit gleichem `InvalidCastException(
-ParenthesizedExpression → TypeSyntax)` Stack-Trace wie v3.1.1. Phase 1+2
-hatten den Crash für SimpleName + CAE-Klasse gefixt aber TypeSyntax-Skip-Liste
-war unvollständig.
+Calculator-Tester reproduziert Bug #9 nach v3.2.1 als `NullReferenceException` (statt vorher `InvalidCastException`). Gleicher Stack-Trace-Pfad: `NodeSpecificOrchestrator.OrchestrateChildrenMutation` Z.84/85. Der Hotfix in v3.2.1 (Skip-Liste-Erweiterung) hat die Patterns für meine Sample-Tests gefixt, aber Calculator's Real-World-Code triggert ANDERE Code-Pfade die NRE werfen.
 
-## Root-Cause
+**User-Auftrag (4 Forderungen unter P0 Bug #9):**
+- a) Ursachen-Analyse statt Stack-Trace-Cosmetik
+- b) Pattern-Match statt `as` für Nicht-Type-Fall (designentscheidung statt crash)
+- c) **Validierungs-Layer vor der Mutation** — zentrale Stelle in der Pipeline
+- d) Regression-Tests mit Calculator's Code-Schnipseln + meinen
+- e) Audit aller Mutators im All-Set
 
-Phase-2 `UoiMutator.IsInTypeSyntaxPosition` switch hatte 4 fehlende arms:
-1. `DeclarationPatternSyntax` — `t is Deposit d` (Calculator's repro)
-2. `TypePatternSyntax` — `t is Deposit or Withdrawal` (defensive)
-3. `RecursivePatternSyntax` — `t is Deposit { Amount: 5 }`
-4. `TypeParameterConstraintClauseSyntax` — `where T : class` (lokal entdeckt)
+Plus P1 Bugs #4 (`--version`), #6 (`--reporters`), #8 (Multi-Project) — separate Sprints 148-150.
 
-Sample.Library hat keine dieser Patterns. Calculator.Domain (records +
-switch-expressions) trifft sie. Real-World-Code mit C# 9+ pattern-matching
-generell.
+## Sprint 147 — Branch C Hybrid (Maxential + ToT 13 Schritte, 3 Branches)
 
-## Fix
+**Decision:** Layer 1 (per-Mutator Skip-Liste — Performance) + Layer 2 (Try/Catch Safety-Net im RoslynHelper.InjectMutation — Generic Validator). Defense-in-depth.
 
-`IsInTypeSyntaxPosition` switch um 4 arms erweitert. KEINE anderen Code-
-Logic-Änderungen. Tests: 14 UoiMutator-Tests grün (4 neue Pattern-Slot-
-Regressions).
+**ToT-Branches evaluiert:**
+- Branch A (Try/Catch Safety Net): zentral, future-proof. Performance-cost. ✅ Teil von C.
+- Branch B (Reflection Slot-Type-Lookup): theoretisch sauber, praktisch fragil. Verworfen.
+- Branch C (Hybrid): A + per-Mutator-Audit + erweiterte Skip-Listen. **GEWÄHLT**.
 
-## Verifikation
+## Sprint-147-Phasen
 
-- Lokaler Repro `t switch { Deposit d => ... }`: kein Crash, Score 68.89%.
-- Solution-wide build: 0 warnings, 0 errors.
-- Solution-wide tests: ~2200 grün.
-- Semgrep: clean.
+- **Phase A** ✅ Code-Analyse via Serena (NodeSpecificOrchestrator.OrchestrateChildrenMutation Z.82-84 + RoslynHelper.InjectMutation Z.120-128)
+- **Phase B** Implementation `SyntaxSlotValidator` + integration in RoslynHelper.InjectMutation
+- **Phase C** Audit aller All-only Mutators systematisch via Serena
+- **Phase D** Erweitere Skip-Listen wo Audit Patterns findet
+- **Phase E** Regression-Tests (Calculator's Patterns + eigene)
+- **Phase F** Solution-wide build + tests + semgrep
+- **Phase G** ADR-028 schreiben (validation-layer architecture)
+- **Phase H** Commit + PR + merge + Tag v3.2.2
 
-## Phase-3-Skip-as-Architecture bleibt
+## Sprint-Plan für Bug-Report-4
 
-Sprint 146 ist ein punktueller Hotfix der die Phase-3-Skip-Liste vervollständigt.
-ADR-027 Phase 3 Decision (Skip-as-Architecture) bleibt unverändert; nur die
-Skip-Patterns waren nicht complete genug.
+- **Sprint 147 (jetzt)**: Bug #9 P0
+- **Sprint 148**: Bug #4 P1 (`--version` Flag)
+- **Sprint 149**: Bug #6 P1 (`--reporters` plural)
+- **Sprint 150**: Bug #8 P1 (Multi-Project UX)
 
-## Note für mögliche v3.3.0+ Sprints
-
-Lokal-Bisect hat ZWEITEN Bug aufgedeckt: GenericConstraintMutator (All-only)
-emittiert `OriginalNode = MethodDeclarationSyntax` mit Type=Statement; bei
-expression-body Methods landet die Mutation auf child-Expression-Inject-Frame
-das `sourceNode.Contains(MethodDecl)` Check fail-t. Anderes Exception-Class
-(`InvalidOperationException: Cannot inject`) als Calculator's Bug-9
-(`InvalidCastException`). NICHT in dieser Hotfix-Scope.
+Tag-Strategy dynamisch — entweder einzelne v3.2.x patches oder Sammelrelease v3.3.0.

@@ -129,6 +129,83 @@ internal static class RoslynHelper
     }
 
     /// <summary>
+    /// Sprint 147 (ADR-028, Bug #9 architectural fix): build a mutated version of a
+    /// <see cref="SyntaxNode"/> while validating syntax-tree-shape compatibility before
+    /// committing. If the candidate replacement would produce a tree that fails Roslyn's
+    /// typed-visitor traversal (the historical Bug #9 manifestation —
+    /// <c>ParenthesizedExpression</c> in <c>TypeSyntax</c> / <c>SimpleNameSyntax</c> /
+    /// <c>NameSyntax</c>-strict slots), the helper signals failure cleanly and returns
+    /// <paramref name="sourceNode"/> unchanged.
+    /// </summary>
+    /// <typeparam name="T">Type of the node that hosts the mutation.</typeparam>
+    /// <param name="sourceNode">Node of the original tree.</param>
+    /// <param name="mutation">Mutation to apply to the sourceNode.</param>
+    /// <param name="result">When validation succeeds, the mutated tree. Otherwise <paramref name="sourceNode"/>.</param>
+    /// <param name="validationError">When validation fails, a diagnostic describing the slot mismatch.</param>
+    /// <returns><see langword="true"/> when the mutation is structurally valid and was applied; <see langword="false"/> when validation rejected it.</returns>
+    /// <exception cref="InvalidOperationException">when mutation does not belong to this node (orchestrator bug, not a slot-validation failure).</exception>
+    /// <remarks>
+    /// This is the defense-in-depth complement to per-mutator skip lists. Skip lists
+    /// (e.g., <see cref="Stryker.Core.Mutators.UoiMutator.IsInTypeSyntaxPosition"/>) handle
+    /// known incompatible patterns at the source for performance and clarity. This helper
+    /// is the safety net for unknown patterns that escape the skip lists. See ADR-028.
+    /// </remarks>
+    public static bool TryInjectMutation<T>(this T sourceNode, Mutation mutation, out T result, out string? validationError) where T : SyntaxNode
+    {
+        result = sourceNode;
+        validationError = null;
+
+        // Sprint 147 (ADR-028): defensive null-guard. Despite `required SyntaxNode`
+        // on Mutation.OriginalNode/ReplacementNode, mutators have been observed to
+        // emit mutations with null nodes in edge cases (e.g. when an orchestrator's
+        // Mutate-recursion produces a partially-formed mutation). The validator
+        // treats these as slot-incompatible — it skips the mutation cleanly with a
+        // diagnostic instead of letting the null escape into Roslyn-internal calls
+        // where it would manifest as an NRE deep in the typed-visitor cascade
+        // (this is the v3.2.1 NRE-Bug-9 manifestation observed in Calculator-Tester
+        // Bug-Report 4).
+        if (sourceNode is null)
+        {
+            validationError = "sourceNode is null — orchestrator bug, mutation cannot be injected.";
+            return false;
+        }
+        if (mutation is null)
+        {
+            validationError = "Mutation is null — orchestrator bug, no mutation to apply.";
+            return false;
+        }
+        if (mutation.OriginalNode is null)
+        {
+            validationError = $"Mutation has null OriginalNode (display: '{mutation.DisplayName}'). Mutator emitted a malformed mutation.";
+            return false;
+        }
+        if (mutation.ReplacementNode is null)
+        {
+            validationError = $"Mutation has null ReplacementNode (display: '{mutation.DisplayName}'). Mutator emitted a malformed mutation.";
+            return false;
+        }
+
+        if (!sourceNode.Contains(mutation.OriginalNode))
+        {
+            // Sprint 147 (ADR-028): an orchestrator emitted a mutation whose
+            // OriginalNode is outside the host node's subtree (e.g.
+            // GenericConstraintMutator pushes a MethodDeclaration-level mutation into
+            // a child expression's inject frame). Pre-Sprint-147 this was a hard
+            // throw — but a missing-host-node mismatch is functionally identical to
+            // a slot-validation failure: the mutation cannot be applied here. Soft-
+            // failure with a diagnostic preserves the rest of the pipeline.
+            validationError = $"Mutation OriginalNode is not contained in sourceNode "
+                + $"(display: '{mutation.DisplayName}'; OriginalNode kind: {mutation.OriginalNode.Kind()}, "
+                + $"sourceNode kind: {sourceNode.Kind()}). "
+                + "Mutator targeted a different syntax level than the inject frame expects.";
+            return false;
+        }
+
+        return SyntaxSlotValidator.TryReplaceWithValidation(
+            sourceNode, mutation.OriginalNode, mutation.ReplacementNode, out result, out validationError);
+    }
+
+    /// <summary>
     /// Get the gets accessor of a property, if any.
     /// </summary>
     /// <param name="propertyDeclaration">Property.</param>

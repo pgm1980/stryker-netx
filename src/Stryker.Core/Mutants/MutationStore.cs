@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
@@ -159,7 +160,7 @@ internal sealed partial class MutationStore
         }
         var store = _pendingMutations.Peek().Store;
         var result = _mutantPlacer.PlaceExpressionControlledMutations(mutatedNode,
-             store.Select(m => (m, sourceNode.InjectMutation(m.Mutation))));
+            ApplyMutationsValidated(store, sourceNode));
         store.Clear();
         return result;
     }
@@ -174,7 +175,7 @@ internal sealed partial class MutationStore
     {
         var store = _pendingMutations.Peek().Store;
         var result = _mutantPlacer.PlaceStatementControlledMutations(mutatedNode,
-            store.Select(m => (m, sourceNode.InjectMutation(m.Mutation))));
+            ApplyMutationsValidated(store, sourceNode));
         store.Clear();
         return result;
     }
@@ -189,7 +190,7 @@ internal sealed partial class MutationStore
     {
         var store = _pendingMutations.Peek().Store;
         var result = _mutantPlacer.PlaceStatementControlledMutations(mutatedNode,
-            store.Select(m => (m, ((StatementSyntax)sourceNode).InjectMutation(m.Mutation))));
+            ApplyMutationsValidated<StatementSyntax>(store, sourceNode));
         store.Clear();
 
         return result as BlockSyntax ?? SyntaxFactory.Block(result);
@@ -215,10 +216,43 @@ internal sealed partial class MutationStore
             return mutatedNode;
         }
 
-        var result = _mutantPlacer.PlaceStatementControlledMutations(mutatedNode,
-            blockStore.Store.Select(m => (m, wrapper(originalNode.InjectMutation(m.Mutation)))));
+        var validated = ApplyMutationsValidated(blockStore.Store, originalNode)
+            .Select(pair => (pair.mutant, wrapper(pair.mutated)));
+        var result = _mutantPlacer.PlaceStatementControlledMutations(mutatedNode, validated);
         blockStore.Store.Clear();
         return result as BlockSyntax ?? SyntaxFactory.Block(result);
+    }
+
+    /// <summary>
+    /// Sprint 147 (ADR-028, Bug #9 architectural fix from Calculator-Tester Bug-Report 4):
+    /// applies each mutation through <see cref="RoslynHelper.TryInjectMutation"/> so that
+    /// slot-incompatible replacements are rejected before they reach the placer's
+    /// conditional/if envelope. Rejected mutations are marked
+    /// <see cref="MutantStatus.CompileError"/> so reporters classify them correctly, and
+    /// they are excluded from the resulting tree (no behavioural effect, no late visitor
+    /// crash). This is the centre of the validation layer the user requested in Bug-Report 4.
+    /// </summary>
+    /// <typeparam name="T">Type of the host node — typically <see cref="ExpressionSyntax"/> or <see cref="StatementSyntax"/>.</typeparam>
+    private static IEnumerable<(Mutant mutant, T mutated)> ApplyMutationsValidated<T>(
+        IEnumerable<Mutant> mutants,
+        T sourceNode)
+        where T : SyntaxNode
+    {
+        foreach (var mutant in mutants)
+        {
+            if (sourceNode.TryInjectMutation(mutant.Mutation, out var mutated, out var validationError))
+            {
+                yield return (mutant, mutated);
+                continue;
+            }
+
+            // Validator rejected the mutation. Mark it so reporters and the runner
+            // classify it correctly, and skip it from the conditional/if envelope.
+            mutant.ResultStatus = MutantStatus.CompileError;
+            mutant.ResultStatusReason = validationError
+                ?? "Slot-incompatible mutation rejected by SyntaxSlotValidator (ADR-028).";
+            LogValidatorRejected(Logger, mutant.Id, validationError ?? "(no diagnostic)");
+        }
     }
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "{MutationsCount} mutation(s) could not be injected, they are dropped.")]
@@ -226,6 +260,9 @@ internal sealed partial class MutationStore
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "There is no structure to control {MutationsCount} mutations. They are dropped.")]
     private static partial void LogMutationsNoStructure(ILogger logger, int mutationsCount);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "SyntaxSlotValidator rejected mutation {MutantId} (ADR-028): {ValidationError}")]
+    private static partial void LogValidatorRejected(ILogger logger, int mutantId, string validationError);
 
     private sealed class PendingMutations
     {
