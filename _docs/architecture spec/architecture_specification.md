@@ -2530,6 +2530,58 @@ Das Reflection-Fallback war der letzte Block für volle AOT-Trim. Sprint 154 ent
 
 ---
 
+## ADR-037: RoslynSemanticDiagnostics v2 — StatementSyntax coverage extension (v3.2.9 / Sprint 155)
+
+**Status.** Accepted — Sprint 155 (v3.2.9, 2026-05-06).
+
+**Kontext.** Sprint 17 (v2.4.0) hat `RoslynSemanticDiagnosticsEquivalenceFilter` als MVP eingeführt — es nutzt Roslyn's `SemanticModel.GetSpeculativeSymbolInfo(position, expression, BindAsExpression)` um zu prüfen ob ein `ExpressionSyntax`-Replacement im aktuellen Semantic-Context bindbar ist. Sprint 16 hatte als Out-of-Scope-Item dokumentiert: "Statement / declaration replacements need a different speculative API (`TryGetSpeculativeSemanticModel`) which is bulkier per call. Stay conservative and let the v2.1 parser-only filter handle structural validity for those." Sprint 155 schließt diesen deferred-claim.
+
+**Entscheidung.** **Coverage-Erweiterung von ExpressionSyntax auf StatementSyntax** via `TryGetSpeculativeSemanticModel`:
+
+1. `IsEquivalent` dispatched jetzt zwischen drei Pfaden via `switch`-Pattern auf `mutation.ReplacementNode`:
+   - **`ExpressionSyntax`** → bestehender `IsEquivalentExpression` (Sprint 17 path, unverändert).
+   - **`StatementSyntax`** (NEU Sprint 155) → `IsEquivalentStatement`: `TryGetSpeculativeSemanticModel(position, statement, out speculativeModel)`, dann walk-descendants über `ExpressionSyntax` und prüfe pro descendant `GetSymbolInfo` für `Symbol == null && CandidateReason != None`.
+   - **Declaration-level** (alle anderen) → `false` (out-of-scope; v2.1 parser-only Filter handhabt structural validity).
+
+2. **Speculative model GetDiagnostics() ist nicht verwendbar.** Mein erster Implementations-Versuch nutzte `speculativeModel.GetDiagnostics()` — das wirft `NotSupportedException` ("Specified method is not supported." aus `SpeculativeSemanticModelWithMemberModel.GetDiagnostics`). Sprint 155 wechselt zur descendant-walk-Strategie (gleiche Signal-Methode wie Expression-Path: `Symbol == null + CandidateReason != None`).
+
+**Begründung der Wahl.** Maxential 4-Schritte branchless mit 1 Iteration (Test-driven discovery der NotSupportedException):
+1. ToT-Branch S1 (TryGetSpeculativeSemanticModel + GetDiagnostics): Test schlug fehl mit NotSupportedException.
+2. ToT-Branch S2 (TryGetSpeculativeSemanticModel + descendant-walk via GetSymbolInfo): gewählt. Konsistent mit Expression-Path-Signal-Methode.
+3. ToT-Branch S3 (Compilation.AddSyntaxTrees per-mutation): O(parse + bind) per mutation, vs O(1) für speculative path. Sprint 17 hatte das schon explizit verworfen ("the MVP here is what made v2.4.0 inclusion viable"). Sprint 155 hält die O(1)-Disziplin.
+
+**Implementation.**
+
+- `src/Stryker.Core/Mutants/Filters/RoslynSemanticDiagnosticsEquivalenceFilter.cs`:
+  - `IsEquivalent`-Body refactored zu switch-pattern mit 3 Pfaden.
+  - `IsEquivalentExpression` (private static): das bestehende Sprint-17-Verhalten extrahiert (incl. Sprint-137 MemberBindingExpression-Skip + try/catch around speculative-binding).
+  - `IsEquivalentStatement` (private static, NEU): `TryGetSpeculativeSemanticModel` → if false oder model is null → return false. Sonst: foreach `ExpressionSyntax` descendant → `GetSymbolInfo` → if `Symbol == null && CandidateReason != None` → return true. Pre-check skips MemberBindingExpression descendants. Empty-catch via #pragma RCS1075-suppress (intentional skip-on-Roslyn-edge-case).
+
+- `tests/Stryker.Core.Tests/Mutants/Filters/RoslynSemanticDiagnosticsEquivalenceFilterTests.cs`:
+  - Test `IsEquivalent_OnNonExpressionReplacement_ReturnsFalse` umbenannt zu `IsEquivalent_OnStatementReplacementAtInvalidPosition_ReturnsFalse` und Kommentar updated (Sprint-155-Verhalten).
+  - Neuer Test `IsEquivalent_OnDeclarationReplacement_ReturnsFalse` für die declaration-out-of-scope Garantie.
+
+**Konsequenzen.**
+
+- (+) Backlog-Item 2 (RoslynDiagnostics v2) ✓ closed mit ADR-037.
+- (+) Statement-level Mutators (z. B. `StatementMutator`'s return-rewrites, `BlockMutator`'s while-loop-rewrites) bekommen jetzt semantic pre-filtering statt nur den parser-only v2.1 Filter.
+- (+) O(1) per descendant-expression beibehalten — keine `Compilation.AddSyntaxTrees`-Cost.
+- (–) `GetDiagnostics()`-failure ist documented hazard; künftige Erweiterungen sollten den descendant-walk-Pattern erben statt direct `GetDiagnostics()` zu verwenden.
+- (–) MemberBindingExpression-Skip propagiert auch in den statement-path (descendants können MemberBindingExpression-children haben — der Sprint-137-Crash gilt dort auch).
+
+**Supersedes / supplements.**
+
+- **Closes** Sprint-16 deferred-statement-coverage-claim aus `RoslynSemanticDiagnosticsEquivalenceFilter` Sprint-17-XML-doc.
+- **Supplements** ADR-023 + ADR-024 (Sprint 16/17 hybrid source-gen / AOT-trim discipline) — semantic-filter-coverage komplett für Expression + Statement.
+
+**Backed by.** Sprint 155 Maxential 4-Schritte mit 3-Branch ToT (S1=GetDiagnostics-failure, S2=descendant-walk-chosen, S3=compilation-rebuild-rejected). 6 RoslynSemanticDiagnostics-Tests grün (vorher 5 — 1 alter test umbenannt + 1 neuer hinzugefügt). Solution-wide tests grün. Semgrep clean.
+
+**Bezug zu Backlog-Items.**
+
+- Backlog-Item 2 (RoslynDiagnostics v2) ✓ closed mit ADR-037 (Sprint 155 / v3.2.9).
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2554,3 +2606,4 @@ Das Reflection-Fallback war der letzte Block für volle AOT-Trim. Sprint 154 ent
 | 0.18.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 152 v3.2.7: ADR-036 — **CI build+test green** via in-repo test fixtures + cross-platform paths. Über Sprints 147-151 zeigte jede PR ein konsistentes 6/33-SUCCESS-Pattern; build+test (ubuntu/windows) waren rot, integration-test-matrix toleriert als pre-existing flake. Sprint 152 fixt zwei strukturelle Failure-Klassen die build+test betreffen: (A) Stryker.Solutions.Tests `_references/stryker-net/src/Stryker.slnx`-Path nicht in CI-checkout (`.gitignore`-excluded) → vendor als in-repo `tests/Stryker.Solutions.Tests/TestResources/UpstreamStryker.slnx` mit `<None CopyToOutputDirectory>`. (B) ProjectAnalysisMockBuilderTests hardcoded Windows-Path `c:\\src\\MyProject.csproj` → cross-platform via `Path.Combine`. Plus: (D) SseServer test windows-CI flake — 2s Timeout zu eng für slow GitHub Actions Windows runners → 10s. Maxential 4-Schritte branchless. CI-Result: `build + test (ubuntu+windows)` GRÜN (vorher beide FAILURE). Integration-test-matrix Stryker-mutation-engine-Regression (`extern alias TheLog` compile-error in TargetProject) bleibt **honest deferred** als Sprint-153+ separate-investigation. Solution-wide 2047 Tests grün lokal (±0 vs Sprint 151 — kein neuer Test, nur fixes), Semgrep clean. Tag **v3.2.7**. |
 | 0.19.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Doc bundle (post-Sprint-152): ADR-033 + ADR-035. **ADR-033** — Combined Multi-Project Report Aggregation discovery: ADR-031's "v3.3+ deferred"-Claim für Multi-Project-Report-Aggregation war FALSCH — Aggregation ist seit Sprint 1 implementiert via `StrykerRunner.AddRootFolderIfMultiProject` + single `OnAllMutantsTested(rootComponent)` call. Calculator-Tester Bug-Report-5-Verifikation hatte bereits "kombinierter Report" mit 375 Mutanten Total bestätigt. Backlog-Item 7 closed by discovery. **ADR-035** — TypeSyntax-Engine Refactor + HotSwap inkrementelles MT status-quo confirmation: beide Items bleiben in ihren existierenden ADR-Status (027 Phase 3 Skip-as-Architecture / 022 Proposed-no-commitment). Backlog-Items 3+4 closed-as-status-quo. Beide ADRs sind doc-only, kein Sprint, kein neuer Tag. |
 | 0.20.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 154 v3.2.8: ADR-034 — **JsonReport full AOT-trim**. Schließt ADR-024 v3.0-scope-deferral (Sprint 17). Source-gen-Kontext erweitert von 2 entry-types (`JsonReport`, `IJsonReport`) auf 9 types — die 6 konkreten Typen hinter den polymorphen Interface-Konvertern (`SourceFile`, `JsonMutant`, `Location`, `Position`, `JsonTestFile`, `JsonTest`) plus 3 concrete-dictionary-types (`Dictionary<string, SourceFile>` etc). `TypeInfoResolver` umgestellt von `Combine(SourceGen, DefaultReflection)` auf nur `JsonReportSerializerContext.Default` — Reflection-Fallback gestrichen. Hybrid-Custom-Konverter-Design unverändert (SYSLIB1220 verbietet sie auf source-gen attribute). Maxential 4-Schritte branchless. 13 JsonReport-related Tests grün post-change (11 Dogfood + 2 E2E), Solution-wide 2047 Tests grün, Semgrep clean. Tag **v3.2.8** — Backlog-Item 1 closed. |
+| 0.21.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 155 v3.2.9: ADR-037 — **RoslynSemanticDiagnostics v2** StatementSyntax-Coverage. Schließt Sprint-16-deferred-Item: Sprint-17 hatte Statement+Declaration-level Replacements als Out-of-Scope dokumentiert ("would need TryGetSpeculativeSemanticModel which is bulkier per call"). Sprint 155 implementiert Statement-Path. Maxential 4-Schritte mit 3-Branch ToT (S1=GetDiagnostics-fails-NotSupported, **S2=descendant-walk via GetSymbolInfo chosen**, S3=Compilation.AddSyntaxTrees rejected). `IsEquivalent` switch-pattern dispatched ExpressionSyntax → bestehender Sprint-17-Path, StatementSyntax → neuer `IsEquivalentStatement` (TryGetSpeculativeSemanticModel + descendant-walk via GetSymbolInfo, MemberBindingExpression-Skip von Sprint 137 wiederverwendet), Declaration → false (out-of-scope, v2.1 parser-only Filter handhabt structural validity). 6 Tests grün (1 alter test umbenannt mit Sprint-155-Verhalten + 1 neuer Declaration-out-of-scope-Test). O(1) per descendant beibehalten. Semgrep clean. Tag **v3.2.9** — Backlog-Item 2 closed. |

@@ -1,7 +1,7 @@
 ---
-current_sprint: "154"
-sprint_goal: "JsonReport full AOT-trim — schließt ADR-024 v3.0-scope-deferral. Source-gen-Kontext um 6 konkrete Typen + 3 concrete-dictionary-types erweitert. TypeInfoResolver auf Source-Gen-only umgestellt. ADR-034. v3.2.8."
-branch: "feature/154-jsonreport-aot-trim"
+current_sprint: "155"
+sprint_goal: "RoslynSemanticDiagnostics v2 — StatementSyntax-Coverage via TryGetSpeculativeSemanticModel + descendant-walk. Schließt Sprint-16-deferred-Item. ADR-037. v3.2.9."
+branch: "feature/155-roslyn-semantic-statements"
 started_at: "2026-05-06"
 housekeeping_done: false
 memory_updated: false
@@ -11,30 +11,34 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 154 in progress (JsonReport full AOT-trim)
+# Session State — Sprint 155 in progress (RoslynDiagnostics v2)
 
-## Sprint 154 — ADR-034 (Maxential 4-Schritte branchless)
+## Sprint 155 — ADR-037 (Maxential 4-Schritte, 3 ToT-Branches)
 
-**Decision:** Konkrete Typen werden zur Source-Gen-Kontext registriert. `TypeInfoResolver` wird umgestellt von `JsonTypeInfoResolver.Combine(SourceGen, DefaultReflection)` auf nur `JsonReportSerializerContext.Default`. Hybrid-Custom-Konverter-Design unverändert (SYSLIB1220-restriction).
+**Decision:** S2 (TryGetSpeculativeSemanticModel + descendant-walk via GetSymbolInfo) gewählt.
 
-## Sprint-154-Phasen
+**Verworfen:**
+- S1 (TryGetSpeculativeSemanticModel + GetDiagnostics): NotSupportedException aus SpeculativeSemanticModelWithMemberModel.GetDiagnostics
+- S3 (Compilation.AddSyntaxTrees per-mutation): O(parse + bind) statt O(1)
 
-- **Phase A** ✅ Maxential 4-Schritte branchless (no ToT — clean change-set)
-- **Phase B** ✅ Code-Audit der 6 Custom-Konverter (SourceFile/JsonMutant/Location/Position/JsonTestFile/JsonTest) — alle delegieren via `JsonSerializer.Serialize<TConcrete>` → wenn TypeInfoResolver Source-Gen-JsonTypeInfo liefert, läuft alles ohne Reflection
-- **Phase C** ✅ JsonReportSerializerContext erweitert: 6 konkrete Typen + 3 Concrete-Dictionary-types als `[JsonSerializable]`
-- **Phase D** ✅ JsonReportSerialization: TypeInfoResolver umgestellt auf nur Source-Gen
-- **Phase E** ✅ JsonReport-Tests grün (11 Dogfood + 2 E2E = 13/13). Solution-wide 2047 grün, Semgrep clean
-- **Phase F** ✅ ADR-034 + 0.20.0 history-row geschrieben
-- **Phase G** PR + merge + tag v3.2.8
+## Sprint-155-Phasen
 
-## Backlog Status nach Sprint 154
+- **Phase A** ✅ Maxential 4-Schritte (S1 test-failure → S2 chosen)
+- **Phase B** ✅ Code-Audit Sprint-17 RoslynSemanticDiagnosticsEquivalenceFilter — Statement+Declaration explicit out-of-scope per Sprint-16-deferral
+- **Phase C** ✅ IsEquivalent switch-pattern: ExpressionSyntax → IsEquivalentExpression (Sprint 17 unchanged), StatementSyntax → IsEquivalentStatement (NEU), Declaration → false
+- **Phase D** ✅ TryGetSpeculativeSemanticModel + descendant-walk + Sprint-137 MemberBindingExpression-skip
+- **Phase E** ✅ 6 RoslynSemanticDiagnostics-Tests grün (1 renamed + 1 neu)
+- **Phase F** ✅ Solution-wide build (0 W / 0 E), Semgrep clean
+- **Phase G** ✅ ADR-037 + 0.21.0 history
+- **Phase H** PR + merge + tag v3.2.9
 
-- ✓ Item 1 (JsonReport full AOT-trim) closed — ADR-034 (Sprint 154 / v3.2.8)
-- ✓ Item 3 (TypeSyntax-Engine) closed-as-status-quo — ADR-035
-- ✓ Item 4 (HotSwap-incremental) closed-as-status-quo — ADR-035
-- ✓ Item 5 (CI flakes) class-A+B+D closed; class-C deferred — ADR-036 (Sprint 152)
-- ✓ Item 7 (Combined Report) closed-by-discovery — ADR-033
+## Backlog-Status nach Sprint 155
 
-Remaining:
-- Item 2 (RoslynDiagnostics v2) — Sprint 155
-- Item 6 (Issue #191 MutationTestProcessTests) — Sprint 156
+- ✓ Item 1 (JsonReport AOT-trim) — Sprint 154 / ADR-034
+- ✓ Item 2 (RoslynDiagnostics v2) — Sprint 155 / ADR-037
+- ✓ Item 3 (TypeSyntax-Engine) — ADR-035 status-quo
+- ✓ Item 4 (HotSwap-incremental) — ADR-035 status-quo
+- ✓ Item 5 (CI flakes Class A+B+D) — Sprint 152 / ADR-036; Class C deferred
+- ✓ Item 7 (Combined Report) — ADR-033 discovery
+
+Remaining: Item 6 (Issue #191 MutationTestProcessTests port) — Sprint 156
