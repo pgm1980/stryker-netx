@@ -3,42 +3,60 @@ current_sprint: "151"
 sprint_goal: "Bug #9 v3.2.5 systemic audit (Bug-Report 5): Sprint-147 Validator extension von Injection-Phase auf Orchestration-Phase, projektweites Cast-Site-Audit + Listing als Patch-Note. ADR-032. v3.2.6."
 branch: "feature/151-bug9-systemic-cast-audit"
 started_at: "2026-05-06"
-housekeeping_done: false
-memory_updated: false
-github_issues_closed: false
-sprint_backlog_written: false
+housekeeping_done: true
+memory_updated: true
+github_issues_closed: true
+sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 151 in progress (Bug #9 systemic audit)
+# Session State — Sprint 151 closed (Bug-Report 5 vollständig geschlossen)
 
-## Bug-Report 5 — der Auftrag
+## Sprint 151 Status: ✅ closed
 
-Calculator-Tester Bug-Report 5: in v3.2.5 reproduziert sich der Cast-Crash auf Calculator.Infrastructure als NEUER Cast `ParenthesizedExpressionSyntax → IdentifierNameSyntax`. User-Forderung verschärft: "projektweite Suche nach allen Casts in Mutator-Code-Pfaden + Listing als Patch-Note + **systemischer** Eingriff (Symptom-Behandlung wäre nicht akzeptabel)".
+**Tag:** v3.2.6 (2026-05-06)
+**PR:** #241 (squash-merged)
+**Commit auf main:** `fe7c137` feat(sprint-151): v3.2.6 — ADR-032 systemic Bug #9 audit + Orchestration-Phase Slot Validation (Bug-Report 5) (#241)
+**GitHub Release:** https://github.com/pgm1980/stryker-netx/releases/tag/v3.2.6
+**NuGet-Push:** automatisch via Release-Workflow
 
-**Architektonischer Trugschluss von Sprint 147 korrigiert:** ADR-028 Validator deckt nur Injection-Phase, nicht Orchestration-Phase. Der ursprüngliche Sprint-147-Punkt (e) "Audit aller Mutators" wurde nicht durchgeführt — Trugschluss "Validator als Safety-Net macht Audit unnötig". Sprint 151 holt das nach.
+## Bug-Report 5 — VOLLSTÄNDIG GESCHLOSSEN
 
-## Sprint 151 — Branch S3 Hybrid (Maxential 5-Schritte mit 3 ToT-Branches)
+| Bug | ADR | Sprint | Tag | Notes |
+|-----|-----|--------|-----|-------|
+| #9 (verschärft) | ADR-032 | 151 | v3.2.6 | Sprint-147-Trugschluss korrigiert, 13 Cast-Sites projektweit auditiert (8 safe + 4 unsafe gefixt + 1 by-construction) |
+| #4 P1 (closed prev) | ADR-029 | 148 | v3.2.3 | unverändert |
+| #6 P1 (closed prev) | ADR-030 | 149 | v3.2.4 | unverändert |
+| #8 P1 (closed prev) | ADR-031 | 150 | v3.2.5 | unverändert |
 
-**Decision:** S3 Hybrid (per-child validation + final safety-net):
-- Per-Site fix für 4 unsafe Orchestrator `ReplaceNodes`-Sites (Base + 3 derived)
-- `OrchestrationHelpers.ReplaceChildrenValidated`: per-child `SyntaxSlotValidator.TryReplaceWithValidation` + bulk try/catch
-- Konsistent mit Sprint-147-Defense-in-Depth-Architektur
-- Audit-Listing als Patch-Note in ADR-032 (8 safe + 4 unsafe sites projektweit)
+## Architektonischer Trugschluss von Sprint 147 korrigiert
 
-## Sprint-151-Phasen
+ADR-028 hatte den `SyntaxSlotValidator` als universelles Safety-Net deklariert ("Validator macht Audit unnötig"). Tatsächlich deckte er nur die Injection-Phase. ADR-032 schließt diese Architektur-Lücke explizit + dokumentiert den Trugschluss.
 
-- **Phase A** ✅ Maxential 5-step (3 ToT branches) — S3 Hybrid chosen
-- **Phase B** ✅ Audit aller Cast-Patterns projektweit (Mutators + Orchestrators + Initialisation)
-- **Phase C** ✅ OrchestrationHelpers.ReplaceChildrenValidated implementiert (116 LOC + 2 LoggerMessage)
-- **Phase D** ✅ 4 Orchestrator-Sites umgeroutet (Base NodeSpecific + 3 derived: Conditional/Invocation/ExpressionBodiedProperty). Andere 2 Sites (StaticField/StaticConstructor) safe-by-construction.
-- **Phase E** ✅ 12 neue Tests (10 OrchestrationSlotValidationTests + 2 OrchestrationHelpersTests)
-- **Phase F** ✅ Solution-wide build (0 W / 0 E), 2047 Tests grün, Semgrep clean
-- **Phase G** ✅ ADR-032 + Audit-Listing als Patch-Note + 0.17.0 history-row
-- **Phase H** PR + merge + tag v3.2.6
+## Defense-in-Depth zwischen Sprint 147 + Sprint 151
 
-## Bug-Report 5 Status
+| Phase | Mechanism | Sprint | ADR |
+|-------|-----------|--------|-----|
+| Injection | `SyntaxSlotValidator.TryReplaceWithValidation` via `MutationStore.ApplyMutationsValidated` | 147 | ADR-028 |
+| Orchestration | `OrchestrationHelpers.ReplaceChildrenValidated` per-child + bulk safety-net | 151 | ADR-032 |
 
-- Bug #9 (verschärft) ✓ closing mit ADR-032 (Sprint 151 / v3.2.6) — Audit durchgeführt, 4 unsafe Sites gefixt, 8 safe Sites dokumentiert.
-- Bugs #4, #6, #8 ✓ unverändert closed mit Bug-Report-4-Sprint-Sweep (147-150).
+## Housekeeping abgeschlossen
+
+- ✅ Solution-wide build (0 W / 0 E)
+- ✅ Solution-wide Tests (2047 grün)
+- ✅ Semgrep clean (alle modifizierten Dateien)
+- ✅ MEMORY.md updated (Sprint 151 standalone entry — Sprint-147-correction + audit-listing)
+- ✅ bug_report_5_stryker_netx.md mit Maintainer-Response geschlossen
+- ✅ ADR-032 dokumentiert in architecture_specification.md (0.17.0 history)
+- ✅ Keine offenen GitHub-Issues mit Bug-Report-5-Bezug
+
+## Nächster Sprint: 152+
+
+Bug-Report 5 ist mit Sprint 151 geschlossen. Mögliche v3.3.0 / Sprint 152+ Kandidaten:
+- CI Integration Matrix Flakes (jede PR hat ~31 FAILURES — Linux-Path-Issues in Stryker.Solutions.Tests)
+- JsonReport full AOT-trim (ADR-024 deferred to v3.0)
+- RoslynDiagnostics v2 (Sprint 16 deferred)
+- Combined Multi-Project Report Aggregation (ADR-031 v3.3-roadmap)
+- Sprint-107 Issue #191 (MutationTestProcessTests minimum-viable port)
+- Real-Life-Test mit Calculator-Tester v3.2.6

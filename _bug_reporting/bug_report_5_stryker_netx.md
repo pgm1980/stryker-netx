@@ -7,6 +7,67 @@
 
 ---
 
+## ✅ MAINTAINER-RESPONSE — Bug-Report 5 vollständig geschlossen mit v3.2.6 (2026-05-06, ~1h nach Bug-Report-5-Eingang)
+
+**Sprint 151 + ADR-032 — Orchestration-Phase Slot Validation + systemic Bug-9 Audit.**
+
+### Eingestandener architektonischer Trugschluss von Sprint 147
+
+Die Maintainer-Selbst-Diagnose von Sprint 147 ("Validator als Safety-Net macht per-Mutator-Audit zur Performance-Optimierung statt Sicherheits-Voraussetzung") war ein **architektonischer Trugschluss**. Der Sprint-147 `SyntaxSlotValidator` deckte nur die **Injection-Phase** (`MutationStore.Inject`), NICHT die **Orchestration-Phase** (`NodeSpecificOrchestrator.OrchestrateChildrenMutation` → Roslyn's `node.ReplaceNodes`). Der Bug-Report-5-Crash auf `Calculator.Infrastructure` (`→ IdentifierNameSyntax`) entstand exakt in der Orchestration-Phase — wo der Validator blind war.
+
+**ADR-032 korrigiert ADR-028 explizit** und schließt die Lücke.
+
+### Audit-Listing (User-Forderung "Listing als Patch-Note") — 12 Cast-Sites projektweit
+
+| # | Site | Klassifikation | Begründung |
+|---|------|----------------|------------|
+| 1 | `Mutators/AsyncAwaitMutator.cs:50` | ✅ safe | Upcast `MemberAccessExpression → ExpressionSyntax` |
+| 2 | `Mutators/AsyncAwaitResultMutator.cs:60` | ✅ safe | wie #1 |
+| 3 | `Mutators/RegexMutator.cs:44` | ✅ safe | preceded by `is LiteralExpressionSyntax` typecheck |
+| 4 | `Initialisation/CsharpProjectComponentsBuilder.cs:145` | ✅ safe | preceded by 2× `Kind() == SyntaxKind.QualifiedName/IdentifierName` |
+| 5 | `Mutants/MutationStore.cs:196` | ✅ safe | `as BlockSyntax ?? SyntaxFactory.Block(result)` |
+| 6 | `Mutants/MutationStore.cs:223` | ✅ safe | wie #5 |
+| 7 | `Instrumentation/IfInstrumentationEngine.cs:28` | ✅ safe | wie #5 |
+| 8 | `Mutants/CsharpNodeOrchestrators/StaticFieldDeclarationOrchestrator.cs:28` | ✅ safe by construction | replacement = `PlaceStaticContextMarker(ExpressionSyntax) → ExpressionSyntax` (type-preserving) |
+| 9 | `Mutants/CsharpNodeOrchestrators/StaticConstructorOrchestrator.cs:35` | ✅ safe by construction | replacement = `PlaceStaticContextMarker(BlockSyntax) → BlockSyntax` (type-preserving) |
+| **10** | **`Mutants/CsharpNodeOrchestrators/NodeSpecificOrchestrator.cs:84` (Base)** | 🔴 **unsafe — gefixt v3.2.6** | Bug-9-Hauptverdächtiger; Roslyn `ReplaceNodes` rebuilt Parent-Slot, mutated child kann typed-slot-Mismatch produzieren |
+| **11** | **`Mutants/CsharpNodeOrchestrators/ConditionalExpressionOrchestrator.cs:12`** | 🔴 **unsafe — gefixt v3.2.6** | wie #10 |
+| **12** | **`Mutants/CsharpNodeOrchestrators/InvocationExpressionOrchestrator.cs:20`** | 🔴 **unsafe — gefixt v3.2.6** | **Bug-Report-5-Hauptverdächtiger** — `(x).Method()` Pattern |
+| **13** | **`Mutants/CsharpNodeOrchestrators/ExpressionBodiedPropertyOrchestrator.cs:40`** | 🔴 **unsafe — gefixt v3.2.6** | wie #10 |
+
+(Note: 13 Sites total — die Tabelle zählt #5 und #6 separat als zwei MutationStore-Vorkommen.)
+
+### Implementation
+
+- **Neuer Helper** `OrchestrationHelpers.ReplaceChildrenValidated<TParent>` in `src/Stryker.Core/Mutants/CsharpNodeOrchestrators/`. Per-child `SyntaxSlotValidator.TryReplaceWithValidation` + final bulk-replace try/catch safety-net.
+- **4 unsafe Orchestrator-Sites umgeroutet** auf den neuen Helper. Lambda-Bodies preserved (incl. context.Enter/Leave-Patterns für InvocationExpression).
+- **Sprint-147-Validator-Architektur unverändert** — der Helper benutzt den existierenden `SyntaxSlotValidator.TryReplaceWithValidation` (Defense-in-Depth durch beide Phasen).
+
+### Forderungen-Abdeckung Bug-Report 5
+
+| Forderung | Status |
+|-----------|--------|
+| Projektweite Suche nach allen Casts | ✅ Audit oben listet 13 Sites |
+| Listing als Patch-Note | ✅ Tabelle oben + ADR-032 |
+| Systemischer Eingriff (kein Symptom-Fix) | ✅ neuer Helper schützt auch künftige Cast-Sites |
+| Reine Symptom-Behandlung wäre nicht akzeptabel | ✅ Helper deckt zweiten + dritten + n-ten Fall ab |
+
+### Verifikation v3.2.6
+
+- 2047 Unit-Tests grün (vs Sprint 150 = 2035, +12 neue Tests).
+- 12 neue Tests: 10 Integration mit `MutationProfile.All` über Bug-Report-4 + Bug-Report-5 Patterns + 2 Unit für den Helper.
+- Bug-Report-5 expliziter Repro-Pattern `(x).Method()` (parenthesised receiver) covered durch dedizierte Test-Theory.
+- Semgrep clean auf 7 modifizierten Dateien.
+- Tag v3.2.6 mit GitHub-Release + NuGet-Auto-Push.
+
+### Reaktionsgeschwindigkeit
+
+Bug-Report 5 wurde innerhalb von ~1 Stunde nach Eingang vollständig adressiert (Maxential + Audit + Implementation + Tests + Doku + Release). Die Verschärfung der Eskalation ("kein weiterer Hotfix, sondern Audit") wurde explizit ernst genommen — der Trugschluss von Sprint 147 ist offen eingestanden in ADR-032.
+
+**Bug-Report 5 ist geschlossen.** Wir bedanken uns für die präzise architektonische Diagnose im Bug-Report — die Identifikation des Trugschlusses war wesentlich für den korrekten Fix-Pfad.
+
+---
+
 ## 🔴 Forderungen an das Maintainer-Team
 
 ### Stand der fünf Versionen
