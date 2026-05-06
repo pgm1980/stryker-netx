@@ -2350,6 +2350,58 @@ Projektweites Pattern-Match aller Cast-Stellen `(SyntaxType)expr` und `expr as S
 
 ---
 
+## ADR-036: CI build+test green via in-repo test fixtures + cross-platform paths (v3.2.7 / Sprint 152)
+
+**Status.** Accepted — Sprint 152 (v3.2.7, 2026-05-06).
+
+**Kontext.** Über Sprints 147–151 zeigte jede PR ein konsistentes CI-Pattern von 6/33 SUCCESS — die `build + test (ubuntu-latest)` und `build + test (windows-latest)` Jobs waren rot, wurden aber als "pre-existing flake" toleriert beim Merge. Die Failures zerfielen in zwei strukturell unterschiedliche Klassen:
+
+1. **Stryker.Solutions.Tests Linux-Path** (4 tests): nutzten `_references/stryker-net/src/Stryker.slnx` als test fixture — aber `_references/` ist via `.gitignore` ausgeschlossen, so dass CI-Checkouts die Datei NICHT haben (`DirectoryNotFoundException: Could not find a part of the path '/home/runner/work/stryker-netx/stryker-netx/_references/stryker-net/src/Stryker.slnx'`).
+2. **ProjectAnalysisMockBuilderTests Windows-Path** (1 test): hardcoded `"c:\\src\\MyProject.csproj"` — auf Linux/macOS ist `\` kein Pfad-Separator, so dass `Path.GetFileNameWithoutExtension` die ganze Eingabe als single filename behandelt und `"c:\\src\\MyProject"` statt `"MyProject"` liefert.
+
+Plus die separate **integration-test-Matrix** (~25 tests) mit `extern alias TheLog`-Compile-Errors während Stryker's Mutation auf `integrationtest/TargetProjects/NetCore/TargetProject/StrykerFeatures/UseAssert.cs` — das ist eine Stryker-Mutation-Engine-Regression (likely seit Sprint 4 Bug-5 Path-A "surgical augmentation of _references" weiter divergiert), nicht in Sprint-152-Scope.
+
+**Entscheidung.** Sprint 152 fixt die zwei build+test-Klassen (höchster amortisierter Hebel über alle künftigen PRs):
+
+- **Stryker.Solutions.Tests fix**: vendor `Stryker.slnx` als in-repo test-resource bei `tests/Stryker.Solutions.Tests/TestResources/UpstreamStryker.slnx`. CSproj `<None Include="TestResources\**\*"><CopyToOutputDirectory>` kopiert es in den Test-Bin. Tests nutzen jetzt `Path.Combine(AppContext.BaseDirectory, "TestResources", "UpstreamStryker.slnx")` statt der relativen `_references/`-Pfads. Die slnx ist self-contained XML — keine Reload-Pfade hängen davon ab.
+- **ProjectAnalysisMockBuilder fix**: ersetze hardcoded `"c:\\src\\MyProject.csproj"` durch `Path.Combine("src", "MyProject.csproj")` und ähnliche cross-platform-Konstruktionen. Das Test-Intent ("WithProjectFilePath leitet AssemblyName + TargetFileName + TargetDir korrekt ab") ist unverändert; nur die Eingabe-Pfade sind portabel.
+
+Die integration-test-Matrix (Stryker-mutation-engine-Regression auf TargetProject) bleibt **honest deferred** als Sprint-153+-Followup mit explizitem ADR-Verweis.
+
+**Begründung der Wahl.** Maxential 4-Schritte branchless:
+1. Sprint-152-Scope: "CI flakes". Two flake-classes identifiziert via Job-Log-Analyse.
+2. Class A (Solutions.Tests Linux-Path): `_references/`-`.gitignore`-Exclusion ist die Wurzel. 3 Lösungspfade — vendor (gewählt: minimal-invasiv, schon das Pattern bei `integrationtest/`), un-gitignore (würde alle `_references/`-Subfolder einschließen, zu invasiv), test-skip (Verluste an Coverage). Vendor gewählt.
+3. Class B (Mock builder Windows-Path): hardcoded Windows-paths sind plain test-bug. Cross-platform via `Path.Combine` ist die Standard-Lösung.
+4. Class C (integration-test compile-error): Stryker-mutation-engine-Issue, deutlich komplexer, eigenes Investigation. Sprint-152 dokumentiert das als deferred.
+
+**Implementation.**
+
+- `tests/Stryker.Solutions.Tests/TestResources/UpstreamStryker.slnx` (neu, copy of `_references/stryker-net/src/Stryker.slnx` — same XML content, in-repo)
+- `tests/Stryker.Solutions.Tests/Stryker.Solutions.Tests.csproj`: `<None Include="TestResources\**\*">` `<CopyToOutputDirectory>` ItemGroup hinzugefügt
+- `tests/Stryker.Solutions.Tests/SolutionFileShould.cs`: `UpstreamSlnxPath` umgestellt von `Path.Combine("..", "..", "..", "..", "..", "_references", ...)` zu `Path.Combine(AppContext.BaseDirectory, "TestResources", "UpstreamStryker.slnx")`. XML-doc erwähnt Sprint-152 ADR-036 + den neuen Pattern.
+- `tests/Stryker.Core.Dogfood.Tests/TestHelpers/ProjectAnalysisMockBuilderTests.cs`: 4 hardcoded Windows-Paths (`c:\\src\\MyProject.csproj`, `c:\\out\\bin`, `d:\\custom\\Foo.dll`) refactored zu `Path.Combine(...)`-static-readonly-fields. Test-Intent unverändert.
+
+**Konsequenzen.**
+
+- (+) build + test (ubuntu-latest) und build + test (windows-latest) sollen jetzt grün laufen. Erwartetes neues CI-Pattern: ~30/9 SUCCESS statt vorher ~6/33 — die ~25 macOS/Ubuntu integration-test failures bleiben als Sprint-153+-Backlog markiert.
+- (+) Test-Resource-Vendor-Pattern (in-repo TestResources/ + CopyToOutputDirectory) ist konsistent mit anderen Test-Projekten (`integrationtest/TargetProjects/` ist schon in-repo).
+- (+) Cross-platform-Tests verifizieren Code auf allen drei OSes (Windows local + Linux/macOS CI).
+- (–) Slnx-Datei doppelt vorhanden (in `_references/` UND in `TestResources/`). Wenn upstream Stryker.NET die Solution-Struktur ändert, müssen wir nachziehen. Mitigation: das ist kein häufiges Event (slnx-Struktur ist stabil seit upstream 4.14).
+- (–) integration-test-Matrix Failures bleiben offen — explizit deferred. Bug "Stryker mutiert eigene integration-test TargetProject mit compile-errors" braucht eigene Investigation (Sprint-153+).
+
+**Supersedes / supplements.**
+
+- Supplements Sprint 4 Path A ("surgical augmentation of _references"). Path A war für Pillar-A run-to-completion; Sprint 152 fixt die Test-Resource-Layer separately.
+- Kein direkter Supersede.
+
+**Backed by.** Sprint 152 Maxential 4-Schritte branchless. CI-Job-Log-Analyse (job 74670816373 ubuntu-latest build+test) zeigte beide Failure-Klassen explizit. Solution-wide 2047 Tests grün lokal (vs Sprint 151 = 2047, ±0 — kein neuer Test, nur fixes für bestehende Tests). Semgrep clean (0 Findings auf 3 modifizierten Dateien).
+
+**Bezug zu Backlog-Items.**
+
+- Backlog-Item 5 (CI Integration Matrix Flakes) ✓ teilweise closed: build+test grün-pfad gefixt; macOS/Ubuntu integration-matrix bleibt deferred als separate Sprint-153+-Aufgabe.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2371,3 +2423,4 @@ Projektweites Pattern-Match aller Cast-Stellen `(SyntaxType)expr` und `expr as S
 | 0.15.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 149 v3.2.4: ADR-030 — `--reporters` Plural-Alias via args-Pre-Processor. Calculator-Tester Bug-Report 4, Bug #6: externe Tutorials/Doku schreiben oft `--reporters` (Plural), McMaster lehnt das mit "Unrecognized option" + "Did you mean: reporter" ab. Maxential (3-Schritte): Option A (args-rewrite) gewählt vs B (zweite Option-Registrierung) vs C (McMaster-Subclass). `RewriteReportersAlias(string[]) → string[]` rewrites `--reporters`, `--reporters=…`, `--reporters:…` zu Singular-Form BEFORE McMaster sieht args. Konsistent mit Sprint-148-Pattern (Pre-Processor). False-Positive-Guard: `--reportersx` fällt durch zu McMaster's "Did you mean"-Hilfe. 10 neue Tests (5 Rewrite + 4 Non-Rewrite + 1 E2E). Solution-wide 844 Unit-Tests grün (vs Sprint 148 = 834, +10), Semgrep clean. Tag **v3.2.4** — Bug #6 closed. Bug #8 → Sprint 150. |
 | 0.16.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 150 v3.2.5: ADR-031 — `--all-projects` Multi-Project-Mutation Flag. Calculator-Tester Bug-Report 4, Bug #8: Test-Projekte mit mehreren Source-Project-Referenzen (Clean-Architecture: Domain + Infrastructure + App) krachten mit "Test project contains more than one project reference. Please set the project option…". Sprint-141-Workaround `--solution` setzt Solution-Datei voraus + scannt ALLE Solution-Projekte; User wollte per-Test-Project-Scope. Maxential 11 Schritte mit 2 ToT-Branches → B1 (Flag) gewählt vs B2 (Multi-`--project` MultipleValue, breaking-change auf SourceProjectName). Neue `AllProjectsInput` (NoValue, long-only) + IStrykerOptions.IsAllProjectsMode + InputFileResolver.ResolveMultiReferenceCase Helper (MA0051-Cap-Refactor). Bei `--all-projects` UND multi-reference → return alle SourceProjectInfo statt throw. ProjectOrchestrator iteriert ohnehin (Solution-Mode-Pfad), kein Engine-Refactor nötig. Verbesserte Fehlermeldung: zeigt jetzt `--all-projects` UND `--solution` als Alternativen. 7 neue Tests (5 AllProjectsInputTests + 2 CLI-Plumbing). Solution-wide 2035 Unit-Tests grün, Semgrep clean. Tag **v3.2.5** — Bug #8 closed. **Bug-Report 4 vollständig geschlossen** (Bugs #4, #6, #8, #9 alle via ADRs 028–031 architektonisch fixed). |
 | 0.17.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 151 v3.2.6: ADR-032 — **Orchestration-Phase Slot Validation**. Calculator-Tester Bug-Report 5 (verschärfte Bug-9-Forderung): in v3.2.5 reproduziert sich der Cast-Crash auf Calculator.Infrastructure als `ParenthesizedExpressionSyntax → IdentifierNameSyntax` (statt v3.2.x's `→ TypeSyntax`). User-Forderung verschärft: "projektweite Suche nach allen impliziten oder expliziten Casts in Mutator-Code-Pfaden + Listing als Patch-Note + systemischer Eingriff statt Symptom". Maxential 5-Schritte mit 3-Branch ToT (S1/S2/**S3 Hybrid chosen**). **Architektonischer Trugschluss von Sprint 147 korrigiert**: ADR-028 Validator deckt nur Injection-Phase, nicht Orchestration-Phase. Audit aller 12 projektweiten Cast-Sites in Mutator/Orchestrator-Code: 8 safe (upcast/by-construction/`??`-Fallback), 4 unsafe (NodeSpecific/Conditional/Invocation/ExpressionBodiedProperty Orchestrators' `node.ReplaceNodes`-Calls). Neue `OrchestrationHelpers.ReplaceChildrenValidated`: per-child `SyntaxSlotValidator.TryReplaceWithValidation` + bulk-replace try/catch safety-net. Defense-in-Depth zwischen Sprint-147 (Injection) + Sprint-151 (Orchestration). 12 neue Tests (10 Integration mit MutationProfile.All über Bug-Report-4+5 Patterns + 2 Unit). Solution-wide 2047 Unit-Tests grün (vs Sprint 150 = 2035, +12), Semgrep clean. Tag **v3.2.6** — Bug #9 systemic fix + audit listing als Patch-Note. **Bug-Report 5 closed.** |
+| 0.18.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 152 v3.2.7: ADR-036 — **CI build+test green** via in-repo test fixtures + cross-platform paths. Über Sprints 147-151 zeigte jede PR ein konsistentes 6/33-SUCCESS-Pattern; build+test (ubuntu/windows) waren rot, integration-test-matrix toleriert als pre-existing flake. Sprint 152 fixt zwei strukturelle Failure-Klassen die build+test betreffen: (A) Stryker.Solutions.Tests `_references/stryker-net/src/Stryker.slnx`-Path nicht in CI-checkout (`.gitignore`-excluded) → vendor als in-repo `tests/Stryker.Solutions.Tests/TestResources/UpstreamStryker.slnx` mit `<None CopyToOutputDirectory>`. (B) ProjectAnalysisMockBuilderTests hardcoded Windows-Path `c:\\src\\MyProject.csproj` → cross-platform via `Path.Combine`. Maxential 4-Schritte branchless. Erwartung: build+test (ubuntu+windows) jetzt grün, ~30/9 SUCCESS-Pattern statt 6/33. Integration-test-matrix Stryker-mutation-engine-Regression (`extern alias TheLog` compile-error in TargetProject) bleibt **honest deferred** als Sprint-153+ separate-investigation. Solution-wide 2047 Tests grün lokal (±0 vs Sprint 151 — kein neuer Test, nur fixes), Semgrep clean. Tag **v3.2.7**. |

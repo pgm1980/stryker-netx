@@ -38,14 +38,22 @@ public class ProjectAnalysisMockBuilderTests
         analysis.ReferenceAliases.Should().BeEmpty();
     }
 
+    // Sprint 152 (ADR-036, CI matrix flake fix): cross-platform paths via Path.Combine
+    // instead of hardcoded Windows-style "c:\\src\\…" — backslash is not a path separator
+    // on Linux/macOS, so Path.GetFileNameWithoutExtension treated the whole string as a
+    // single filename and the test failed on Ubuntu/macOS CI runners.
+    private static readonly string s_srcProjectFilePath = Path.Combine("src", "MyProject.csproj");
+    private static readonly string s_outBinDir = Path.Combine("out", "bin");
+    private static readonly string s_customFilePath = Path.Combine("custom", "Foo.dll");
+
     [Fact]
     public void WithProjectFilePath_DerivesAssemblyNameAndTargetFileNameAndTargetDir()
     {
         var analysis = new ProjectAnalysisMockBuilder()
-            .WithProjectFilePath("c:\\src\\MyProject.csproj")
+            .WithProjectFilePath(s_srcProjectFilePath)
             .Build();
 
-        analysis.ProjectFilePath.Should().Be("c:\\src\\MyProject.csproj");
+        analysis.ProjectFilePath.Should().Be(s_srcProjectFilePath);
         analysis.AssemblyName.Should().Be("MyProject");
         analysis.TargetFileName.Should().Be("MyProject.dll");
         analysis.TargetDir.Should().EndWith(Path.Combine("bin", "Debug", "net10.0"));
@@ -56,7 +64,7 @@ public class ProjectAnalysisMockBuilderTests
     public void WithExplicitAssemblyName_OverridesProjectFileNameDerivation()
     {
         var analysis = new ProjectAnalysisMockBuilder()
-            .WithProjectFilePath("c:\\src\\MyProject.csproj")
+            .WithProjectFilePath(s_srcProjectFilePath)
             .WithAssemblyName("CustomAssembly")
             .Build();
 
@@ -68,25 +76,25 @@ public class ProjectAnalysisMockBuilderTests
     public void WithExplicitTargetDirAndTargetFileName_ComputesOutputFilePath()
     {
         var analysis = new ProjectAnalysisMockBuilder()
-            .WithTargetDir("c:\\out\\bin")
+            .WithTargetDir(s_outBinDir)
             .WithTargetFileName("Foo.dll")
             .Build();
 
-        analysis.TargetDir.Should().Be("c:\\out\\bin");
+        analysis.TargetDir.Should().Be(s_outBinDir);
         analysis.TargetFileName.Should().Be("Foo.dll");
-        analysis.OutputFilePath.Should().Be(Path.Combine("c:\\out\\bin", "Foo.dll"));
+        analysis.OutputFilePath.Should().Be(Path.Combine(s_outBinDir, "Foo.dll"));
     }
 
     [Fact]
     public void WithExplicitOutputFilePath_OverridesDerivation()
     {
         var analysis = new ProjectAnalysisMockBuilder()
-            .WithTargetDir("c:\\out\\bin")
+            .WithTargetDir(s_outBinDir)
             .WithTargetFileName("Foo.dll")
-            .WithOutputFilePath("d:\\custom\\Foo.dll")
+            .WithOutputFilePath(s_customFilePath)
             .Build();
 
-        analysis.OutputFilePath.Should().Be("d:\\custom\\Foo.dll");
+        analysis.OutputFilePath.Should().Be(s_customFilePath);
     }
 
     [Fact]
