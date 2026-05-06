@@ -1,7 +1,7 @@
 ---
-current_sprint: "144"
-sprint_goal: "v3.2.0-dev Phase 2 — type-position-aware mutation control: CAE-aware lift für MB.Name + MA-in-CAE-WhenNotNull-subtree (UoiMutator walk-up bis enclosing CAE). KEIN Tag — multi-sprint refactor, Phase 3 outstanding."
-branch: "feature/144-engine-refactor-part2-uoi-cae-lift"
+current_sprint: "145"
+sprint_goal: "v3.2.0 Phase 3 — Skip-Formalization (ADR-027 Maxential-Trail Decision: Option F). TypeSyntax-Engine-Refactor wegen Cost/Benefit verworfen. ADR-027 schließt; v3.2.0 Tag (final Phase-3-Closure)."
+branch: "feature/145-engine-refactor-part3-typesyntax-engine"
 started_at: "2026-05-06"
 housekeeping_done: false
 memory_updated: false
@@ -11,47 +11,50 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 144 in progress (v3.2.0-dev Phase 2)
+# Session State — Sprint 145 in progress (v3.2.0 final Phase 3)
 
-## Sprint 144 — ADR-027 Phase 2
+## Sprint 145 — ADR-027 Phase 3 finalization
 
-Phase 1 (Sprint 143) hat MA.Name pivot eingeführt. Phase 2 erweitert um CAE-aware
-lifting für `MB.Name` (`data?.Length`) und MA-in-CAE-WhenNotNull-subtree
-(`data?.X.Length`) — beide Cases würden ohne lift zu Roslyn-Binder-NRE führen
-weil `ConditionalAccessExpression.WhenNotNull` binding-led (Start mit `.` oder `[`)
-sein muss. Lift hebt den Pivot bis zur outermost-CAE der enclosing
-`?.`-Kette, sodass der Postfix/Prefix-Operator das gesamte CAE umschließt
-(`data?.Length` → `data?.Length++` als PostfixUnary(CAE)).
+**Maxential Decision (11 Schritte, 3 Branches evaluiert): Option F = Skip-Formalization.**
 
-### Maxential decision (13 Schritte, 2 Branches)
-- **Variant A (gewählt)**: Mutator-zentrische CAE-walk-up Logic im UoiMutator. Exakt wie ADR-027 Phase 2 spezifiziert.
-- **Variant C (verworfen)**: Engine-side automatic Lift — zu invasiv für Phase 2; eher Phase-3-/Phase-4-Topic.
+Phase 1 (Sprint 143) + Phase 2 (Sprint 144) haben den ECHTEN Engine-Refactor implementiert:
+- Smart-pivot via Mutator-set OriginalNode (`??=`)
+- MemberAccessNameSlotOrchestrator mit MemberAccess-Defer
+- CAE-walk-up via LiftPastConditionalAccess
+- TypeSyntax-position skip via UoiMutator.IsInTypeSyntaxPosition
 
-### Phase-1-Gap entdeckt
-MA-in-CAE-WhenNotNull-subtree (`data?.X.Length`) war Phase 1 schon broken
-(PostfixUnary(MA) im CAE.WhenNotNull-slot ist nicht binding-led). Sample.Library
-hat kein solches pattern, daher Phase-1-e2e-Test nicht broken. Real-World-Code
-(Calculator-Tester, ~1300 LOC) hat solche patterns. Phase 2 fixt beide MA-und-MB
-Cases via einheitlichen CAE-walk-up.
+Bug-9 ist root-cause-fixed für die wichtigen Cases (Expression-level + CAE-aware
++ MA.Name-pivot + MB-via-CAE).
 
-### Implementation
-1. **UoiMutator**: smart pivot mit CAE-walk-up. Initial pivot via MA.Name OR
-   MB.Name parent. Dann `LiftPastConditionalAccess` while-loop bis pivot nicht
-   mehr in einer CAE.WhenNotNull-Subtree liegt.
-2. **UoiMutator.IsSafeToWrap**: Phase-1's MB.Name-skip entfernen.
-3. **MemberAccessNameSlotOrchestrator.CanHandle**: Predicate von MA.Name auf
-   MA.Name OR MB.Name aufweiten.
-4. **CsharpMutantOrchestrator**: Phase-1's `DoNotMutateOrchestrator<SimpleName>(MB.Name)`
-   Guard ENTFERNEN.
-5. **ConditionalExpressionOrchestrator**: UNVERÄNDERT — existierende
-   `MutationControl.MemberAccess`-Mechanik trägt Phase 2 von selbst.
+### Was Phase 3 NICHT mehr macht (Cost/Benefit-Maxential)
 
-### Verifikation (geplant)
-- Lokal `--mutation-profile All --mutation-level Complete` mit `data?.Length`-Pattern: kein Crash, kein file-compile-poisoning.
-- Lokal mit `data?.X.Length`-Pattern: kein Crash.
-- Solution-wide tests grün.
-- Semgrep clean.
+ADR-027 Phase 3 ursprünglich: "TypeAware Engine + SpanReadOnly Re-Enable + UOI
+TypeSyntax-skip removal". Maxential hat alle 4 Engine-Refactor-Optionen durchgegangen:
 
-### KEIN Tag
-Phase 3 (TypeSyntax-Engine für SpanReadOnly re-enable) outstanding. v3.2.0 Tag
-erst nach Phase 3.
+- **Option A** (TypeReplacementEngine + Pipeline-Refactor): 4+ Sprints für separate-compile-pro-mutation. **Verworfen**.
+- **Option G** (Targeted Engine SpanReadOnly only): gleiche Pipeline-Changes notwendig. Aufwand nicht mutator-skaliert. **Verworfen**.
+- **Option F** (Skip-Formalization): 1-2h, ADR-Trail mit cost/benefit, niedriger Risk. **GEWÄHLT**.
+
+User-Wert für TypeSyntax-Engine-Refactor:
+- SpanReadOnly: 1 Sprint-14-niche-Mutator (Span↔ReadOnlySpan, Memory↔ReadOnlyMemory). Real-World-impact niedrig.
+- UoiMutator-on-TypeSyntax: semantisch sinnlos (post-/pre-fix auf Type-Identifier 100% non-compiling).
+
+Cost/Benefit unfavorable → Skip-as-architecture-decision formalisiert.
+
+### Phase 3 Implementation (Skip-Formalization)
+
+1. **UoiMutator.IsInTypeSyntaxPosition**: bleibt. Doku-Comment formalisiert als Architektur-Entscheidung.
+2. **SpanReadOnlySpanDeclarationMutator**: bleibt Profile.None. Doku-Comment formalisiert.
+3. **MutatorReflectionProperties.IntentionallyDisabledMutators**: bleibt. Comment update.
+4. **ADR-027 Phase 3**: von "geplant" auf "abgeschlossen mit Skip-as-final-architecture" + Maxential-Trail.
+5. **Tag v3.2.0**: gerechtfertigt durch Phase-1+2-Engine-Refactor.
+
+### KEIN Code-Logic-Change
+Phase 3 ist nur Doku-Update + ADR-Schließung. Tests bleiben unverändert grün.
+
+### v3.2.0 Tag-Justification
+- Phase 1 (Sprint 143): MA.Name pivot via parent + MemberAccessNameSlotOrchestrator + Mutator-set OriginalNode
+- Phase 2 (Sprint 144): CAE-aware Lifting + MA-in-CAE-Subtree + TypeSyntax-skip
+- Phase 3 (Sprint 145): ADR-027 closure mit Architektur-Entscheidung
+
+User-Pushback-Path: wenn TypeSyntax-Engine-Refactor doch gewünscht, eigener v3.3.0+ Sprint mit klarer Aufwand-Erwartung (4+ Sprints).

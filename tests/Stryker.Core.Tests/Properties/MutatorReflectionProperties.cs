@@ -35,16 +35,20 @@ public class MutatorReflectionProperties
     }
 
     /// <summary>
-    /// Sprint 142 (ADR-026): mutators that are intentionally disabled across all
-    /// profiles via Profile.None because their target slot is incompatible with
-    /// the current ConditionalInstrumentationEngine. Re-enable tracked in
-    /// ADR-027 Phase 3 (TypeSyntax-aware engine variant); Sprint 143 Phase 1
-    /// already addressed the SimpleName twin via parent-pivot, so this list
-    /// shrinks as the multi-sprint refactor progresses.
+    /// Sprint 142 (ADR-026) and finalized in Sprint 145 (ADR-027 Phase 3):
+    /// mutators that are intentionally disabled across all profiles via
+    /// <see cref="MutationProfile.None"/> because their target slot is a
+    /// TypeSyntax position that the <c>ConditionalInstrumentationEngine</c>
+    /// cannot wrap. ADR-027 Phase 1+2 already addressed the SimpleName twin
+    /// via parent-pivot + CAE-walk-up. The remaining entry — pure TypeSyntax —
+    /// stays disabled by design: a Maxential cost/benefit analysis (11 thoughts,
+    /// 3 engine-refactor alternatives) found 4+ sprints of pipeline work for
+    /// a single niche mutator with marginal user-value, and concluded the
+    /// skip is the correct architectural boundary.
     /// </summary>
     private static readonly HashSet<string> IntentionallyDisabledMutators = new(StringComparer.Ordinal)
     {
-        "SpanReadOnlySpanDeclarationMutator", // ADR-026 / ADR-027 Phase 3: TypeSyntax-slot engine refactor pending
+        "SpanReadOnlySpanDeclarationMutator", // ADR-027 Phase 3 finalized: TypeSyntax-slot skip is the architectural design.
     };
 
     [Fact]

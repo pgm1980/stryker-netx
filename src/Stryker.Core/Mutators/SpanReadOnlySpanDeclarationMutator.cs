@@ -34,12 +34,26 @@ namespace Stryker.Core.Mutators;
 /// engine wraps every emitted mutation in a <c>ParenthesizedExpressionSyntax</c>
 /// (the <c>(MutantControl.IsActive(N) ? mutated : original)</c> envelope),
 /// which Roslyn's typed visitor refuses to accept in a TypeSyntax slot →
-/// <c>InvalidCastException(ParenthesizedExpressionSyntax → TypeSyntax)</c>.
-/// Re-enabling this mutator requires either (a) a type-position-aware
-/// instrumentation variant in the engine, or (b) emitting the mutation
-/// directly without conditional-control. Tracked in ADR-026.</para>
+/// <c>InvalidCastException(ParenthesizedExpressionSyntax → TypeSyntax)</c>.</para>
 ///
-/// Profile membership: <see cref="MutationProfile.None"/> (was: All only).
+/// <para><b>v3.2.0 (Sprint 145, ADR-027 Phase 3 closure):</b>
+/// <see cref="MutationProfile.None"/> is now finalized as the architectural
+/// design for this mutator, not a temporary mitigation. Maxential cost/benefit
+/// (11 Schritte, 3 engine-refactor alternatives evaluated) concluded that
+/// re-enabling Span↔ReadOnlySpan / Memory↔ReadOnlyMemory swaps would require
+/// either (a) a TypeReplacementInstrumentationEngine plus a pipeline-level
+/// separate-compile-per-mutation mode (4+ sprints for one niche mutator), or
+/// (b) preprocessor-direktiven envelope (5+ sprints, very high risk). Neither
+/// option is justified by the user-value: this mutator targets a single edge
+/// case (Span/Memory pairs) which produces compile-pass mutants when the body
+/// only reads the span (effectively no-op mutation, useless for test scoring)
+/// and compile-fail mutants when the body writes (which the standard runtime
+/// pipeline already classifies as killed without needing this engine). The
+/// skip is therefore the final design. If a future user need motivates the
+/// engine work, it would warrant its own multi-sprint v3.x release with
+/// updated ADR.</para>
+///
+/// Profile membership: <see cref="MutationProfile.None"/> (final).
 /// </summary>
 [MutationProfileMembership(MutationProfile.None)]
 public sealed class SpanReadOnlySpanDeclarationMutator : MutatorBase<GenericNameSyntax>
