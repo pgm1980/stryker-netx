@@ -3,42 +3,47 @@ current_sprint: "150"
 sprint_goal: "Bug #8 P1 (Multi-Project Test-Setup-UX): neue --all-projects Flag damit Test-Projekt mit mehreren Source-References ALLE referenced Source-Projekte mutiert. Calculator-Tester Bug-Report 4. ADR-031. v3.2.5. SCHLIESST Bug-Report 4 vollständig."
 branch: "feature/150-bug8-all-projects"
 started_at: "2026-05-06"
-housekeeping_done: false
-memory_updated: false
-github_issues_closed: false
-sprint_backlog_written: false
+housekeeping_done: true
+memory_updated: true
+github_issues_closed: true
+sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 150 in progress (Bug #8 --all-projects)
+# Session State — Sprint 150 closed (Bug-Report 4 vollständig geschlossen)
 
-## Bug-Report 4 Bug #8 — der Auftrag
+## Sprint 150 Status: ✅ closed
 
-Calculator-Tester Bug-Report 4: Test-Projekt mit mehreren `<ProjectReference>` zu Source-Projekten (Clean Architecture: Domain + Infrastructure + App) bricht mit `"Test project contains more than one project reference. Please set the project option…"`. Sprint-141 hat `--solution` als Alternative im Hinweis ergänzt, aber `--solution` setzt eine Solution-Datei voraus + scannt ALLE Solution-Projekte. User-Forderung: per-Test-Project-Flag das nur die referenzierten Source-Projekte mutiert.
+**Tag:** v3.2.5 (2026-05-06)
+**PR:** #239 (squash-merged)
+**Commit auf main:** `48feb49` feat(sprint-150): v3.2.5 — ADR-031 --all-projects multi-project mutation flag (Bug #8) (#239)
+**GitHub Release:** https://github.com/pgm1980/stryker-netx/releases/tag/v3.2.5
+**NuGet-Push:** in_progress (Workflow run 25447895906)
 
-## Sprint 150 — Option B1 (--all-projects Flag, 11-Schritte Maxential)
+## Bug-Report 4 — VOLLSTÄNDIG GESCHLOSSEN
 
-**Decision:** B1 (--all-projects flag, NoValue, long-only). Sauber abgrenzt: 6 modified files + 5 unit tests + Initialisation-Layer-Branch. Kein Engine-Eingriff, kein Breaking-Change.
-**Verworfen:** B2 (Multi-`--project` mit MultipleValue) wegen Breaking-Change auf SourceProjectName-API + Filter-Matching-Refactor durch ganze Pipeline.
+Alle 4 Bugs aus Calculator-Tester Bug-Report 4 sind über Sprints 147-150 architektonisch fixed:
 
-## Sprint-150-Phasen
+| Sprint | Tag | Bug | ADR | Maxential |
+|--------|-----|-----|-----|-----------|
+| 147 | v3.2.2 | #9 P0 (--mutation-profile All NRE-Crash) | ADR-028 | 13-step + 3-Branch ToT (A/B/**C** chosen) |
+| 148 | v3.2.3 | #4 P1 (--version Konvention) | ADR-029 | 11-step + 3-Way ToT (**O1** chosen) |
+| 149 | v3.2.4 | #6 P1 (--reporters Plural) | ADR-030 | 3-step branchless (**Option A** chosen) |
+| 150 | v3.2.5 | #8 P1 (Multi-Project UX) | ADR-031 | 11-step + 2-Branch ToT (**B1** chosen) |
 
-- **Phase A** ✅ Maxential 11 Schritte mit 2 ToT-Branches (B1 vs B2, B1 gewählt)
-- **Phase D1** ✅ AllProjectsInput + IStrykerInputs + IStrykerOptions wired
-- **Phase D2** ✅ StrykerOptions.IsAllProjectsMode + ValidateAll wiring (incl. MA0051 Refactor BuildThresholds)
-- **Phase D3** ✅ CommandLineConfigReader --all-projects registration (long-only)
-- **Phase D4** ✅ InputFileResolver.ResolveMultiReferenceCase Helper (incl. MA0051 Method-Body Refactor) + verbesserte Fehlermeldung
-- **Phase D5** ✅ 7 neue Tests (5 AllProjectsInputTests + 2 CLI-Plumbing) + ConfigBuilderTests Mock-Update
-- **Phase F** ✅ Solution-wide build (0 W / 0 E), 2035 Unit-Tests grün, Semgrep clean
-- **Phase G** ✅ ADR-031 + 0.16.0 history-row geschrieben
-- **Phase H** PR + merge + tag v3.2.5
+## Housekeeping abgeschlossen
 
-## Sprint-Plan für Bug-Report-4
+- ✅ Solution-wide build (0 W / 0 E)
+- ✅ Solution-wide Tests (2035 grün)
+- ✅ Semgrep clean (alle modifizierten Dateien)
+- ✅ MEMORY.md updated (Sprints 147-150 consolidated entry)
+- ✅ bug_report_4_stryker_netx.md mit Maintainer-Response geschlossen
+- ✅ ADRs 028-031 dokumentiert in architecture_specification.md (0.13.0 → 0.16.0 history)
+- ✅ Keine offenen GitHub-Issues mit Bug-Report-4-Bezug (nur #191 Sprint-107-Task ist open)
 
-- **Sprint 147** ✅ closed: Bug #9 P0 (v3.2.2 ADR-028)
-- **Sprint 148** ✅ closed: Bug #4 P1 (v3.2.3 ADR-029)
-- **Sprint 149** ✅ closed: Bug #6 P1 (v3.2.4 ADR-030)
-- **Sprint 150 (jetzt)**: Bug #8 P1 (`--all-projects`)
+## Nächster Sprint: 151+
 
-**Mit Sprint 150 ist Bug-Report 4 vollständig geschlossen.** Alle 4 Bugs (#4, #6, #8, #9) sind via ADRs 028–031 architektonisch fixed.
+Bug-Report 4 ist der direkte Anlass für Sprints 147-150. Mit der Schließung steht der nächste Roadmap-Schritt offen — entweder weitere User-Bug-Reports oder Sprint-151+ aus Tech-Debt-Backlog (siehe MEMORY.md für deferred Sprint-Items).
+
+Tag-Strategy für nächste v3.3.0 / Sprint 151+: dynamisch auf Basis User-Feedback.

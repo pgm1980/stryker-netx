@@ -7,6 +7,47 @@
 
 ---
 
+## ✅ MAINTAINER-RESPONSE — Bug-Report 4 vollständig geschlossen (2026-05-06)
+
+Alle 4 Bugs sind über Sprints 147–150 architektonisch behoben. Vier aufeinanderfolgende NuGet-Releases (v3.2.2 → v3.2.5) decken die Forderungen ab:
+
+| Bug | Forderung | Lösung | Release | ADR |
+|-----|-----------|--------|---------|-----|
+| **#9 P0** | Tiefer architektureller Eingriff (a–e), kein Hotfix | Central Syntax-Slot Validation Layer (Hybrid Validator + per-Mutator Audit) — fängt 4 Crash-Klassen | **v3.2.2** | ADR-028 |
+| **#4 P1** | `--version` als Tool-Version-Flag etablieren | Hard Rename: `--version`/`-V` druckt Tool-Version, ProjectVersion → `--project-version` (long-only). Sprint-141 `--tool-version`/`-T` als transitional Alias. | **v3.2.3** | ADR-029 |
+| **#6 P1** | `--reporters` (plural) als Alias akzeptieren | args-Pre-Processor rewritet `--reporters` → `--reporter` BEFORE McMaster (3 argv-Forms: spaced, `=`, `:`) | **v3.2.4** | ADR-030 |
+| **#8 P1** | `--all-projects` ODER Mehrfach-`--project` | Neue `--all-projects` Flag (NoValue, long-only): mutiert ALLE vom Test-Projekt referenzierten Source-Projekte. Verbesserte Fehlermeldung surfaced beide Pfade (`--all-projects` + `--solution`). | **v3.2.5** | ADR-031 |
+
+### Forderungen aus Bug #9 P0 — alle abgedeckt
+
+- ✓ **a) Ursachen-Analyse**: ADR-028 dokumentiert 4 Crash-Klassen mit Mutator-Triggern + Pipeline-Pfaden.
+- ✓ **b) Pattern-Match statt `as`**: explizite null-checks mit Diagnostic, nicht silently-null-`as`.
+- ✓ **c) Validierungs-Layer vor der Mutation**: `SyntaxSlotValidator.TryReplaceWithValidation` als zentrale Pipeline-Stage zwischen Mutator-Output und Engine-Wrap.
+- ✓ **d) Regression-Tests**: 4 SyntaxSlotValidator-Tests + lokal-acid-test mit allen 9 Calculator-Tester-Patterns ohne Crash.
+- ✓ **e) Audit aller Mutators**: per-Mutator Skip-Listen verbreitert; Validator als Safety-Net deckt unentdeckte Patterns ab (defense-in-depth).
+
+### Maxential + ToT-Trail dokumentiert pro Sprint
+
+- Sprint 147: 13 Schritte mit 3 ToT-Branches (A/B/**C**), Branch C (Hybrid) gewählt
+- Sprint 148: 11 Schritte mit 3-Way ToT (**O1**/O2/O3), O1 (Hard-Rename) gewählt
+- Sprint 149: 3 Schritte branchless, **Option A** (args-pre-process) gewählt
+- Sprint 150: 11 Schritte mit 2 ToT-Branches (**B1**/B2), B1 (Flag) gewählt
+
+### Verifikation
+
+- Solution-wide **2035 Unit-Tests grün** (4 Sprints kumulativ +25 neue Tests).
+- **Semgrep clean** auf allen modifizierten Dateien jedes Sprints.
+- 4 GitHub-Releases mit Migration-Tabellen + breaking-change-Hinweisen für `--version`-Konvention (v3.2.3).
+- NuGet-Auto-Push pro Tag funktioniert — Pakete sofort verfügbar via `dotnet tool install -g dotnet-stryker-netx`.
+
+### Eskalations-Antwort
+
+Die in der Bug-Report-Eskalation angekündigte Defaults/Stronger-only-Deklaration ist nicht mehr nötig: `--mutation-profile All` ist mit v3.2.2 stable. Alle vier P1-CLI-Issues (#4, #6, #8) sind in v3.2.3, v3.2.4, v3.2.5 zeitnah geschlossen.
+
+**Bug-Report 4 ist geschlossen.** Wir bedanken uns für die ausführlichen Repro-Patterns und die Eskalations-Klarheit — beides hat den Maxential+ToT-Trail wesentlich beschleunigt.
+
+---
+
 ## 🔴 Forderungen an das Maintainer-Team
 
 ### Stand der vier Versionen
