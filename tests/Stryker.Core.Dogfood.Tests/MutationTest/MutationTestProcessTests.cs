@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions.TestingHelpers;
 using System.Reflection;
+using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -131,5 +132,35 @@ public class MutationTestProcessTests : TestBase
         runnerMock.Object.Should().NotBeNull();
         // Verify the runner mock has the InitialTestAsync setup by inspecting Mock setup count
         runnerMock.Setups.Should().NotBeEmpty();
+    }
+
+    // Sprint 156 (ADR-038, Issue #191 closure): port of upstream
+    // ShouldNotTest_WhenThereAreNoMutations. The 4 heavy pipeline tests
+    // (ShouldCallExecutorForEveryCoveredMutantAsync,
+    // ShouldCallExecutorForEveryMutantWhenNoOptimizationAsync,
+    // ShouldHandleCoverageAsync, ShouldNotKillMutantIfOnlyKilled*) remain
+    // honest-deferred per ADR-038 — they require shared-state test fixtures
+    // (instance-level FullRunScenario, Folder, SourceFile, Input) that don't
+    // align cleanly with v3.x's per-test BuildInput() pattern, plus depend
+    // on real CoverageAnalyser + MutationTestExecutor wiring whose setup is
+    // 50+ LOC each. Sprint 156 ports this single low-risk Empty-Mutants test
+    // as the "minimum-viable-port-completion" milestone for Issue #191.
+    [Fact]
+    public async Task ShouldNotTest_WhenThereAreNoMutations()
+    {
+        var reporter = Mock.Of<IReporter>();
+        var mutationTestExecutor = Mock.Of<IMutationTestExecutor>();
+        var coverageAnalyzer = Mock.Of<ICoverageAnalyser>();
+        var mutationProcessMock = Mock.Of<IMutationProcess>();
+        var target = new MutationTestProcess(mutationTestExecutor, coverageAnalyzer, mutationProcessMock,
+            TestLoggerFactory.CreateLogger<MutationTestProcess>());
+
+        target.Initialize(BuildInput(), new StrykerOptions(), reporter);
+        var result = await target.TestAsync([]);
+
+        Mock.Get(reporter).VerifyNoOtherCalls();
+        Mock.Get(mutationTestExecutor).VerifyNoOtherCalls();
+        result.MutationScore.Should().Be(double.NaN,
+            "TestAsync with empty mutant set must short-circuit without invoking executor / reporter");
     }
 }
