@@ -46,6 +46,13 @@ public partial class StrykerInputs : IStrykerInputs
     public LanguageVersionInput LanguageVersionInput { get; init; } = new();
     public ConcurrencyInput ConcurrencyInput { get; init; } = new();
     public SourceProjectNameInput SourceProjectNameInput { get; init; } = new();
+
+    /// <summary>
+    /// Sprint 150 (ADR-031, Bug #8 from Calculator-Tester Bug-Report 4): when set,
+    /// mutate ALL source projects referenced by the test project sequentially in a
+    /// single run instead of throwing the multi-reference disambiguation exception.
+    /// </summary>
+    public AllProjectsInput AllProjectsInput { get; init; } = new();
     public TestProjectsInput TestProjectsInput { get; init; } = new();
     public TestCaseFilterInput TestCaseFilterInput { get; init; } = new();
     public WithBaselineInput WithBaselineInput { get; init; } = new();
@@ -130,12 +137,7 @@ public partial class StrykerInputs : IStrykerInputs
             SolutionPath = SolutionInput.Validate(basePath, _fileSystem),
             Configuration = ConfigurationInput.Validate(),
             TargetFramework = TargetFrameworkInput.Validate(),
-            Thresholds = new Thresholds
-            {
-                High = ThresholdHighInput.Validate(ThresholdLowInput.SuppliedInput),
-                Low = ThresholdLowInput.Validate(ThresholdBreakInput.SuppliedInput, ThresholdHighInput.SuppliedInput),
-                Break = ThresholdBreakInput.Validate(ThresholdLowInput.SuppliedInput),
-            },
+            Thresholds = BuildThresholds(),
             Reporters = reporters,
             LogOptions = new LogOptions
             {
@@ -143,6 +145,7 @@ public partial class StrykerInputs : IStrykerInputs
                 LogToFile = LogToFileInput.Validate(outputPath)
             },
             SourceProjectName = SourceProjectNameInput.Validate(),
+            IsAllProjectsMode = AllProjectsInput.Validate(), // Sprint 150 ADR-031 Bug #8
             AdditionalTimeout = AdditionalTimeoutInput.Validate(),
             ExcludedMutations = IgnoreMutationsInput.Validate<Mutator>(),
             ExcludedLinqExpressions = IgnoreMutationsInput.ValidateLinqExpressions(),
@@ -175,6 +178,13 @@ public partial class StrykerInputs : IStrykerInputs
         };
 #pragma warning restore CS0618
     }
+
+    private Thresholds BuildThresholds() => new()
+    {
+        High = ThresholdHighInput.Validate(ThresholdLowInput.SuppliedInput),
+        Low = ThresholdLowInput.Validate(ThresholdBreakInput.SuppliedInput, ThresholdHighInput.SuppliedInput),
+        Break = ThresholdBreakInput.Validate(ThresholdLowInput.SuppliedInput),
+    };
 
     /// <summary>
     /// v3.1.0 (Sprint 140, ADR-025): resolve <see cref="MutationLevel"/> with auto-bump

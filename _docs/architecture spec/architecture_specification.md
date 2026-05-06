@@ -2220,6 +2220,67 @@ Diese Optimierungen sind separate Sprints — der Sicherheits-Aspekt (Bug-9 fixe
 
 ---
 
+## ADR-031: `--all-projects` Multi-Project-Mutation Flag (v3.2.5 / Sprint 150)
+
+**Status.** Accepted — Sprint 150 (v3.2.5, 2026-05-06).
+
+**Kontext.** Calculator-Tester Bug-Report 4, Bug #8: wenn ein Test-Projekt mehrere `<ProjectReference>` zu Source-Projekten hat (Clean-Architecture-Setups: Domain + Infrastructure + App-Layer), bricht Stryker mit `"Test project contains more than one project reference. Please set the project option…"`. Der Anwender konnte zwar auf `--solution <file>.slnx` (Sprint 141 advertised diesen Pfad in der Fehlermeldung) ausweichen, aber das setzt eine Solution-Datei voraus und scannt alle Projekte der Solution — nicht nur die vom Test-Projekt referenzierten. User-Forderung: ein per-Test-Project-Flag das ALLE referenzierten Source-Projekte mutiert ohne Solution-Scan-Overhead.
+
+**Entscheidung.** **Neue NoValue-Input-Klasse `AllProjectsInput` (lange Form `--all-projects`, kein short-Alias)**: wenn der User `--all-projects` setzt UND das Test-Projekt mehrere Source-Project-Referenzen hat, gibt der `InputFileResolver.ResolveSourceProjectInfos` die volle `List<SourceProjectInfo>` zurück statt die Disambiguation-Exception zu werfen. Der downstream `ProjectOrchestrator` iteriert ohnehin über die Liste (das ist der bestehende Solution-Mode-Pfad), kein Engine-Side-Refactor nötig.
+
+**Begründung der Wahl.** Maxential 11 Schritte mit 2 ToT-Branches (B1 + B2 evaluiert end-to-end):
+- **B1 (`--all-projects` Flag, NoValue)**: gewählt. Saubere Abgrenzung: Initialisation-Layer-Branch + 6 modified files + 5 unit tests. Kein API-Breaking-Change, kein Engine-Eingriff.
+- **B2 (Multi-`--project` mit MultipleValue)**: verworfen. `SourceProjectNameInput` ist `Input<string>` (single) — Umstellung auf `Input<IEnumerable<string>>` wäre Breaking-Change auf der `IStrykerOptions.SourceProjectName`-API. Plus: Filter-Matching im InputFileResolver (`normalizedProjectUnderTestNameFilter`) ist auf single-string zugeschnitten — pipeline-weiter Refactor nötig. Hoher Aufwand, hohes Risiko.
+
+**Implementation.**
+
+- `src/Stryker.Configuration/Options/Inputs/AllProjectsInput.cs` (neu): `Input<bool?>` mit `Default = false`. Help-Text dokumentiert Use-Case (Clean-Architecture-Setups) und gegenseitige Ausschließung mit `--project` (single) und `--solution` (whole-solution scan).
+- `src/Stryker.Abstractions/Options/IStrykerOptions.cs`: neue `bool IsAllProjectsMode { get; init; }` Property mit XML-doc.
+- `src/Stryker.Configuration/Options/StrykerOptions.cs`: Implementation der `IsAllProjectsMode`-Property.
+- `src/Stryker.Configuration/Options/IStrykerInputs.cs`: neue `AllProjectsInput AllProjectsInput { get; init; }` Property.
+- `src/Stryker.Configuration/Options/StrykerInputs.cs`: konkrete `AllProjectsInput`-Property + `IsAllProjectsMode = AllProjectsInput.Validate()` Wiring im `BuildStrykerOptions`. MA0051-Refactor: `Thresholds`-Initialization extrahiert in `BuildThresholds()` Helper damit `BuildStrykerOptions` unter 60 Zeilen bleibt.
+- `src/Stryker.CLI/CommandLineConfig/CommandLineConfigReader.cs`: `AddCliInput(inputs.AllProjectsInput, "all-projects", null, optionType: CommandOptionType.NoValue, category: InputCategory.Build)` — long-only, kein short-Alias (short-Flag-Space ist mit `--project`/`--solution`/`-p`/`-s` bereits crowded).
+- `src/Stryker.Core/Initialisation/InputFileResolver.cs`: `ResolveSourceProjectInfos`-Body unverändert; neue `ResolveMultiReferenceCase`-Helper-Methode wird bei `result.Count > 1` aufgerufen. In dieser Methode: wenn `options.IsAllProjectsMode == true` → `LogAllProjectsMode` + return result. Sonst → throw `InputException` mit verbessertem Help-Text der jetzt sowohl `--all-projects` als auch `--solution` als Lösungspfade nennt. MA0051-Refactor: Method-Body extrahiert um die 60-Zeilen-Cap zu halten.
+
+- `tests/Stryker.Core.Dogfood.Tests/Options/Inputs/AllProjectsInputTests.cs` (neu): 5 Tests für `AllProjectsInput.Default == false`, 3-Theory-Cases für `Validate()` (null/false/true), Help-Text-Substring-Match.
+- `tests/Stryker.CLI.Tests/StrykerCLITests.cs`: 2 neue Tests — `ShouldSetAllProjectsModeWhenPassed` (positive) + `ShouldDefaultAllProjectsModeToFalseWhenNotPassed` (negative) — beide üben die volle CLI-Pipeline.
+- `tests/Stryker.CLI.Tests/ConfigBuilderTests.cs`: `GetMockInputs.SetupCoreInputs` ergänzt um `inputs.Setup(x => x.AllProjectsInput).Returns(new AllProjectsInput())` — sonst NRE in `RegisterCommandLineOptions`.
+
+**Anwender-UX.**
+
+| Vorher | Nachher (mit `--all-projects`) |
+|--------|---------------------------------|
+| `dotnet stryker-netx` (Test-Projekt referenziert 3 Source-Projekte) | `dotnet stryker-netx --all-projects` mutiert alle 3 sequenziell |
+| Fehlermeldung "Please set the project option" + Liste der 3 Pfade | Logger-Message "--all-projects mode: mutating 3 referenced source projects sequentially." |
+| Workaround: `--solution X.slnx` (scannt aber GANZE Solution, nicht nur Test-Projekt-Referenzen) | `--all-projects` skaliert auf Test-Projekt-Scope |
+
+**Konsequenzen.**
+
+- (+) Saubere Per-Test-Project-Abgrenzung — der Scope ist explizit "alles was das Test-Projekt referenziert", nicht "alles in der Solution".
+- (+) Kein Breaking-Change: `--project A.csproj` und Default-Single-Reference-Path bleiben unverändert.
+- (+) Update der Fehlermeldung: bei Multi-Reference ohne `--all-projects`/`--project`/`--solution` zeigt das Tool jetzt drei Lösungspfade statt zwei.
+- (+) Konsistent mit dem Solution-Mode-Pattern: beide nutzen die gleiche `List<SourceProjectInfo>`-Iteration im Orchestrator.
+- (–) Drei UX-Pfade für Multi-Project (`--all-projects`, `--solution`, mehrfache Single-Project-Runs) statt einer zentralen Lösung. Bewusst akzeptiert: `--solution` bleibt für Whole-Solution-Cases (CI-Pipelines), `--all-projects` für Per-Test-Project-Cases (Anwender-Workflows).
+- (–) Multi-Project-Reports werden NICHT zu einem kombinierten HTML-Report aggregiert. Der ProjectOrchestrator schreibt pro Project einen eigenen Report-Output. Eine echte Aggregation ist eine separate Roadmap-Item für v3.3+ (Maxential-Trail dokumentiert).
+
+**Supersedes / supplements.**
+
+- Supplements Sprint 141's Fehlermeldungs-Hinweis (`--solution` als Alternativpfad) — der Hinweis-Text wird um `--all-projects` erweitert.
+- Kein direkter Supersede; Solution-Mode (ADR vor v2.0.0) bleibt als orthogonaler Pfad bestehen.
+
+**Backed by.** Sprint 150 Maxential 11 Schritte mit 2 ToT-Branches (B1 vs B2, B1 gewählt). 7 neue Tests (5 AllProjectsInputTests + 2 StrykerCLITests). Solution-wide 2035 Unit-Tests grün (incl. Stryker.Core.Dogfood.Tests 1189), Semgrep clean (0 Findings auf 10 modifizierten Dateien).
+
+**Bezug zu offenen Bugs aus Bug-Report 4.**
+
+- Bug #4 ✓ closed mit ADR-029 (Sprint 148 / v3.2.3).
+- Bug #6 ✓ closed mit ADR-030 (Sprint 149 / v3.2.4).
+- Bug #8 ✓ closed mit ADR-031 (Sprint 150 / v3.2.5).
+- Bug #9 ✓ closed mit ADR-028 (Sprint 147 / v3.2.2).
+
+**Bug-Report 4 ist mit Sprint 150 vollständig geschlossen.** Alle 4 Bugs sind via ADRs 028–031 architektonisch fixed.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2239,3 +2300,4 @@ Diese Optimierungen sind separate Sprints — der Sicherheits-Aspekt (Bug-9 fixe
 | 0.13.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 147 v3.2.2: ADR-028 — **Central Syntax-Slot Validation Layer**. Calculator-Tester Bug-Report 4 reproduziert Bug-9 in v3.2.1 als `NullReferenceException` mit identischem Stack-Trace-Pfad. User-Forderung c): **Validierungs-Layer vor der Mutation**, KEIN weiterer Hotfix. Maxential (13 Schritte, 3 ToT-Branches) → Branch C (Hybrid Validator + Audit) gewählt. **`SyntaxSlotValidator.TryReplaceWithValidation`** + **`RoslynHelper.TryInjectMutation`** + **`MutationStore.ApplyMutationsValidated`** — defensive Pipeline-Stage zwischen Mutator-Output und Engine-Wrap. Fängt 4 Crash-Klassen: InvalidCast, NRE, InvalidOperationException-Contains-mismatch, null-Mutation-Properties. 4 Validator-Tests + lokal-acid-test mit allen 9 Calculator-Patterns ohne Crash. Solution-wide ~2200 Tests grün. Tag **v3.2.2** — Bug-9-stable-fix. |
 | 0.14.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 148 v3.2.3: ADR-029 — `--version` Tool-Convention + `--project-version` **Hard Rename**. Calculator-Tester Bug-Report 4, Bug #4: `dotnet stryker-netx --version` druckt jetzt konvention-konform die Tool-Version statt als Project-Version-Wert interpretiert zu werden. Maxential (3-Weg ToT: O1=Hard-Rename, O2=Soft-Detection, O3=Status-Quo) → O1 gewählt. **Breaking-Change**: `--version <value>` → `--project-version <value>` Migration. `--tool-version` / `-T` (Sprint-141-Aliase) bleiben transitional. `StrykerCli.TryHandleToolVersionFlag` short-circuited bare-Flag BEFORE McMaster-Parser-Pipeline. RunAsync zerlegt in `BuildCommandLineApplication` + `ExecuteWithErrorHandlingAsync` (MA0051-Cap). 4 neue Sprint-148-Tests + ShouldSetProjectVersion umgestellt auf `--project-version`. Solution-wide 817 Unit-Tests grün, Semgrep clean. Tag **v3.2.3** — Bug #4 closed. Bugs #6, #8 → separate Sprints 149/150. |
 | 0.15.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 149 v3.2.4: ADR-030 — `--reporters` Plural-Alias via args-Pre-Processor. Calculator-Tester Bug-Report 4, Bug #6: externe Tutorials/Doku schreiben oft `--reporters` (Plural), McMaster lehnt das mit "Unrecognized option" + "Did you mean: reporter" ab. Maxential (3-Schritte): Option A (args-rewrite) gewählt vs B (zweite Option-Registrierung) vs C (McMaster-Subclass). `RewriteReportersAlias(string[]) → string[]` rewrites `--reporters`, `--reporters=…`, `--reporters:…` zu Singular-Form BEFORE McMaster sieht args. Konsistent mit Sprint-148-Pattern (Pre-Processor). False-Positive-Guard: `--reportersx` fällt durch zu McMaster's "Did you mean"-Hilfe. 10 neue Tests (5 Rewrite + 4 Non-Rewrite + 1 E2E). Solution-wide 844 Unit-Tests grün (vs Sprint 148 = 834, +10), Semgrep clean. Tag **v3.2.4** — Bug #6 closed. Bug #8 → Sprint 150. |
+| 0.16.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 150 v3.2.5: ADR-031 — `--all-projects` Multi-Project-Mutation Flag. Calculator-Tester Bug-Report 4, Bug #8: Test-Projekte mit mehreren Source-Project-Referenzen (Clean-Architecture: Domain + Infrastructure + App) krachten mit "Test project contains more than one project reference. Please set the project option…". Sprint-141-Workaround `--solution` setzt Solution-Datei voraus + scannt ALLE Solution-Projekte; User wollte per-Test-Project-Scope. Maxential 11 Schritte mit 2 ToT-Branches → B1 (Flag) gewählt vs B2 (Multi-`--project` MultipleValue, breaking-change auf SourceProjectName). Neue `AllProjectsInput` (NoValue, long-only) + IStrykerOptions.IsAllProjectsMode + InputFileResolver.ResolveMultiReferenceCase Helper (MA0051-Cap-Refactor). Bei `--all-projects` UND multi-reference → return alle SourceProjectInfo statt throw. ProjectOrchestrator iteriert ohnehin (Solution-Mode-Pfad), kein Engine-Refactor nötig. Verbesserte Fehlermeldung: zeigt jetzt `--all-projects` UND `--solution` als Alternativen. 7 neue Tests (5 AllProjectsInputTests + 2 CLI-Plumbing). Solution-wide 2035 Unit-Tests grün, Semgrep clean. Tag **v3.2.5** — Bug #8 closed. **Bug-Report 4 vollständig geschlossen** (Bugs #4, #6, #8, #9 alle via ADRs 028–031 architektonisch fixed). |

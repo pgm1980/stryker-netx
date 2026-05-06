@@ -222,6 +222,12 @@ public class CommandLineConfigReader
         AddCliInput(inputs.SolutionInput, "solution", "s", argumentHint: "file-path", category: InputCategory.Build);
         AddCliInput(inputs.ConfigurationInput, "configuration", null, argumentHint: "Release,Debug", category: InputCategory.Build);
         AddCliInput(inputs.SourceProjectNameInput, "project", "p", argumentHint: "project-name.csproj", category: InputCategory.Build);
+        // Sprint 150 (ADR-031, Bug #8 from Calculator-Tester Bug-Report 4): mutate ALL
+        // source projects referenced by the test project in one run. Long-only — the
+        // short-flag space is crowded (--project / --solution / -p / -s) and a new
+        // short alias would invite confusion. Documented in --help via the
+        // AllProjectsInput description.
+        AddCliInput(inputs.AllProjectsInput, "all-projects", null, optionType: CommandOptionType.NoValue, category: InputCategory.Build);
         AddCliInput(inputs.TestProjectsInput, "test-project", "tp", CommandOptionType.MultipleValue, InputCategory.Build);
         AddCliInput(inputs.MsBuildPathInput, "msbuild-path", null, category: InputCategory.Build);
         AddCliInput(inputs.TargetFrameworkInput, "target-framework", null, optionType: CommandOptionType.SingleValue, category: InputCategory.Build);

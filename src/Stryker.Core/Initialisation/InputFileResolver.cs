@@ -98,18 +98,30 @@ public partial class InputFileResolver : IInputFileResolver
         }
 
         var result = SourceProjectInfos(options, solution, normalizedProjectUnderTestNameFilter);
-        if (result.Count <= 1)
+        return result.Count <= 1 ? result : ResolveMultiReferenceCase(options, result);
+    }
+
+    /// <summary>
+    /// Sprint 141 + 150 (Bug #8 from Calculator-Tester Bug-Report 4): when the test
+    /// project references multiple source projects, decide between three outcomes —
+    /// throw the disambiguation exception (default), accept all references when
+    /// <c>--all-projects</c> opted-in (Sprint 150 / ADR-031), or fall through to
+    /// solution-mode (handled earlier in <see cref="ResolveSourceProjectInfos"/>).
+    /// </summary>
+    private List<SourceProjectInfo> ResolveMultiReferenceCase(
+        IStrykerOptions options, List<SourceProjectInfo> result)
+    {
+        // Sprint 150 (ADR-031): explicit opt-in to multi-project mutation. The
+        // downstream ProjectOrchestrator already iterates the SourceProjectInfo
+        // list (used by solution-mode), so no engine-side changes are needed.
+        if (options.IsAllProjectsMode)
         {
+            LogAllProjectsMode(_logger, result.Count);
             return result;
         }
-        // still ambiguous
-        // Sprint 141 (Hinweis #8 from Calculator-tester report): users with multi-layer
-        // test setups (Domain + Infrastructure + App) hit this error when they expected
-        // stryker to "just mutate everything". Surfacing the --solution alternative in
-        // the message itself reduces support load — the feature already exists.
         var stringBuilder = new StringBuilder().AppendLine(
                 "Test project contains more than one project reference. Please set the project option (https://stryker-mutator.io/docs/stryker-net/configuration#project-file-name) to specify which project to mutate.")
-            .AppendLine("Alternatively, run stryker-netx in solution-mode (--solution <path>.slnx) to mutate ALL referenced projects sequentially in one run with a combined report.")
+            .AppendLine("Alternatively, run stryker-netx with --all-projects to mutate ALL referenced source projects sequentially, or with --solution <path>.slnx for whole-solution mode.")
             .Append(BuildReferenceChoice(result.Select(p => p.Analysis.ProjectFilePath)));
         throw new InputException(stringBuilder.ToString());
     }
@@ -773,6 +785,9 @@ public partial class InputFileResolver : IInputFileResolver
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Analyzing {ProjectCount} test project(s).")]
     private static partial void LogAnalyzingTestProjects(ILogger logger, int projectCount);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "--all-projects mode: mutating {ProjectCount} referenced source projects sequentially.")]
+    private static partial void LogAllProjectsMode(ILogger logger, int projectCount);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Assume working directory contains target project to be mutated.")]
     private static partial void LogAssumeWorkingDirContainsTarget(ILogger logger);

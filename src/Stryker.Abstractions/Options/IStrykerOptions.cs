@@ -27,6 +27,17 @@ public interface IStrykerOptions
     string? FallbackVersion { get; init; }
     IEnumerable<Regex> IgnoredMethods { get; init; }
     bool IsSolutionContext { get; }
+
+    /// <summary>
+    /// Sprint 150 (ADR-031, Bug #8 from Calculator-Tester Bug-Report 4): when true,
+    /// Stryker mutates ALL source projects referenced by the test project sequentially
+    /// in a single run, instead of throwing the multi-reference disambiguation
+    /// exception. Mutually exclusive with <see cref="SourceProjectName"/> (which
+    /// selects a single project) and <see cref="SolutionPath"/> (which scans a whole
+    /// solution).
+    /// </summary>
+    bool IsAllProjectsMode { get; init; }
+
     LanguageVersion LanguageVersion { get; init; }
     ILogOptions? LogOptions { get; init; }
     string? ModuleName { get; init; }
