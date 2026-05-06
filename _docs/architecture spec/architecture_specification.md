@@ -2474,6 +2474,62 @@ Diese ADR macht den status-quo explizit, damit nicht ein folgender Sprint die It
 
 ---
 
+## ADR-034: JsonReport full AOT-trim — concrete-types source-gen completion (v3.2.8 / Sprint 154)
+
+**Status.** Accepted — Sprint 154 (v3.2.8, 2026-05-06).
+
+**Kontext.** ADR-024 (Sprint 17, v2.4.0) hatte JsonReport full AOT-trim als "v3.0-scope deferral" markiert (Maxential 3-way E1/E2/**E3**). Die Sprint-16-v2.3.0 Implementierung (ADR-023) etablierte einen **hybriden** Source-Gen-Ansatz: Entry-Type-`JsonTypeInfo` für `JsonReport` + `IJsonReport` aus `JsonReportSerializerContext`, kombiniert mit `DefaultJsonTypeInfoResolver` als Reflection-Fallback für die polymorphen Interface-typed Properties (`ISourceFile`, `IJsonMutant`, `ILocation`, `IPosition`, `IJsonTestFile`, `IJsonTest`). Custom-Konverter (`SourceFileConverter`, etc.) routen Interface → konkreter Typ via `JsonSerializer.Serialize<TConcrete>(writer, (TConcrete)value, options)`.
+
+Das Reflection-Fallback war der letzte Block für volle AOT-Trim. Sprint 154 entfernt es.
+
+**Entscheidung.** **Konkrete Typen werden zur Source-Gen-Kontext registriert:**
+- `JsonSerializable(typeof(SourceFile))`
+- `JsonSerializable(typeof(JsonMutant))`
+- `JsonSerializable(typeof(Location))`
+- `JsonSerializable(typeof(Position))`
+- `JsonSerializable(typeof(JsonTestFile))`
+- `JsonSerializable(typeof(JsonTest))`
+- Plus die Concrete-Dictionary-Typen aus `JsonReport` (Files / TestFiles / Thresholds).
+
+`TypeInfoResolver` wird umgestellt von `JsonTypeInfoResolver.Combine(JsonReportSerializerContext.Default, new DefaultJsonTypeInfoResolver())` auf nur `JsonReportSerializerContext.Default` — der Reflection-Fallback wird gestrichen.
+
+**Begründung der Wahl.** Maxential 4-Schritte branchless:
+1. Code-Audit der 6 Custom-Konverter zeigte: alle nutzen `JsonSerializer.Serialize<TConcrete>` mit `options`. Wenn `options.TypeInfoResolver` Source-Gen-`JsonTypeInfo` für jeden `TConcrete` liefert, dann läuft der ganze Konverter-Chain ohne Reflection.
+2. Die `TConcrete`-Klassen sind alle POCO-style mit `init`-set Properties, keine cyclic dependencies, keine speziellen Converters auf Properties. Source-Gen-friendly.
+3. SYSLIB1220-Restriction (custom converters can't be declared on the source-gen attribute) bleibt unverändert — Konverter werden weiterhin runtime an `Options.Converters` angefügt. Die SYSLIB1220-Restriction war NIE der Blocker; der Blocker war das Reflection-Fallback im Resolver.
+4. Net effect: Source-Gen-only `JsonTypeInfoResolver`, keine Reflection im JsonReport-Pipeline-Pfad. AOT/trim-warnings beim Publish sollten verschwinden.
+
+**Implementation.**
+
+- `src/Stryker.Core/Reporters/Json/JsonReportSerializerContext.cs`:
+  - 6 neue `[JsonSerializable]`-Attribute für die konkreten Typen.
+  - 3 Concrete-Dictionary-`[JsonSerializable]` für `JsonReport.Files`, `JsonReport.TestFiles`, `JsonReport.Thresholds`.
+  - Updated XML-doc dokumentiert die "v3.2.8 (Sprint 154 / ADR-034): full AOT-trim"-Erweiterung.
+- `src/Stryker.Core/Reporters/Json/JsonReportSerialization.cs`:
+  - `TypeInfoResolver` umgestellt von `Combine(SourceGen, DefaultReflection)` zu nur `JsonReportSerializerContext.Default`.
+  - Updated XML-doc erklärt die AOT-trim-completion.
+
+**Konsequenzen.**
+
+- (+) Backlog-Item 1 (JsonReport full AOT-trim) ✓ closed mit ADR-034 (Sprint 154 / v3.2.8). ADR-024 v3.0-scope-deferral ist erfüllt.
+- (+) AOT-trim-fähigkeit für JsonReport-Pipeline. Beim Publish mit `<PublishAot>true</PublishAot>` oder `<PublishTrimmed>true</PublishTrimmed>` sollten keine IL2026/IL3050-Warnings mehr aus dem JsonReport-Pfad kommen.
+- (+) Performance-Gewinn: Source-Gen-`JsonTypeInfo` ist schneller als Reflection-basiertes `DefaultJsonTypeInfoResolver` (auch ohne AOT/trim). JsonReport-Pipeline ist hot-path beim Stryker-Run-Abschluss — nicht performance-critical, aber gratis-Verbesserung.
+- (–) **Subtle behaviour change**: wenn ein Future-Refactor den JsonReport-Pipeline um polymorphe Properties erweitert ohne Source-Gen-Registration, schlägt die Serialization mit `NotSupportedException` fehl statt silent-reflection. Das ist gewollt — explizite Fail-Fast bei AOT-Lücken statt unentdeckte Reflection-fallbacks.
+- (–) Falls externe Konsumenten `JsonReportSerialization.Options` für eigene Typen nutzen, müssen die jetzt entweder eigene `JsonTypeInfo` registrieren oder einen anderen `JsonSerializerOptions` nutzen. `JsonReportSerialization.Options` ist `public static readonly` — also externer API-Surface. Diese Behaviour-Change ist nicht source-breaking aber doc-relevant.
+
+**Supersedes / supplements.**
+
+- **Closes** ADR-024 (JsonReport full AOT-trim deferral). v3.0-scope-target erfüllt mit Sprint 154 / v3.2.8.
+- **Supplements** ADR-023 (hybrid source-gen design from Sprint 16) — der hybrid-Ansatz war richtig zwischen v2.3.0 und v3.2.7, aber jetzt ist die volle Source-Gen-Coverage erreicht.
+
+**Backed by.** Sprint 154 Maxential 4-Schritte branchless. Code-Audit der 6 Custom-Konverter (`SourceFileConverter`, `JsonMutantConverter`, `LocationConverter`, `PositionConverter`, `JsonTestFileConverter`, `JsonTestConverter`) bestätigte: alle delegieren über `JsonSerializer.Serialize<TConcrete>(writer, ..., options)` zu konkreten Typen. JsonReport-Pipeline-Tests (11 Stryker.Core.Dogfood.Tests JsonReport-tests + 2 E2E-Tests) alle grün post-change. Solution-wide 2047 Tests grün, Semgrep clean.
+
+**Bezug zu Backlog-Items.**
+
+- Backlog-Item 1 (JsonReport full AOT-trim) ✓ closed mit ADR-034 (Sprint 154 / v3.2.8).
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2497,3 +2553,4 @@ Diese ADR macht den status-quo explizit, damit nicht ein folgender Sprint die It
 | 0.17.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 151 v3.2.6: ADR-032 — **Orchestration-Phase Slot Validation**. Calculator-Tester Bug-Report 5 (verschärfte Bug-9-Forderung): in v3.2.5 reproduziert sich der Cast-Crash auf Calculator.Infrastructure als `ParenthesizedExpressionSyntax → IdentifierNameSyntax` (statt v3.2.x's `→ TypeSyntax`). User-Forderung verschärft: "projektweite Suche nach allen impliziten oder expliziten Casts in Mutator-Code-Pfaden + Listing als Patch-Note + systemischer Eingriff statt Symptom". Maxential 5-Schritte mit 3-Branch ToT (S1/S2/**S3 Hybrid chosen**). **Architektonischer Trugschluss von Sprint 147 korrigiert**: ADR-028 Validator deckt nur Injection-Phase, nicht Orchestration-Phase. Audit aller 12 projektweiten Cast-Sites in Mutator/Orchestrator-Code: 8 safe (upcast/by-construction/`??`-Fallback), 4 unsafe (NodeSpecific/Conditional/Invocation/ExpressionBodiedProperty Orchestrators' `node.ReplaceNodes`-Calls). Neue `OrchestrationHelpers.ReplaceChildrenValidated`: per-child `SyntaxSlotValidator.TryReplaceWithValidation` + bulk-replace try/catch safety-net. Defense-in-Depth zwischen Sprint-147 (Injection) + Sprint-151 (Orchestration). 12 neue Tests (10 Integration mit MutationProfile.All über Bug-Report-4+5 Patterns + 2 Unit). Solution-wide 2047 Unit-Tests grün (vs Sprint 150 = 2035, +12), Semgrep clean. Tag **v3.2.6** — Bug #9 systemic fix + audit listing als Patch-Note. **Bug-Report 5 closed.** |
 | 0.18.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 152 v3.2.7: ADR-036 — **CI build+test green** via in-repo test fixtures + cross-platform paths. Über Sprints 147-151 zeigte jede PR ein konsistentes 6/33-SUCCESS-Pattern; build+test (ubuntu/windows) waren rot, integration-test-matrix toleriert als pre-existing flake. Sprint 152 fixt zwei strukturelle Failure-Klassen die build+test betreffen: (A) Stryker.Solutions.Tests `_references/stryker-net/src/Stryker.slnx`-Path nicht in CI-checkout (`.gitignore`-excluded) → vendor als in-repo `tests/Stryker.Solutions.Tests/TestResources/UpstreamStryker.slnx` mit `<None CopyToOutputDirectory>`. (B) ProjectAnalysisMockBuilderTests hardcoded Windows-Path `c:\\src\\MyProject.csproj` → cross-platform via `Path.Combine`. Plus: (D) SseServer test windows-CI flake — 2s Timeout zu eng für slow GitHub Actions Windows runners → 10s. Maxential 4-Schritte branchless. CI-Result: `build + test (ubuntu+windows)` GRÜN (vorher beide FAILURE). Integration-test-matrix Stryker-mutation-engine-Regression (`extern alias TheLog` compile-error in TargetProject) bleibt **honest deferred** als Sprint-153+ separate-investigation. Solution-wide 2047 Tests grün lokal (±0 vs Sprint 151 — kein neuer Test, nur fixes), Semgrep clean. Tag **v3.2.7**. |
 | 0.19.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Doc bundle (post-Sprint-152): ADR-033 + ADR-035. **ADR-033** — Combined Multi-Project Report Aggregation discovery: ADR-031's "v3.3+ deferred"-Claim für Multi-Project-Report-Aggregation war FALSCH — Aggregation ist seit Sprint 1 implementiert via `StrykerRunner.AddRootFolderIfMultiProject` + single `OnAllMutantsTested(rootComponent)` call. Calculator-Tester Bug-Report-5-Verifikation hatte bereits "kombinierter Report" mit 375 Mutanten Total bestätigt. Backlog-Item 7 closed by discovery. **ADR-035** — TypeSyntax-Engine Refactor + HotSwap inkrementelles MT status-quo confirmation: beide Items bleiben in ihren existierenden ADR-Status (027 Phase 3 Skip-as-Architecture / 022 Proposed-no-commitment). Backlog-Items 3+4 closed-as-status-quo. Beide ADRs sind doc-only, kein Sprint, kein neuer Tag. |
+| 0.20.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 154 v3.2.8: ADR-034 — **JsonReport full AOT-trim**. Schließt ADR-024 v3.0-scope-deferral (Sprint 17). Source-gen-Kontext erweitert von 2 entry-types (`JsonReport`, `IJsonReport`) auf 9 types — die 6 konkreten Typen hinter den polymorphen Interface-Konvertern (`SourceFile`, `JsonMutant`, `Location`, `Position`, `JsonTestFile`, `JsonTest`) plus 3 concrete-dictionary-types (`Dictionary<string, SourceFile>` etc). `TypeInfoResolver` umgestellt von `Combine(SourceGen, DefaultReflection)` auf nur `JsonReportSerializerContext.Default` — Reflection-Fallback gestrichen. Hybrid-Custom-Konverter-Design unverändert (SYSLIB1220 verbietet sie auf source-gen attribute). Maxential 4-Schritte branchless. 13 JsonReport-related Tests grün post-change (11 Dogfood + 2 E2E), Solution-wide 2047 Tests grün, Semgrep clean. Tag **v3.2.8** — Backlog-Item 1 closed. |

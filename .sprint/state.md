@@ -1,7 +1,7 @@
 ---
-current_sprint: "152"
-sprint_goal: "CI Integration Matrix Flakes — fix build+test (ubuntu/windows) Linux-Path-Issues. ADR-036 in-repo test-fixtures + cross-platform paths. v3.2.7."
-branch: "feature/152-ci-integration-matrix-flakes"
+current_sprint: "154"
+sprint_goal: "JsonReport full AOT-trim — schließt ADR-024 v3.0-scope-deferral. Source-gen-Kontext um 6 konkrete Typen + 3 concrete-dictionary-types erweitert. TypeInfoResolver auf Source-Gen-only umgestellt. ADR-034. v3.2.8."
+branch: "feature/154-jsonreport-aot-trim"
 started_at: "2026-05-06"
 housekeeping_done: false
 memory_updated: false
@@ -11,35 +11,30 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 152 in progress (CI build+test fix)
+# Session State — Sprint 154 in progress (JsonReport full AOT-trim)
 
-## User-Direktive: 7-Item-Backlog autonom
+## Sprint 154 — ADR-034 (Maxential 4-Schritte branchless)
 
-User-Anweisung: "Ab jetzt alles, was auf der Agenda steht, autonom und strikt nach CLAUDE.md".
+**Decision:** Konkrete Typen werden zur Source-Gen-Kontext registriert. `TypeInfoResolver` wird umgestellt von `JsonTypeInfoResolver.Combine(SourceGen, DefaultReflection)` auf nur `JsonReportSerializerContext.Default`. Hybrid-Custom-Konverter-Design unverändert (SYSLIB1220-restriction).
 
-7-Item Sprint-Roadmap (Maxential-priorisiert):
-- Sprint 152 (jetzt): CI build+test fix — höchster Hebel weil amortisiert über alle künftigen PRs
-- Sprint 153: Combined Multi-Project Report Aggregation (ADR-033)
-- Sprint 154: JsonReport full AOT-trim (ADR-034)
-- Sprint 155: RoslynDiagnostics v2
-- Sprint 156: Issue #191 closure (MutationTestProcessTests port)
-- ADR-035: TypeSyntax-Engine + HotSwap-incremental status-quo-confirmation (no sprint)
+## Sprint-154-Phasen
 
-## Sprint 152 — CI build+test fix (Maxential 4-Schritte branchless)
+- **Phase A** ✅ Maxential 4-Schritte branchless (no ToT — clean change-set)
+- **Phase B** ✅ Code-Audit der 6 Custom-Konverter (SourceFile/JsonMutant/Location/Position/JsonTestFile/JsonTest) — alle delegieren via `JsonSerializer.Serialize<TConcrete>` → wenn TypeInfoResolver Source-Gen-JsonTypeInfo liefert, läuft alles ohne Reflection
+- **Phase C** ✅ JsonReportSerializerContext erweitert: 6 konkrete Typen + 3 Concrete-Dictionary-types als `[JsonSerializable]`
+- **Phase D** ✅ JsonReportSerialization: TypeInfoResolver umgestellt auf nur Source-Gen
+- **Phase E** ✅ JsonReport-Tests grün (11 Dogfood + 2 E2E = 13/13). Solution-wide 2047 grün, Semgrep clean
+- **Phase F** ✅ ADR-034 + 0.20.0 history-row geschrieben
+- **Phase G** PR + merge + tag v3.2.8
 
-**Decision:** ADR-036 — vendor Stryker.slnx as in-repo test-resource + cross-platform Path.Combine in builder tests.
+## Backlog Status nach Sprint 154
 
-Two structural failure classes in `build + test (ubuntu/windows)` jobs:
-- Class A (Stryker.Solutions.Tests, 4 tests): `_references/stryker-net/src/Stryker.slnx` not in CI checkout (`.gitignore`-excluded) → DirectoryNotFoundException
-- Class B (ProjectAnalysisMockBuilderTests, 1 test): hardcoded Windows-Path `c:\\src\\MyProject.csproj` → backslash not path-separator on Linux/macOS → wrong AssemblyName derivation
+- ✓ Item 1 (JsonReport full AOT-trim) closed — ADR-034 (Sprint 154 / v3.2.8)
+- ✓ Item 3 (TypeSyntax-Engine) closed-as-status-quo — ADR-035
+- ✓ Item 4 (HotSwap-incremental) closed-as-status-quo — ADR-035
+- ✓ Item 5 (CI flakes) class-A+B+D closed; class-C deferred — ADR-036 (Sprint 152)
+- ✓ Item 7 (Combined Report) closed-by-discovery — ADR-033
 
-Class C (~25 macOS/Ubuntu integration-test failures with `extern alias TheLog` compile-error) is a Stryker-mutation-engine-regression on integration TargetProject — **honest deferred** to Sprint-153+ separate investigation.
-
-## Sprint-152-Phasen
-
-- **Phase A** ✅ Maxential 4-Schritte: 2 fixable classes A+B in scope, Class C deferred
-- **Phase B** ✅ Class A: `tests/Stryker.Solutions.Tests/TestResources/UpstreamStryker.slnx` (in-repo) + csproj `<None CopyToOutputDirectory>`. Tests use `Path.Combine(AppContext.BaseDirectory, "TestResources", "UpstreamStryker.slnx")`.
-- **Phase C** ✅ Class B: 4 hardcoded Windows-paths in ProjectAnalysisMockBuilderTests refactored to `Path.Combine(...)` static-readonly fields.
-- **Phase D** ✅ Solution-wide build (0 W / 0 E), 2047 Tests grün lokal (±0 vs Sprint 151 — only fixes for existing tests), Semgrep clean
-- **Phase E** ✅ ADR-036 + 0.18.0 history-row written
-- **Phase F** PR + CI verification (expect build+test (ubuntu+windows) GREEN) + merge + tag v3.2.7
+Remaining:
+- Item 2 (RoslynDiagnostics v2) — Sprint 155
+- Item 6 (Issue #191 MutationTestProcessTests) — Sprint 156
