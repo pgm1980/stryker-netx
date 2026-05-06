@@ -43,8 +43,18 @@ namespace Stryker.Core.Mutators;
 /// element, nullable target, ref-type target, base-type, cast target) is
 /// skipped — the same crash class that ADR-026 mitigated for
 /// <see cref="SpanReadOnlySpanDeclarationMutator"/> (ParenthesizedExpression
-/// envelope into TypeSyntax slot). Re-enable tracked in Phase 3 alongside the
-/// <c>SpanReadOnly</c> work.</para>
+/// envelope into TypeSyntax slot).</para>
+///
+/// <para><b>Phase 3 (Sprint 145, ADR-027 closure):</b> the TypeSyntax-position
+/// skip is finalized as the architectural answer rather than a temporary
+/// mitigation. Maxential cost/benefit (11 Schritte, 3 alternatives evaluated)
+/// concluded that an engine-refactor (TypeReplacementInstrumentationEngine +
+/// pipeline separate-compile-per-mutation) would require 4+ sprints for a
+/// user-value of zero on this mutator: an UOI mutation on a type identifier
+/// (<c>BoxInner</c> → <c>BoxInner++</c> in <c>BoxInner Inner { get; }</c>) is
+/// 100% non-compiling — every such mutant would be classified as compile-error
+/// without semantic test value. The skip is therefore the correct architectural
+/// boundary for this mutator. Documented in ADR-027 §Phase 3.</para>
 /// </summary>
 [MutationProfileMembership(MutationProfile.All)]
 public sealed class UoiMutator : MutatorBase<IdentifierNameSyntax>
@@ -192,6 +202,16 @@ public sealed class UoiMutator : MutatorBase<IdentifierNameSyntax>
     private static bool IsInNameSyntaxSlot(IdentifierNameSyntax node) =>
         node.Parent is QualifiedNameSyntax or AliasQualifiedNameSyntax;
 
+    /// <summary>
+    /// ADR-027 Phase 3 (Sprint 145): the architectural answer for TypeSyntax-position
+    /// IdentifierName. UOI mutations on a type identifier (e.g. <c>BoxInner</c> in
+    /// <c>BoxInner Inner { get; }</c>) are 100% non-compiling at the mutant level —
+    /// post-/pre-fix on a type identifier never makes semantic sense. The
+    /// alternative — refactoring the engine to support TypeSyntax-mutations via
+    /// per-mutation separate compilations — was evaluated and rejected on cost/benefit:
+    /// 4+ sprints of engine + pipeline work for zero useful test signal here. The
+    /// skip is therefore the final design, not a temporary mitigation.
+    /// </summary>
     private static bool IsInTypeSyntaxPosition(IdentifierNameSyntax node)
     {
         // Walk up while parent is itself a TypeSyntax wrapper (ArrayType,

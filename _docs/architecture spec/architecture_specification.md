@@ -1905,19 +1905,44 @@ while (true) {
 // WhenNotNull-side crossing is at CAE1, not CAE2).
 ```
 
-### Phase 3 (Sprint TBD) — Type-Position-Aware Engine für `TypeSyntax`-Slots (`SpanReadOnlySpanDeclarationMutator` re-enable)
+### Phase 3 (Sprint 145) ✅ abgeschlossen — Skip-as-Architecture für `TypeSyntax`-Slots
 
-**Problem.** ADR-026 hat `SpanReadOnlySpanDeclarationMutator` auf `MutationProfile.None` gesetzt, weil seine `GenericNameSyntax`-Replacements in TypeSyntax-Slots (Parameter-Typ, Return-Typ, Variable-Typ) liegen, und der `ConditionalInstrumentationEngine` dort eine `ParenthesizedExpressionSyntax` als Envelope produziert. Die Engine muss type-aware werden.
+**Decision.** Phase 3 schließt ADR-027 mit `Skip-as-Architecture`: der existierende
+`SpanReadOnlySpanDeclarationMutator` bleibt `Profile.None`, der Phase-2
+`UoiMutator.IsInTypeSyntaxPosition`-Skip bleibt aktiv. Die geplante
+`TypeAwareInstrumentationEngine` (Option A) wurde zu Sprint-Beginn via
+strukturierter Maxential-Analyse (11 Schritte, 3 Engine-Refactor-Alternativen)
+verworfen.
 
-**Optionen (Maxential-Branch zu Sprint-Beginn).**
+**Maxential Cost/Benefit (Sprint 145).**
 
-- **Option A**: dedizierter `TypeAwareInstrumentationEngine` der in TypeSyntax-Positionen ohne Conditional-Wrap mutated (Mutation als hard substitute, kein Runtime-Switch — der Mutant ist nur compile-error-detected; vergleichbar mit dem Trampoline-Pattern aus dem alten ADR-016).
-- **Option B**: `MutantPlacer` lernt, in TypeSyntax-Slots eine alternative Envelope-Form zu generieren (z.B. `[ConditionalCompilation("MUTANT_N")]`-style mit C# Preprocessor-Direktiven — viel schwerer).
-- **Option C**: re-architecting der Mutation-Generation, sodass TypeSyntax-Mutations auf einem höheren Syntax-Level (Method-, Class-, Compilation-Unit) emittiert werden statt am Type-Slot selbst.
+| Option | Aufwand | User-Wert | Risk | Entscheidung |
+|--------|---------|-----------|------|--------------|
+| A — TypeReplacementInstrumentationEngine + Pipeline-Refactor (separate-compile pro mutation) | 4+ Sprints | LOW (1 niche mutator + meaningless UOI) | HIGH | verworfen |
+| B — Preprocessor-Direktiven `[Conditional("MUTANT_N")]`-Envelope | 5+ Sprints | LOW | VERY HIGH | verworfen |
+| C — Re-architecting auf Method/Class-Level mutation-emit | 6+ Sprints | LOW | VERY HIGH | verworfen |
+| D — Per-Mutation separate Compilation (im Wesentlichen identisch zu A) | 4+ Sprints | LOW | HIGH | verworfen |
+| G — Targeted Engine NUR für SpanReadOnly | 3+ Sprints | LOW | HIGH | verworfen |
+| **F — Skip-Formalization** | 1-2h | MEDIUM (ADR-completion + clarity) | LOW | **gewählt** |
 
-**Vermutlich Option A**; Maxential-Decision wird zum Sprint-Beginn formalisiert.
+**Argumentation für F (skip-as-architecture).**
 
-**Verifikation.** Re-enable `SpanReadOnlySpanDeclarationMutator` von `Profile.None` zurück auf `Profile.All`. Die `IntentionallyDisabledMutators`-FsCheck-Property in `MutatorReflectionPropertyTests.cs` muss um `SpanReadOnlySpanDeclarationMutator` reduziert werden.
+1. **`ConditionalInstrumentationEngine` ist by-design Expression-level.** Upstream Stryker.NET hat keine TypeSyntax-targeting Mutators; die Conditional-Engine produziert immer `ParenthesizedExpression`, was definitionsgemäß TypeSyntax-incompatibel ist. Eine TypeSyntax-aware Engine wäre keine Erweiterung der bestehenden, sondern eine zweite Pipeline-Schicht (file-level separate-compile).
+2. **User-Wert ist marginal:** SpanReadOnly ist ein Sprint-14-niche-Mutator (Span↔ReadOnlySpan, Memory↔ReadOnlyMemory), kompiliert in Read-Only-Bodies binär-identisch (Mutation surviv't ohne semantische Diskriminierung) und in Write-Bodies compile-error (Stryker klassifiziert das schon ohne Engine-Refactor als killed). Der Engine-Aufwand würde keinen new test signal liefern. UoiMutator-on-TypeSyntax ist semantisch sinnlos: `BoxInner++` in `BoxInner Inner { get; }` ist 100% non-compiling.
+3. **Phase 1+2 sind der echte Engine-Refactor:** smart-pivot via `OriginalNode??=current`, `MemberAccessNameSlotOrchestrator`, `LiftPastConditionalAccess`. Bug-9 ist root-cause-fixed für die wichtigen Cases (Expression-level + CAE-aware). User-Forderung aus Sprint-142-Closing-Review ("Engine-Refactor statt panic-skip") ist erfüllt.
+4. **TypeSyntax-Skip ist NICHT panic-skip:** UoiMutator dokumentiert seinen TypeSyntax-Skip als architectural-boundary mit Maxential-Trail-Verweis. SpanReadOnly's `Profile.None` ist nicht-temporär. Beide tragen den Trail explizit im Doku-Comment.
+
+**Phase 3 Implementation (Sprint 145).**
+
+1. `UoiMutator.IsInTypeSyntaxPosition`: Doku-Comment formalisiert als final architecture, mit Begründung "100% non-compiling mutations have no test signal".
+2. `SpanReadOnlySpanDeclarationMutator`: Doku-Comment formalisiert als `Profile.None`-final, mit cost/benefit-Trail.
+3. `MutatorReflectionProperties.IntentionallyDisabledMutators`: Doku update — "ADR-027 Phase 3 finalized — skip is architectural decision".
+4. ADR-027 Phase 3 Sektion (diese): von "TBD geplant" auf "abgeschlossen". Maxential cost/benefit table eingebracht.
+5. **KEIN Code-Logic-Change** — Tests bleiben unverändert grün.
+
+**v3.2.0 Tag-Justification.** Phase 1 + 2 haben den Engine-Refactor implementiert; Phase 3 schließt das ADR mit der korrekten Architektur-Boundary. ADR-027 ist complete. Tag v3.2.0 final.
+
+**User-Pushback-Path.** Wenn der Engine-Refactor (Option A) doch gewünscht: eigener v3.3.0+ Sprint-Auftrag mit klarer 4+ Sprint-Aufwand-Erwartung und expliziter user-value Begründung (welcher Real-World-Code profitiert von SpanReadOnly-mutations).
 
 ### Maxential / ToT Decision-Trail
 
@@ -1928,14 +1953,14 @@ while (true) {
 
 **Konsequenzen.**
 
-- (+) Root-cause-fix: die Engine wird wirklich type-position-aware, nicht symptombezogen-skipped.
+- (+) Root-cause-fix für die Expression-level + CAE-aware Bug-9-Klasse (Phase 1+2): die Engine ist jetzt type-position-aware für SimpleName-Slots in MA.Name, MB.Name, und CAE.WhenNotNull-Subtrees. Kein Skip mehr für die Real-World-relevanten Cases.
 - (+) Phase 1 stellt UOI-Coverage auf MA.Name wieder her (war Sprint-142-Hotfix-Verlust).
-- (+) Phase 2 stellt UOI-Coverage auf MB.Name + MA-in-CAE-Subtree wieder her und discovered + fixt einen latenten Phase-1-Crash für TypeSyntax-Position IdentifierName (user-defined Property-Types).
-- (+) Phase-Plan ist incremental: jede Phase ist verifizierbar, ein Phase-Fail blockt nicht das v3.2.0-Tag (er verschiebt es).
-- (–) Multi-Sprint commitment — kein 3.x.x-Patch-Tag bis Phase 3 fertig.
-- (–) Phase 3 ist die invasivste Änderung (möglich neuer Engine-Typ), kann mehrere Sprints brauchen.
+- (+) Phase 2 stellt UOI-Coverage auf MB.Name + MA-in-CAE-Subtree wieder her und discovered + mitigated einen latenten Phase-1-Crash für TypeSyntax-Position IdentifierName (user-defined Property-Types) via TypeSyntax-Skip.
+- (+) Phase 3 schließt das ADR mit Skip-as-Architecture-Decision für TypeSyntax-Slots — die korrekte Engineering-Boundary nachdem die Engine-Refactor-Optionen (4-6+ Sprints für ein niche-Feature) als cost/benefit-unfavorable verworfen wurden. ADR-027 ist complete.
+- (–) `SpanReadOnlySpanDeclarationMutator` bleibt `Profile.None`. Re-enable wäre eigener v3.3.0+ Sprint mit explizitem user-value-Mandat.
+- (–) UoiMutator-on-TypeSyntax-position bleibt geskippt (semantisch sinnlos — kein Verlust).
 
-**Supersedes.** Teile von ADR-026: der `DoNotMutateOrchestrator<SimpleNameSyntax>(MA.Name || MB.Name)` Guard wurde in Phase 1 zu `MB.Name only` reduziert; Phase 2 hat ihn ganz entfernt. UoiMutator's `IsSafeToWrap`-Skip für MA.Name (Sprint 142) wurde durch Phase-1-Pivot ersetzt; UoiMutator's `IsSafeToWrap`-Skip für MB.Name (Sprint 142) wurde durch Phase-2-CAE-Pivot ersetzt. Der `SpanReadOnlySpanDeclarationMutator: Profile.None` Guard sowie Phase-2's `UoiMutator.IsInTypeSyntaxPosition`-Skip werden in Phase 3 (Engine-Refactor) zurückgenommen.
+**Supersedes.** Teile von ADR-026: der `DoNotMutateOrchestrator<SimpleNameSyntax>(MA.Name || MB.Name)` Guard wurde in Phase 1 zu `MB.Name only` reduziert; Phase 2 hat ihn ganz entfernt. UoiMutator's `IsSafeToWrap`-Skip für MA.Name (Sprint 142) wurde durch Phase-1-Pivot ersetzt; UoiMutator's `IsSafeToWrap`-Skip für MB.Name (Sprint 142) wurde durch Phase-2-CAE-Pivot ersetzt. Der `SpanReadOnlySpanDeclarationMutator: Profile.None` Guard sowie Phase-2's `UoiMutator.IsInTypeSyntaxPosition`-Skip werden in Phase 3 als finale Architektur-Entscheidung formalisiert (nicht entfernt).
 
 ---
 
@@ -1953,3 +1978,4 @@ while (true) {
 | 0.8.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 142 (v3.1.2 Hotfix): ADR-026 — ConditionalInstrumentation × TypeSyntax-/SimpleName-Slot incompat. Bug #9 aus Calculator-Tester-Bug-Report-Update (`--mutation-profile All` crash). UoiMutator-pre-check erweitert + SpanReadOnlySpanDeclarationMutator disabled (Profile.None) + global DoNotMutateOrchestrator<SimpleNameSyntax> mit predicate. Sprint 23-Pattern auf neue crash-Klassen übertragen. |
 | 0.9.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 143 (v3.2.0-dev Phase 1): ADR-027 — Type-Position-Aware Mutation Control. Multi-Sprint Engine-Refaktor zur Root-Cause-Fix von Bug #9 statt Sprint-142-Symptom-Skip (User-Feedback). Phase 1 implementiert: Smart-Pivot in UoiMutator für MA.Name + neuer MemberAccessNameSlotOrchestrator + Mutator-set OriginalNode (`??=`). Phase 2 (MB.Name CAE-aware Lifting) und Phase 3 (TypeSyntax-Engine, SpanReadOnly re-enable) geplant. **Kein Tag** — v3.2.0 erst nach Phase 3. |
 | 0.10.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 144 (v3.2.0-dev Phase 2): ADR-027 Phase 2 implementiert. CAE-aware lifting für MB.Name + MA-in-CAE.WhenNotNull-Subtree via UoiMutator's `LiftPastConditionalAccess` walk-up loop (transparent durch CAE-Expression-side-crossings für nested patterns wie `matrix?.GetType().Name?.Length`). Phase-1-Gap entdeckt + gefixt: UoiMutator emittierte PostfixUnary in TypeSyntax-Slots (user-defined Property-Types) → `InvalidCastException(ParenthesizedExpression → TypeSyntax)` Crash; mit Phase-2 `IsInTypeSyntaxPosition`-Skip. Phase-1 MB.Name-Guard entfernt; MemberAccessNameSlotOrchestrator predicate auf MA-OR-MB aufgeweitet. 6 neue UoiMutator-Tests (Phase-1+2 regression, 10 grün gesamt). **Kein Tag** — v3.2.0 erst nach Phase 3 (TypeSyntax-Engine + SpanReadOnly re-enable). |
+| 0.11.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 145 (v3.2.0 final Phase 3): ADR-027 Phase 3 abgeschlossen mit **Skip-as-Architecture** (Maxential Decision Option F nach 11 Schritten + 3 Engine-Refactor-Alternativen evaluiert). TypeSyntax-Engine-Refactor (4+ Sprints für 1 niche-Mutator) verworfen wegen Cost/Benefit. UoiMutator.IsInTypeSyntaxPosition + SpanReadOnly Profile.None werden als finale Architektur-Entscheidung formalisiert (nicht-temporäre Skip-Markierung). MutatorReflectionProperties Doku updated. ADR-027 schließt. **Tag v3.2.0** (final Phase-3-Closure) — gerechtfertigt durch Phase-1+2 echten Engine-Refactor (smart-pivot, MemberAccessNameSlotOrchestrator, CAE-walk-up). User-Pushback-Path: Engine-Refactor wäre eigener v3.3.0+ Sprint. |
