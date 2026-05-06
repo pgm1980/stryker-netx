@@ -1,29 +1,31 @@
-# HANDOVER — v3.0.25 + Sprint 139 Closing
+# HANDOVER — v3.1.0 + Sprint 140 Closing
 
-## Final State — v3.0.25 (Bug-Report-Batch released)
-- **Dogfood: 1175 green / 9 skip / 1184 total** (unchanged — Sprint 139 hatte minimal src/-Diff: 1 line in InputFileResolver)
-- **Latest tag: v3.0.25** (4 of 6 Calculator-tester bugs closed)
-- **NuGet.org: `dotnet-stryker-netx 3.0.25` öffentlich auffindbar und installierbar** ✓ (seit Sprint 139 / 2026-05-06)
-- **GitHub Release v3.0.25:** `.nupkg` Asset attached via auto-trigger (Sprint 138 hatte das nur via workflow_dispatch verifiziert; Sprint 139 verifiziert push-tag-Auto-Trigger zusätzlich) ✓
-- **Banner zeigt jetzt korrekte Version** (Bug #2 fix production-verified): `Version: 3.0.25` (statt vorher `1.0.0-preview.1`)
+## Final State — v3.1.0 (Bug #1 Code-Side closed)
+- **Dogfood: 1184 green / 9 skip / 1193 total** (+9 new AutoBump-Tests in Sprint 140)
+- **Latest tag: v3.1.0** (Minor-bump: behaviour-change for mutation-profile auto-bump)
+- **NuGet.org: `dotnet-stryker-netx 3.1.0` öffentlich auffindbar und installierbar** ✓ (seit Sprint 140 / 2026-05-06)
+- **Banner zeigt korrekte Version** (production-verified): `Version: 3.1.0`
+- **Auto-Bump-Behavior production-verified** (ADR-025): `--mutation-profile Stronger` ohne expliziten Level bumped automatisch auf `Advanced`; analog `All`→`Complete`
 - Repo `pgm1980/stryker-netx`: **public** (Apache-2.0, NOTICE-attributed, "independent community fork")
 
-## Cumulative Session (Sprints 95-139, 45 sprints)
-- Dogfood: **906/99 → 1175/9** (+269 green, -90 skip, +179 new tests)
-- 44 GitHub releases (v2.81.0 → v3.0.25); Sprint 138 had no version-bump (CI-reparation only)
-- 5 production bugs fixed:
+## Cumulative Session (Sprints 95-140, 46 sprints)
+- Dogfood: **906/99 → 1184/9** (+278 green, -90 skip, +188 new tests)
+- 45 GitHub releases (v2.81.0 → v3.1.0); Sprint 138 had no version-bump (CI-reparation only)
+- 6 production bugs fixed:
   - Sprint 99: MsBuildHelper.GetVersion missing-space + multi-line
   - Sprint 136: SseServer.Dispose double-close
   - Sprint 137: RoslynSemanticDiagnosticsEquivalenceFilter speculative-binding crash on MemberBindingExpression
   - Sprint 138: release.yml CI-reparation → **erstmaliger erfolgreicher NuGet.org-Push** (v3.0.24)
   - Sprint 139: Calculator-tester Bug-Report-Batch → 4 of 6 bugs closed in v3.0.25
+  - Sprint 140: Bug #1 Stufe 2 Code-Side via ADR-025 — mutation-profile auto-bumps mutation-level → v3.1.0
 
-## Sprint 135-139 — Final Cleanup + Release Pipeline + Bug-Report-Batch
+## Sprint 135-140 — Final Cleanup + Release Pipeline + Bug-Report-Batch + Auto-Bump
 - **Sprint 135 (v3.0.22):** Last attackable architectural-deferral ELIMINATED (CSharpRollbackProcess null-SourceTree)
 - **Sprint 136 (v3.0.23):** SseServer.Dispose production fix (best-effort per-writer disposal)
 - **Sprint 137 (v3.0.24):** RoslynSemanticDiagnosticsEquivalenceFilter speculative-binding fix (Sprint 23 known-bug ELIMINATED)
 - **Sprint 138 (no tag):** Release workflow + first NuGet.org push. CI-reparation only, no `src/` diff.
-- **Sprint 139 (v3.0.25):** Calculator-tester real-life bug report batch — 4 of 6 bugs closed (Bug #5 IsNullOrEmpty + Bug #2 version-sync + Bug #3 auto-resolved + Bug #1 Stufe 1 Profile×Level conjunctive doc). Auto-trigger via push-tag verified (Sprint 138 only verified workflow_dispatch path).
+- **Sprint 139 (v3.0.25):** Calculator-tester real-life bug report batch — 4 of 6 bugs closed (Bug #5 IsNullOrEmpty + Bug #2 version-sync + Bug #3 auto-resolved + Bug #1 Stufe 1 Profile×Level conjunctive doc). Auto-trigger via push-tag verified.
+- **Sprint 140 (v3.1.0):** Bug #1 Stufe 2 Code-Side — mutation-profile auto-bumps mutation-level (ADR-025). Decision-trail: ToT (5 branches) + Maxential (14 thoughts, 2 branches full-integration-merged). Auto-Bump production-verified.
 
 ## Sprint 138 (CI-Reparatur + erster echter NuGet-Push)
 
@@ -49,7 +51,7 @@ Nach erfolgreicher Installation hat Calculator-Tester einen extrem strukturierte
 
 | # | Schwere | Status | Sprint |
 |---|---|---|---|
-| #1 | 🔴 HOCH | Profile-Flag ohne sichtbaren Effekt | Doku-Lücke (Profile × Level conjunctive) — Stufe 1 (Doku): **Sprint 139 ✓**, Stufe 2 (Code): **Sprint 140** (ToT + Maxential für Auto-Bump-Entscheidung) |
+| #1 | 🔴 HOCH | Profile-Flag ohne sichtbaren Effekt | Doku-Lücke (Profile × Level conjunctive) — Stufe 1 (Doku): **Sprint 139 ✓**, Stufe 2 (Code): **Sprint 140 ✓** (ADR-025 Auto-Bump, production-verified mit `Version: 3.1.0` aus public NuGet) |
 | #2 | 🟡 MITTEL | Banner zeigt 1.0.0-preview.1 statt 3.0.24 | **Sprint 139** ✓ — Directory.Build.props + release.yml Version-Properties komplett gesetzt; production-verified |
 | #3 | 🟡 MITTEL | "Update verfügbar" obwohl bereits aktuell | **Sprint 139** ✓ (auto-behoben durch #2) |
 | #4 | 🟡 NIEDRIG | `--version` = Project-Version statt Tool-Version (upstream-Erbe) | **Sprint 141** (additiv `--tool-version` oder Breaking-Change zu v3.1) |
@@ -79,17 +81,12 @@ Nach erfolgreicher Installation hat Calculator-Tester einen extrem strukturierte
 - **Bug #1 Stufe 1 (Doku) ✓:** `Stryker_NetX_Installation.md` Sektion "Mutation Profile × Level" mit Filter-Logik, Empfehlungs-Tabellen, Anwender-Fehler-Beispiel, Strategie für Projekte
 - **Tag v3.0.25 → release.yml auto-trigger via push-tag verified** ✓ (Sprint 138 hatte nur workflow_dispatch verifiziert)
 
-### Sprint 140 — Bug #1 Code-Strategie (ToT + Maxential, Tag v3.0.26 oder v3.1.0)
-- **ToT first** (User-direktive): Multi-Branch-Exploration der Profile/Level-Kopplung
-  - Branch-Optionen z.B.: 
-    - A: Status-quo + Warning-Log
-    - B: Auto-Bump (Profile setzt implizit Mutation-Level)
-    - C: Profile-Default-Level-Bundle ("StrongerStandard", "AllComplete" als kombinierte Profiles)
-    - D: Hybrid (Auto-Bump als Default, opt-out via `--no-auto-mutation-level`)
-- **Maxential afterwards** mit den ToT-besten Branches
-- ADR-026 schreiben (Profile/Level-Semantik formalisieren)
-- Implementation
-- Tag entscheidet sich am Ende der Maxential — wenn Auto-Bump dann v3.1.0 (Mini-Breaking), wenn nur Warning dann v3.0.26
+### Sprint 140 — Bug #1 Code-Strategie ✓ DONE (Tag v3.1.0)
+- **ToT first** (User-Direktive): 5 Branches A-E. Pruned C (breaks 1:1 schema-compat with upstream) und E (diverges from upstream Level-semantic). Top-2: D-Hybrid (0.82) und B-AutoBump (0.78).
+- **Maxential afterwards**: 14 Thoughts, 2 Branches `B-autobump` + `D-hybrid` both full-integration-merged. D-Hybrid's opt-out flag YAGNI-pruned for the 1% use-case → D collapses to D-lite = essentially B with better Info-log announcement. **Final: B-AutoBump** (tagged `decision`+`synthesis`).
+- **ADR-025** geschrieben (nicht ADR-026 — ADR-024's Forward-Reference auf "ADR-025: JsonReport concrete-types" wurde auf "Future-ADR (TBD-Nummer)" umnummeriert, da Sprint 140 den Slot zuerst genommen hat)
+- **Implementation**: `StrykerInputs.ResolveMutationLevel()` + `[LoggerMessage]` `LogAutoBumpedMutationLevel`; 9 neue AutoBump-Tests (3 profiles × 3 level-settings); pre-existing CLI-Test gefixt (Sprint-139's `0.0.0-localdev` baseline-shift).
+- **Tag v3.1.0 production-verified**: NuGet-Push erfolgreich (1m55s), Indexing-Lag, Tool-Install + Banner zeigt `Version: 3.1.0`.
 
 ### Sprint 141 — UX-Polish (Bugs #4, Hinweis #7, #8)
 - Bug #4: ADR — additiv `--tool-version` oder breaking `--version`-Reclaim?
