@@ -31,4 +31,10 @@
     <ProjectReference Include="..\..\src\Stryker.Solutions\Stryker.Solutions.csproj" />
   </ItemGroup>
 
+  <ItemGroup Label="Test resources (Sprint 152, ADR-036): in-repo slnx fixture so CI checkouts (which exclude _references/ via .gitignore) can run the SolutionFile tests.">
+    <None Include="TestResources\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

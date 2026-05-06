@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,14 +15,21 @@ namespace Stryker.Solutions.Tests;
 /// Test logic preserved 1:1 with upstream; the few path constants are
 /// adjusted because our flat repo structure replaces upstream's
 /// src/&lt;Module&gt;/&lt;Module&gt;/ nesting with src/&lt;Module&gt;/.
+///
+/// <para>
+/// Sprint 152 (ADR-036, CI matrix flake fix): the upstream-shape <c>Stryker.slnx</c>
+/// used to live at <c>../../../../../_references/stryker-net/src/Stryker.slnx</c>,
+/// but <c>_references/</c> is <c>.gitignore</c>'d, so CI checkouts could not find
+/// the file. The slnx is now vendored at <c>TestResources/UpstreamStryker.slnx</c>
+/// (in-repo, copied to the test bin directory), matching the existing pattern used
+/// by the <c>integrationtest/TargetProjects/</c>-based theory.
+/// </para>
 /// </summary>
 public sealed class SolutionFileShould
 {
-    // Use the upstream-shape clone in _references/ as the test target for the
-    // ProvideProjectListForGivenConfiguration test, because that test asserts
-    // on the upstream nested layout (Stryker.CLI/Stryker.CLI/Stryker.CLI.csproj).
+    // Sprint 152 (ADR-036): in-repo test fixture, available in both local and CI checkouts.
     private static readonly string UpstreamSlnxPath =
-        Path.Combine("..", "..", "..", "..", "..", "_references", "stryker-net", "src", "Stryker.slnx");
+        Path.Combine(AppContext.BaseDirectory, "TestResources", "UpstreamStryker.slnx");
 
     [Fact]
     public void LoadStrykerSlnFile()
