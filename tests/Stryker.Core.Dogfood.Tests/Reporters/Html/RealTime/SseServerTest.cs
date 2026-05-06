@@ -102,7 +102,11 @@ public class SseServerTest : IDisposable
             }
         });
 
-        WaitForConnection(2000).Should().BeTrue();
+        // Sprint 152 ADR-036: 10s on CI runners. Local runs settle in ~50ms; Windows
+        // GitHub Actions runners can be slow enough that 2s misses the SSE handshake +
+        // ClientConnected callback window. The increased ceiling never hurts the local
+        // path (Monitor.Pulse fires immediately on connection).
+        WaitForConnection(10000).Should().BeTrue();
         _sut.HasConnectedClients.Should().BeTrue();
         // CloseSseEndpoint omitted — Dispose() handles cleanup; calling both causes double-dispose of writers
     }
@@ -125,7 +129,11 @@ public class SseServerTest : IDisposable
             catch { /* best-effort */ }
         });
 
-        WaitForConnection(2000).Should().BeTrue();
+        // Sprint 152 ADR-036: 10s on CI runners. Local runs settle in ~50ms; Windows
+        // GitHub Actions runners can be slow enough that 2s misses the SSE handshake +
+        // ClientConnected callback window. The increased ceiling never hurts the local
+        // path (Monitor.Pulse fires immediately on connection).
+        WaitForConnection(10000).Should().BeTrue();
 
         // Should not throw — server has 1 connected client to dispatch to
         var sendAct = () => _sut.SendEvent(new SseEvent<string> { Event = SseEventType.Finished, Data = "" });
@@ -152,7 +160,11 @@ public class SseServerTest : IDisposable
             catch { /* best-effort */ }
         });
 
-        WaitForConnection(2000).Should().BeTrue();
+        // Sprint 152 ADR-036: 10s on CI runners. Local runs settle in ~50ms; Windows
+        // GitHub Actions runners can be slow enough that 2s misses the SSE handshake +
+        // ClientConnected callback window. The increased ceiling never hurts the local
+        // path (Monitor.Pulse fires immediately on connection).
+        WaitForConnection(10000).Should().BeTrue();
 
         var payload = new { Id = "1", Status = "Survived" };
         var sendAct = () => _sut.SendEvent(new SseEvent<object> { Event = SseEventType.MutantTested, Data = payload });
