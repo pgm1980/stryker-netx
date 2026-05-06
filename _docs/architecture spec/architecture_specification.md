@@ -2402,6 +2402,78 @@ Die integration-test-Matrix (Stryker-mutation-engine-Regression auf TargetProjec
 
 ---
 
+## ADR-033: Combined Multi-Project Report Aggregation — discovery (no sprint / doc-correction)
+
+**Status.** Accepted — 2026-05-06 (post-Sprint-152 doc bundle).
+
+**Kontext.** ADR-031 (Sprint 150, `--all-projects` flag) hatte als Konsequenz markiert: "Multi-Project-Reports werden NICHT zu einem kombinierten HTML-Report aggregiert. Der ProjectOrchestrator schreibt pro Project einen eigenen Report-Output. Eine echte Aggregation ist eine separate Roadmap-Item für v3.3+ (Maxential-Trail dokumentiert)."
+
+**Discovery.** Calculator-Tester Bug-Report 5 (Sprint 151) bestätigte explizit: "375 Mutanten erzeugt (Domain 4 + Infrastructure 271 + Calculator 100), 242 tested, **kombinierter Report**". Code-Audit in Sprint-153-Recherche bestätigt: `StrykerRunner.cs:51` ruft `AddRootFolderIfMultiProject([.. _mutationTestProcesses.Select(x => x.Input.SourceProjectInfo.ProjectContents)], options)` auf, baut den combined `rootComponent`, und `OnAllMutantsTested(rootComponent, combinedTestProjectsInfo)` wird ONCE am Ende gerufen — mit dem aggregierten Tree als Argument. Beide `JsonReporter` und `HtmlReporter` schreiben EINEN Report basierend auf `rootComponent`. Die Aggregation existiert seit Sprint 1 (ADR-005 Workspaces.MSBuild-Pipeline).
+
+**Entscheidung.** Die "v3.3+ deferred"-Aussage in ADR-031 wird **rückgängig gemacht**. Combined Multi-Project Report Aggregation ist seit der ursprünglichen `--solution`-Mode-Implementation (vor v2.0.0) bereits funktional. `--all-projects` (Sprint 150 / ADR-031) erbt das automatisch durch die `MutateProjectsAsync` → `rootComponent` → `OnAllMutantsTested`-Pipeline.
+
+**Begründung der Wahl.** Keine. Diese ADR korrigiert eine Falsch-Aussage in ADR-031. Kein Sprint nötig.
+
+**Implementation.** Keine — die Aggregation ist bereits operational. Nur Doku-Korrektur.
+
+**Konsequenzen.**
+
+- (+) Backlog-Item 7 (Combined Multi-Project Report Aggregation) ✓ closed mit Discovery: keine Implementation nötig, ADR-031's deferred-Claim war veraltet.
+- (+) User-Forderungen aus Bug-Report 4 / 5 implizit alle adressiert für Multi-Project-Output.
+- (–) ADR-031's Konsequenzen-Sektion enthält veraltete Aussage. Sollte beim nächsten Major-Release in einer ADR-Revision korrigiert werden (out of scope für v3.x).
+
+**Supersedes / supplements.**
+
+- **Korrigiert** ADR-031 Konsequenzen-Sektion (v3.3+ deferred-Claim für Multi-Project-Report Aggregation): die Aussage ist false; Aggregation ist seit Sprint 1 implementiert.
+- **Verifiziert via Code-Audit** in `src/Stryker.Core/StrykerRunner.cs` Z. 51 (rootComponent build) + Z. 65 + Z. 142 (OnMutantsCreated/OnAllMutantsTested calls) + `src/Stryker.Core/Reporters/{Json,Html}/...Reporter.cs` (single-call write).
+
+**Backed by.** Calculator-Tester Bug-Report 5 v3.2.5 verification: "kombinierter Report" mit 375 Mutanten Total. Code-Audit StrykerRunner.cs + JsonReporter.cs + HtmlReporter.cs.
+
+**Bezug zu Backlog-Items.**
+
+- Backlog-Item 7 (Combined Multi-Project Report Aggregation) ✓ closed by discovery — keine Implementation nötig.
+
+---
+
+## ADR-035: TypeSyntax-Engine Refactor + HotSwap inkrementelles MT — status-quo confirmation (no sprint / doc-affirmation)
+
+**Status.** Accepted — 2026-05-06 (post-Sprint-152 doc bundle).
+
+**Kontext.** Im Sprint-152-Sprint-Roadmap-Planning waren zwei Backlog-Items von der Sprint-Sequenz ausgenommen:
+- **Item 3 — TypeSyntax-Engine Refactor**: ADR-027 Phase 3 (Sprint 145, v3.2.0) hatte explizit `Skip-as-Architecture` als finale Entscheidung dokumentiert (Maxential Option F nach 11 Schritten + 3 Engine-Refactor-Alternativen). TypeSyntax-Engine-Refactor wäre 4+ Sprints für 1 niche-Mutator (UoiMutator in TypeSyntax-Position) — Cost/Benefit gegen Skip-as-Architecture verloren.
+- **Item 4 — HotSwap inkrementelles MT**: ADR-022 (Sprint 15, Proposed) hatte inkrementelles Mutation-Testing als zukünftige Performance-Direction skizziert, aber explizit ohne commitment. ADR-021 (Sprint 15, Accepted) hatte ADR-016 (HotSwap-Engine v2.0.0) walked-back wegen falschen mentalen Modells.
+
+User-Backlog-Direktive: "Damit machen wir weiter." — d. h. die 7-Item-Liste durcharbeiten. Diese ADR adressiert beide Items mit der gleichen Antwort: status-quo bleibt, kein Sprint allokiert, kein Reopen ohne neuen Trigger.
+
+**Entscheidung.** **Beide Items bleiben in ihrem aktuellen ADR-Status.** Kein Sprint allokiert. Kein Reopen.
+
+- **TypeSyntax-Engine**: Skip-as-Architecture ist ADR-027-Phase-3-final. Reopen würde Maxential ADR-027-revoke + neuen Multi-Sprint-Refactor-Plan benötigen.
+- **HotSwap-inkrementell**: ADR-022 bleibt Proposed. Reopen würde Maxential ADR-021-walk-back-revoke + Multi-Sprint-Implementation-Plan benötigen.
+
+**Begründung der Wahl.** Maxential-effort-Trade-off: beide Items haben akzeptierte ADRs die explizit "no commitment" oder "final architecture decision" festhalten. Reopen erfordert neuen Trigger (User-Bug-Report, Performance-Pain-Point, oder strategisches Roadmap-Update). Der aktuelle Backlog-Trigger ("Damit machen wir weiter") ist nicht spezifisch genug für einen architekturellen Reopen — die anderen 5 Items (Sprint 152-156) sind klar abgegrenzte Werte mit Cost/Benefit.
+
+Diese ADR macht den status-quo explizit, damit nicht ein folgender Sprint die Items als "TODO" interpretiert.
+
+**Konsequenzen.**
+
+- (+) Backlog-Items 3 + 4 ✓ closed-as-deferred-with-explicit-rationale. Künftige Sprint-Planning-Iterations können sich auf die 5 anderen Items fokussieren ohne Re-Klärung dieser zwei.
+- (+) ADR-027 + ADR-021 + ADR-022 bleiben unverändert; status-quo ist dokumentiert in ADR-035.
+- (–) Wenn künftig ein User-Trigger kommt (z. B. Bug-Report über UoiMutator-skip-cases die Stronger-Profile-Mutation-Score senken, oder Performance-Pain-Point der inkrementelles MT rechtfertigt), wird ein neuer Sprint nötig sein. Das ist kein neuer Aufwand — das wäre auch ohne ADR-035 der Fall.
+
+**Supersedes / supplements.**
+
+- **Confirms** ADR-027 Phase 3 (Skip-as-Architecture) als finale TypeSyntax-Engine-Decision.
+- **Confirms** ADR-021 (HotSwap walk-back) + ADR-022 (Proposed inkrementelles MT, no commitment) als unverändert.
+
+**Backed by.** Sprint-152-Roadmap-Maxential-Planning (Tier 4 = "zurückgestellt mit Begründung"). Keine neuen Trigger für Reopen.
+
+**Bezug zu Backlog-Items.**
+
+- Backlog-Item 3 (TypeSyntax-Engine Refactor) ✓ closed-as-status-quo via ADR-035.
+- Backlog-Item 4 (HotSwap inkrementelles MT) ✓ closed-as-status-quo via ADR-035.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2423,4 +2495,5 @@ Die integration-test-Matrix (Stryker-mutation-engine-Regression auf TargetProjec
 | 0.15.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 149 v3.2.4: ADR-030 — `--reporters` Plural-Alias via args-Pre-Processor. Calculator-Tester Bug-Report 4, Bug #6: externe Tutorials/Doku schreiben oft `--reporters` (Plural), McMaster lehnt das mit "Unrecognized option" + "Did you mean: reporter" ab. Maxential (3-Schritte): Option A (args-rewrite) gewählt vs B (zweite Option-Registrierung) vs C (McMaster-Subclass). `RewriteReportersAlias(string[]) → string[]` rewrites `--reporters`, `--reporters=…`, `--reporters:…` zu Singular-Form BEFORE McMaster sieht args. Konsistent mit Sprint-148-Pattern (Pre-Processor). False-Positive-Guard: `--reportersx` fällt durch zu McMaster's "Did you mean"-Hilfe. 10 neue Tests (5 Rewrite + 4 Non-Rewrite + 1 E2E). Solution-wide 844 Unit-Tests grün (vs Sprint 148 = 834, +10), Semgrep clean. Tag **v3.2.4** — Bug #6 closed. Bug #8 → Sprint 150. |
 | 0.16.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 150 v3.2.5: ADR-031 — `--all-projects` Multi-Project-Mutation Flag. Calculator-Tester Bug-Report 4, Bug #8: Test-Projekte mit mehreren Source-Project-Referenzen (Clean-Architecture: Domain + Infrastructure + App) krachten mit "Test project contains more than one project reference. Please set the project option…". Sprint-141-Workaround `--solution` setzt Solution-Datei voraus + scannt ALLE Solution-Projekte; User wollte per-Test-Project-Scope. Maxential 11 Schritte mit 2 ToT-Branches → B1 (Flag) gewählt vs B2 (Multi-`--project` MultipleValue, breaking-change auf SourceProjectName). Neue `AllProjectsInput` (NoValue, long-only) + IStrykerOptions.IsAllProjectsMode + InputFileResolver.ResolveMultiReferenceCase Helper (MA0051-Cap-Refactor). Bei `--all-projects` UND multi-reference → return alle SourceProjectInfo statt throw. ProjectOrchestrator iteriert ohnehin (Solution-Mode-Pfad), kein Engine-Refactor nötig. Verbesserte Fehlermeldung: zeigt jetzt `--all-projects` UND `--solution` als Alternativen. 7 neue Tests (5 AllProjectsInputTests + 2 CLI-Plumbing). Solution-wide 2035 Unit-Tests grün, Semgrep clean. Tag **v3.2.5** — Bug #8 closed. **Bug-Report 4 vollständig geschlossen** (Bugs #4, #6, #8, #9 alle via ADRs 028–031 architektonisch fixed). |
 | 0.17.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 151 v3.2.6: ADR-032 — **Orchestration-Phase Slot Validation**. Calculator-Tester Bug-Report 5 (verschärfte Bug-9-Forderung): in v3.2.5 reproduziert sich der Cast-Crash auf Calculator.Infrastructure als `ParenthesizedExpressionSyntax → IdentifierNameSyntax` (statt v3.2.x's `→ TypeSyntax`). User-Forderung verschärft: "projektweite Suche nach allen impliziten oder expliziten Casts in Mutator-Code-Pfaden + Listing als Patch-Note + systemischer Eingriff statt Symptom". Maxential 5-Schritte mit 3-Branch ToT (S1/S2/**S3 Hybrid chosen**). **Architektonischer Trugschluss von Sprint 147 korrigiert**: ADR-028 Validator deckt nur Injection-Phase, nicht Orchestration-Phase. Audit aller 12 projektweiten Cast-Sites in Mutator/Orchestrator-Code: 8 safe (upcast/by-construction/`??`-Fallback), 4 unsafe (NodeSpecific/Conditional/Invocation/ExpressionBodiedProperty Orchestrators' `node.ReplaceNodes`-Calls). Neue `OrchestrationHelpers.ReplaceChildrenValidated`: per-child `SyntaxSlotValidator.TryReplaceWithValidation` + bulk-replace try/catch safety-net. Defense-in-Depth zwischen Sprint-147 (Injection) + Sprint-151 (Orchestration). 12 neue Tests (10 Integration mit MutationProfile.All über Bug-Report-4+5 Patterns + 2 Unit). Solution-wide 2047 Unit-Tests grün (vs Sprint 150 = 2035, +12), Semgrep clean. Tag **v3.2.6** — Bug #9 systemic fix + audit listing als Patch-Note. **Bug-Report 5 closed.** |
-| 0.18.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 152 v3.2.7: ADR-036 — **CI build+test green** via in-repo test fixtures + cross-platform paths. Über Sprints 147-151 zeigte jede PR ein konsistentes 6/33-SUCCESS-Pattern; build+test (ubuntu/windows) waren rot, integration-test-matrix toleriert als pre-existing flake. Sprint 152 fixt zwei strukturelle Failure-Klassen die build+test betreffen: (A) Stryker.Solutions.Tests `_references/stryker-net/src/Stryker.slnx`-Path nicht in CI-checkout (`.gitignore`-excluded) → vendor als in-repo `tests/Stryker.Solutions.Tests/TestResources/UpstreamStryker.slnx` mit `<None CopyToOutputDirectory>`. (B) ProjectAnalysisMockBuilderTests hardcoded Windows-Path `c:\\src\\MyProject.csproj` → cross-platform via `Path.Combine`. Maxential 4-Schritte branchless. Erwartung: build+test (ubuntu+windows) jetzt grün, ~30/9 SUCCESS-Pattern statt 6/33. Integration-test-matrix Stryker-mutation-engine-Regression (`extern alias TheLog` compile-error in TargetProject) bleibt **honest deferred** als Sprint-153+ separate-investigation. Solution-wide 2047 Tests grün lokal (±0 vs Sprint 151 — kein neuer Test, nur fixes), Semgrep clean. Tag **v3.2.7**. |
+| 0.18.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 152 v3.2.7: ADR-036 — **CI build+test green** via in-repo test fixtures + cross-platform paths. Über Sprints 147-151 zeigte jede PR ein konsistentes 6/33-SUCCESS-Pattern; build+test (ubuntu/windows) waren rot, integration-test-matrix toleriert als pre-existing flake. Sprint 152 fixt zwei strukturelle Failure-Klassen die build+test betreffen: (A) Stryker.Solutions.Tests `_references/stryker-net/src/Stryker.slnx`-Path nicht in CI-checkout (`.gitignore`-excluded) → vendor als in-repo `tests/Stryker.Solutions.Tests/TestResources/UpstreamStryker.slnx` mit `<None CopyToOutputDirectory>`. (B) ProjectAnalysisMockBuilderTests hardcoded Windows-Path `c:\\src\\MyProject.csproj` → cross-platform via `Path.Combine`. Plus: (D) SseServer test windows-CI flake — 2s Timeout zu eng für slow GitHub Actions Windows runners → 10s. Maxential 4-Schritte branchless. CI-Result: `build + test (ubuntu+windows)` GRÜN (vorher beide FAILURE). Integration-test-matrix Stryker-mutation-engine-Regression (`extern alias TheLog` compile-error in TargetProject) bleibt **honest deferred** als Sprint-153+ separate-investigation. Solution-wide 2047 Tests grün lokal (±0 vs Sprint 151 — kein neuer Test, nur fixes), Semgrep clean. Tag **v3.2.7**. |
+| 0.19.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Doc bundle (post-Sprint-152): ADR-033 + ADR-035. **ADR-033** — Combined Multi-Project Report Aggregation discovery: ADR-031's "v3.3+ deferred"-Claim für Multi-Project-Report-Aggregation war FALSCH — Aggregation ist seit Sprint 1 implementiert via `StrykerRunner.AddRootFolderIfMultiProject` + single `OnAllMutantsTested(rootComponent)` call. Calculator-Tester Bug-Report-5-Verifikation hatte bereits "kombinierter Report" mit 375 Mutanten Total bestätigt. Backlog-Item 7 closed by discovery. **ADR-035** — TypeSyntax-Engine Refactor + HotSwap inkrementelles MT status-quo confirmation: beide Items bleiben in ihren existierenden ADR-Status (027 Phase 3 Skip-as-Architecture / 022 Proposed-no-commitment). Backlog-Items 3+4 closed-as-status-quo. Beide ADRs sind doc-only, kein Sprint, kein neuer Tag. |
