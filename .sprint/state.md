@@ -3,43 +3,50 @@ current_sprint: "159"
 sprint_goal: "Fix Aisess .slnx mutable-assembly-resolution bug (H2 confirmed): C+B-Kombi filter robustness + log clarity + latent-H1 pre-emptive. Target tag v3.2.11."
 branch: "fix/159-slnx-source-project-filter"
 started_at: "2026-05-07"
-housekeeping_done: false
-memory_updated: false
-github_issues_closed: false
-sprint_backlog_written: false
-semgrep_passed: false
-tests_passed: false
-documentation_updated: false
+housekeeping_done: true
+memory_updated: true
+github_issues_closed: true
+sprint_backlog_written: true
+semgrep_passed: true
+tests_passed: true
+documentation_updated: true
 ---
-# Session State — Sprint 159 (Aisess `.slnx` Source-Project Filter Fix)
+# Session State — Sprint 159 closed (Aisess `.slnx` Source-Project Filter Fix — v3.2.11 prep)
 
-## Sprint Plan
+## Sprint Plan — final status
 
-| # | Task | Status | Gates |
+| # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | ADR-039 — Source-project filter behavior in solution-mode (C+B Kombi) | open | doc-only |
-| 2 | Fix-1 (proactive validation) — pre-validate filter before AnalyzeAllNeededProjects loop | open | unit test (FluentAssertions) |
-| 3 | Fix-1 (zero-match fallback) — warn + retry without filter when mutableProjects=0 | open | unit test |
-| 4 | Fix-2 (log clarity) — replace misleading "Analyzing 0 projects" trio | open | snapshot test |
-| 5 | Fix-3 (latent H1 pre-emptive) — Stage-2 OrdinalIgnoreCase + Path.GetFullPath | open | unit test (Windows path edge cases) |
-| 6 | Fix-4 (integration test fixture) — `samples/AisessLikeSlnxFolders/` with 4-layer DDD-onion + `<Folder>` `.slnx` | open | E2E test |
-| 7 | Version bump + CHANGELOG + tag v3.2.11 + GitHub release | open | release notes |
+| 1 | ADR-039 — Source-project filter behavior in solution-mode (3-Layer Defense) | ✓ done | Inline in `architecture_specification.md` Z. 2647-ff. |
+| 2 | Fix-1 (Layer 1 fast-fail) — `ValidateFilterMatchesAnyProject` in `ScanInSolutionMode` | ✓ done | InputException w/ available-projects list, ~10ms feedback |
+| 3 | Fix-1 (Layer 2 proactive) — `ApplyProjectFilter` w/ test-project-as-filter detection | ✓ done | New private method, refactored `AnalyzeThisProject` to per-project-only |
+| 4 | Fix-1 (Layer 3 fallback) — zero-match safety-net warn + return unfiltered | ✓ done | `LogFilterFallback` Warning |
+| 5 | Filter-Match-Semantik BREAKING — substring → exact filename | ✓ done | New `MatchesFilter` helper, `.csproj`-ext tolerance |
+| 6 | Fix-2 (log clarity) | ✓ done (subset) | New `LogFilterFallback` covers Layer 3 path; existing trio still emits for legacy paths |
+| 7 | Fix-3 (latent-H1 pre-emptive) — Stage-2 OrdinalIgnoreCase + Path.GetFullPath | ✓ done | `ScanProjectReferences` updated |
+| 8 | Fix-4 (integration-test fixture) — `samples/AisessLikeSlnxFolders/` w/ 4-layer DDD-Onion + `<Folder>` `.slnx` | ✓ done | Subagent worktree-isolated, 4 new E2E tests grün |
+| 9 | Build + Test verify Solution-wide | ✓ done | 0/0 build, 1909/1935 tests green |
+| 10 | Semgrep clean | ✓ done | 0 findings on 12 changed files |
+| 11 | MEMORY.md + project_sprint159_closed.md | ✓ done | User-level auto-memory updated |
+| 12 | Tag v3.2.11 + GitHub Release | ⏳ pending | After PR merge to main (Sprint-Tag-Convention) |
 
-## Hypothesis recap (from PR #250)
+## Verification summary
 
-- **H2 confirmed**: filter-induced empty `mutableProjects` collection
-- **H6 dead**: Roslyn populates `ProjectReferences` correctly (4/4 for test project)
-- **H1 latent**: Stage-2 `StringComparer.Ordinal` is fragile on Windows — pre-emptive fix included
-- **Aisess workaround**: drop the `"project"` field from `stryker-config.json` (their interim fix while v3.2.11 ships)
+- Solution-wide build: **0 warnings, 0 errors** (TreatWarningsAsErrors=true)
+- All test suites: **1909 / 0 / 26 = 1935** (failures / passing / skipped — skips are pre-existing, documented)
+- Semgrep: **0 findings** on `InputFileResolver.cs` + `samples/AisessLikeSlnxFolders/` + `tests/Stryker.E2E.Tests/AisessLikeSlnxFoldersTests.cs`
+- Maxential session "sprint-159-adr-039-filter-defense" archived (20 thoughts, 2 branches via `full_integration`)
 
-## Acceptance criteria
+## Aisess customer impact
 
-- Aisess `.slnx` setup runs successfully OR fails with a clear, actionable error (no more `Failed to analyze project builds` on a misconfigured filter)
-- All Calculator-Tester E2E tests stay green
-- New `samples/AisessLikeSlnxFolders/` integration suite covers 4 filter cases:
-  1. happy path (source-project filter)
-  2. test-project as filter → clear error
-  3. non-existent filter → clear error
-  4. no filter → all source projects mutated
-- 0 warnings, 0 errors with `TreatWarningsAsErrors`
-- Semgrep scan green
+After v3.2.11 ships, Aisess Platform Team can:
+- Drop the `"project": "Aisess.Tests.csproj"` field from `stryker-config.json` (their interim workaround) and stryker-netx will mutate all 4 source projects automatically, OR
+- Keep the `"project"` field but with a **source** project name (e.g. `"Aisess.Infrastructure.csproj"`) and stryker-netx will mutate only that project. If they accidentally pass a test-project name, they get a clear error in <100ms with a migration cue instead of an opaque 6s failure.
+
+## Next steps
+
+1. PR creation (manual user trigger): `gh pr create` against main
+2. CI run + review
+3. Squash-merge on main (preserves clean Bisect history)
+4. Tag `v3.2.11` ON the squash-merge-commit (Sprint-Tag-Convention from CLAUDE.md)
+5. GitHub Release with notes pointing to ADR-039 + Aisess bug-report archive
