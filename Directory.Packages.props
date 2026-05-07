@@ -14,6 +14,13 @@
 
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!--
+      Sprint 159: enable transitive-dependency pinning so CPM can override the version
+      of a transitive dep (e.g. Nerdbank.MessagePack pulled by Microsoft.Testing.Platform)
+      without each consuming project needing an explicit <PackageReference>. Required
+      for NU1903 mitigation of GHSA-2cwq-pwfr-wcw3.
+    -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
 
   <ItemGroup Label="Stryker core dependencies (production)">
@@ -74,6 +81,14 @@
     <PackageVersion Include="Microsoft.TestPlatform.Portable" Version="18.4.0" />
     <PackageVersion Include="Microsoft.TestPlatform.TranslationLayer" Version="18.4.0" />
     <PackageVersion Include="Microsoft.Testing.Platform" Version="1.5.2" />
+    <!--
+      Sprint 159: Nerdbank.MessagePack pinned to 1.1.62 to override the transitive 1.0.2
+      pulled in by Microsoft.Testing.Platform 1.5.2. GHSA-2cwq-pwfr-wcw3 (high severity):
+      attacker-controlled stackalloc in DateTime decoding causes process-terminating
+      StackOverflowException. Vulnerable: < 1.1.62. NuGetAudit + TreatWarningsAsErrors
+      surface this as NU1903 build-error otherwise.
+    -->
+    <PackageVersion Include="Nerdbank.MessagePack" Version="1.1.62" />
     <PackageVersion Include="Microsoft.VisualStudio.SolutionPersistence" Version="1.0.52" />
 
     <!-- Stryker-specific dependencies -->
