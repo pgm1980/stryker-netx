@@ -1,7 +1,7 @@
 ---
-current_sprint: "159"
-sprint_goal: "Fix Aisess .slnx mutable-assembly-resolution bug (H2 confirmed): C+B-Kombi filter robustness + log clarity + latent-H1 pre-emptive. Target tag v3.2.11."
-branch: "fix/159-slnx-source-project-filter"
+current_sprint: "160"
+sprint_goal: "Fix CommentParser bugs reported by Aisess team on v3.2.11: Bug C silent semantic corruption, Bug B no next-line support, Issue α class-name hint. Target tag v3.2.12."
+branch: "fix/160-mutator-enum-and-comment-parser"
 started_at: "2026-05-07"
 housekeeping_done: true
 memory_updated: true
@@ -11,42 +11,65 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 159 closed (Aisess `.slnx` Source-Project Filter Fix — v3.2.11 prep)
+# Session State — Sprint 160 closed (CommentParser Bug-Triple — v3.2.12 prep)
 
-## Sprint Plan — final status
+## Final summary
 
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | ADR-039 — Source-project filter behavior in solution-mode (3-Layer Defense) | ✓ done | Inline in `architecture_specification.md` Z. 2647-ff. |
-| 2 | Fix-1 (Layer 1 fast-fail) — `ValidateFilterMatchesAnyProject` in `ScanInSolutionMode` | ✓ done | InputException w/ available-projects list, ~10ms feedback |
-| 3 | Fix-1 (Layer 2 proactive) — `ApplyProjectFilter` w/ test-project-as-filter detection | ✓ done | New private method, refactored `AnalyzeThisProject` to per-project-only |
-| 4 | Fix-1 (Layer 3 fallback) — zero-match safety-net warn + return unfiltered | ✓ done | `LogFilterFallback` Warning |
-| 5 | Filter-Match-Semantik BREAKING — substring → exact filename | ✓ done | New `MatchesFilter` helper, `.csproj`-ext tolerance |
-| 6 | Fix-2 (log clarity) | ✓ done (subset) | New `LogFilterFallback` covers Layer 3 path; existing trio still emits for legacy paths |
-| 7 | Fix-3 (latent-H1 pre-emptive) — Stage-2 OrdinalIgnoreCase + Path.GetFullPath | ✓ done | `ScanProjectReferences` updated |
-| 8 | Fix-4 (integration-test fixture) — `samples/AisessLikeSlnxFolders/` w/ 4-layer DDD-Onion + `<Folder>` `.slnx` | ✓ done | Subagent worktree-isolated, 4 new E2E tests grün |
-| 9 | Build + Test verify Solution-wide | ✓ done | 0/0 build, 1909/1935 tests green |
-| 10 | Semgrep clean | ✓ done | 0 findings on 12 changed files |
-| 11 | MEMORY.md + project_sprint159_closed.md | ✓ done | User-level auto-memory updated |
-| 12 | Tag v3.2.11 + GitHub Release | ⏳ pending | After PR merge to main (Sprint-Tag-Convention) |
+ADR-040 implementiert in einer pure regex+parser refactor (`src/Stryker.Core/Mutants/CsharpNodeOrchestrators/CommentParser.cs`). Kein API-Bruch, alle drei Aisess-Folge-Bugs adressiert, 11 neue Unit-Tests verify ADR-040 voll.
 
-## Verification summary
+| # | Task | Status |
+|---|------|--------|
+| 1 | ADR-040 inline in `architecture_specification.md` Z. 2796-ff. + Änderungshistorie 0.24.0 | ✓ |
+| 2 | Regex extension `(?<once>once|)` → `(?<scope>next-line|once|)` (Bug β fix) | ✓ |
+| 3 | List-based filteredMutators with skip-on-failure (Bug C critical fix — closes silent semantic corruption) | ✓ |
+| 4 | LooksLikeMutatorClassName + LogLabelNotRecognized hint param (Issue α UX) | ✓ |
+| 5 | New `tests/Stryker.Core.Tests/Mutants/CommentParserTests.cs` with 11 [Fact]s | ✓ via worktree-isolated Subagent |
+| 6 | New `_docs/disable-comment-syntax.md` (49 Mutator-Class → 18 Mutator-Kind mapping table) | ✓ |
+| 7 | Build solution-wide (0/0) | ✓ |
+| 8 | All test suites green (1902 pass, 26 known-skip — Stryker.Core.Tests grew 416→427) | ✓ |
+| 9 | Semgrep on changed files (3 files, 0 findings) | ✓ |
+| 10 | MEMORY.md + project_sprint160_closed.md | ✓ |
+| 11 | PR + Merge + Tag v3.2.12 + GitHub Release + NuGet publish | ⏳ pending |
+
+## Verification
 
 - Solution-wide build: **0 warnings, 0 errors** (TreatWarningsAsErrors=true)
-- All test suites: **1909 / 0 / 26 = 1935** (failures / passing / skipped — skips are pre-existing, documented)
-- Semgrep: **0 findings** on `InputFileResolver.cs` + `samples/AisessLikeSlnxFolders/` + `tests/Stryker.E2E.Tests/AisessLikeSlnxFoldersTests.cs`
-- Maxential session "sprint-159-adr-039-filter-defense" archived (20 thoughts, 2 branches via `full_integration`)
+- Stryker.Core.Tests: **427/427 green** (+11 vs Sprint 159 baseline 416)
+- Stryker.CLI.Tests: 93/93
+- Stryker.Architecture.Tests: 10/10
+- Stryker.TestRunner.VsTest.Tests: 46/0/11 (skips known)
+- Stryker.TestRunner.MicrosoftTestPlatform.Tests: 136/0/6 (skips known)
+- Stryker.Core.Dogfood.Tests: 1190/0/9 (skips known)
+- E2E.Tests not run (covered by CI; new sprint touches only CommentParser pipeline → no E2E behavior delta)
+- Semgrep: 0 findings on `CommentParser.cs` + `CommentParserTests.cs` + `disable-comment-syntax.md`
 
-## Aisess customer impact
+## Aisess customer impact (after v3.2.12 ships)
 
-After v3.2.11 ships, Aisess Platform Team can:
-- Drop the `"project": "Aisess.Tests.csproj"` field from `stryker-config.json` (their interim workaround) and stryker-netx will mutate all 4 source projects automatically, OR
-- Keep the `"project"` field but with a **source** project name (e.g. `"Aisess.Infrastructure.csproj"`) and stryker-netx will mutate only that project. If they accidentally pass a test-project name, they get a clear error in <100ms with a migration cue instead of an opaque 6s failure.
+```csharp
+// PRE v3.2.12 (silent semantic corruption — Bug C):
+// Stryker disable next-line ConfigureAwait : reason
+//   → "ConfigureAwait" not in Mutator enum → Enum.TryParse fails
+//   → filteredMutators[0] stays default(Mutator) = 0 = Statement
+//   → Stryker SILENTLY disables Statement-mutations on the next line
+
+// POST v3.2.12:
+// Stryker disable next-line ConfigureAwait : reason
+//   → "ConfigureAwait" not in Mutator enum → ERR-log with class-name hint
+//   → "ConfigureAwait" SKIPPED (no add to filteredMutators)
+//   → no Statement-fallback. Filter is empty for this label.
+//   → Adjacent valid labels (e.g. "Boolean" in same comma-list) are still applied.
+//   → User sees clear error pointing them at _docs/disable-comment-syntax.md
+```
+
+## Maxential session
+
+`sprint-160-adr-040-comment-parser` saved (6 thoughts, 0 branches — sub-decisions D-α/β/γ were orthogonal and didn't require parallel exploration).
 
 ## Next steps
 
-1. PR creation (manual user trigger): `gh pr create` against main
-2. CI run + review
-3. Squash-merge on main (preserves clean Bisect history)
-4. Tag `v3.2.11` ON the squash-merge-commit (Sprint-Tag-Convention from CLAUDE.md)
-5. GitHub Release with notes pointing to ADR-039 + Aisess bug-report archive
+1. Commit feat(sprint-160) + chore(sprint-160) split (or single commit if user prefers)
+2. Push branch
+3. PR → CI → review → squash-merge
+4. Tag v3.2.12 ON squash-merge-commit
+5. release.yml auto-triggers → GitHub Release + .nupkg asset
+6. NuGet push (manual, via local NUGET_API_KEY — no repo secret yet)

@@ -2793,6 +2793,111 @@ Das löst die Mehrdeutigkeit auf, dass ein Substring wie `"Domain"` sowohl `Aise
 
 ---
 
+## ADR-040: CommentParser Bug-Triple — `next-line` Syntax + Skip-Label + Class-Name-Hint (v3.2.12 / Sprint 160)
+
+**Status.** Accepted — Sprint 160 (v3.2.12, 2026-05-07).
+
+**Kontext.** Aisess Platform Team meldete am 2026-05-07 nach v3.2.11-Upgrade einen weiteren Befund: produktive Stryker-disable-Comments wie
+
+```csharp
+// Stryker disable next-line all : equivalent — xUnit runs without SynchronizationContext
+// Stryker disable next-line ConfigureAwait : reason
+```
+
+produzieren beim Stryker-Run ERR-logs:
+
+```
+[ERR] next-line all not recognized as a mutator at 50,12, ...EnvironmentVariableSecretProvider.cs.
+      Legal values are Statement,Arithmetic,Block,Equality,Boolean,Logical,Assignment,Unary,Update,
+      Checked,Linq,String,Bitwise,Initializer,Regex,NullCoalescing,Math,StringMethod,Conditional,
+      CollectionExpression.
+[ERR] configureawait not recognized as a mutator ...
+```
+
+Code-Audit von `src/Stryker.Core/Mutants/CsharpNodeOrchestrators/CommentParser.cs` enthüllt **drei verkettete Issues**:
+
+- **Issue β (echter Syntax-Bug)**: Parser-Regex (Z. 20) `^\s*(?<mode>disable|restore)\s*(?<once>once|)\s*(?<mutators>[^:]*)\s*:?(?<comment>.*)$` unterstützt KEIN `next-line` Scope-Qualifier. `next-line` ist Stryker.JS-/Stryker.Java-Konvention und wird in der breiten Stryker-Community-Doku verwendet (auch von AI-Tools propagiert), aber nicht in Stryker.NET 4.14.1-Era. User-Erwartung valid, Tool-Realität fehlend.
+
+- **Issue γ (Korrektheits-Bug, kritisch)**: Parse-Failure-Default-Fallback (Z. 47-58). Bei Parse-Failure bleibt `filteredMutators[i] = default(Mutator) = 0 = Mutator.Statement`. Resultat: User glaubt nichts wird disabled, in Wirklichkeit werden silent **Statement-mutations disabled**. Klassische silent semantic corruption — gefährlicher als Issue β weil unsichtbar.
+
+- **Issue α (UX, kein Korrektheits-Bug)**: User-Erwartung dass Mutator-Class-Names (`ConfigureAwait`, `AsyncAwait`, etc.) als Filter funktionieren. Reality: stryker-netx (wie upstream Stryker.NET 4.x) ist Kind-basiert — alle 32+ neuen Mutator-Klassen REUSE die 20 existing Kind-Werte (z.B. `ConfigureAwaitMutator.Type = Mutator.Boolean`). Class-Name-Filter wäre architectural rewrite. Die Error-Message zeigt zwar die korrekte Kind-Liste, sagt aber nicht klar dass Class-Names KEIN valider Input sind.
+
+**Entscheidung.** Drei backwards-compatible Sub-Fixes als ADR-040, alle in einer einzigen Datei (`CommentParser.cs`). Maxential-Session "sprint-160-adr-040-comment-parser" (6 Schritte, 0 Branches — die Sub-Decisions waren orthogonal genug für sequenzielle Analyse):
+
+**D-γ — Skip-Label** (Issue γ critical fix):
+```csharp
+List<Mutator> filteredMutators = ...;
+foreach (var label in labels)
+{
+    if (Enum.TryParse<Mutator>(label, true, out var value))
+        filteredMutators.Add(value);  // ← only on success
+    else
+    {
+        var hint = LooksLikeMutatorClassName(label) ? "<class-name-hint>" : "";
+        LogLabelNotRecognized(_logger, label, ..., hint);
+        // NO add to filteredMutators → no semantic corruption
+    }
+}
+```
+
+`Mutator[]` → `List<Mutator>`. Failed labels werden geskipped (only ERROR-log). Bei `// Stryker disable Boolean, ConfigureAwait` wird Boolean weiterhin angewendet, ConfigureAwait gibt clear-error. Closes silent semantic corruption.
+
+**D-β — Regex `next-line` extension** (Issue β syntax fix):
+```csharp
+// BEFORE: (?<once>once|)
+// AFTER:  (?<scope>next-line|once|)
+```
+
+`next-line` wird **pragmatisch als Alias für `once`** behandelt (single-mutation scope, NICHT volle line-coverage wie Stryker.JS-Semantik suggeriert). Doc explicitly markiert die Differenz. Volle Stryker.JS-line-coverage-Semantik wäre invasiver MutationContext-Refactor (Line-Tracking statt Mutation-Counting) — als Sprint 161+ deferred falls User-Bedarf.
+
+**D-α.4-light — Class-Name Hint** (Issue α UX improvement):
+
+Bei PascalCase-Labels (`LooksLikeMutatorClassName(label) == true`) wird der ERROR-log-hint auf "Mutator class names are not accepted here — use the Mutator-Kind name. See _docs/disable-comment-syntax.md." gesetzt. Empty string sonst.
+
+**Begründung der Wahl.** Maxential-Session 6 Schritte ohne Branches — die Sub-Decisions waren orthogonal. Eine kurze Branch-Analyse für `next-line` (3 Implementation-Strategien: regex-extension, strukturierter Scope-Type, Alias-only) konvergiert auf D-β.1.simple (regex-extension mit alias-Semantik). Class-Name-Aliase verworfen weil sie semantischen Cheat erzeugen würden (User-Eindruck "ConfigureAwait disabled" ≠ Reality "Boolean kind disabled").
+
+**Alternativen verworfen**:
+- Mutator-Enum-Erweiterung um 32+ neue Werte: KEIN tatsächlicher Bug — die existing 20 Werte werden korrekt von allen Mutator-Klassen reused. Erweiterung würde nichts lösen, nur API-Breaking-Change.
+- Per-Class fine-grained Filter: invasive Refactor von Filter-Pipeline + 32+ Test-Updates, out-of-scope.
+- next-line als full-line-scope: invasive MutationContext-Refactor mit Line-Tracking. Honest-deferred zu Sprint 161+.
+- Ignore-Whole-Comment bei Parse-Failure: zu strict, würde valid filters opfern wegen einem typo.
+
+**Implementation.**
+
+`src/Stryker.Core/Mutants/CsharpNodeOrchestrators/CommentParser.cs`:
+
+1. **Regex-Extension** (Z. 20): Parser-Regex group `once` → `scope` mit drei valid values (`next-line | once | empty`).
+2. **List-based filteredMutators**: array → `List<Mutator>`, only Add on TryParse success.
+3. **Scope-Handling**: `bool isOnceOrNextLine = scope ∈ {"once", "next-line"}` — passed to `FilterMutators(disable, …, newContext: isOnceOrNextLine, comment)`.
+4. **Class-Name-Hint**: new `LooksLikeMutatorClassName` private helper, `LogLabelNotRecognized` source-gen extended um `string hint` param.
+5. **Source-gen-Message** mit `{Hint}` placeholder.
+
+`tests/Stryker.Core.Tests/Mutants/CommentParserTests.cs` (NEW):
+
+11 [Fact]s decken alle 3 Bugs + edge-cases ab (Subagent worktree-isolated): `Disable_Block_All_AppliesAllKinds`, `Disable_Block_Boolean_AppliesBooleanOnly`, `Disable_Once_Boolean_NewContext`, **`Disable_NextLine_All_NewContext`** (Aisess-case 1, β-fix-verification), `Disable_NextLine_Boolean_NewContext`, **`Disable_NextLine_ClassName_SkipsLabelWithHint`** (Aisess-case 2, α-improvement-verification), **`Disable_Mixed_Valid_And_Invalid_PartialApply`** (γ-fix-verification), **`Disable_Block_InvalidLabel_NoStatementFallback`** (γ critical-fix-verification), `Restore_All_Mode`, `CommentNoColon_DefaultsComment`, `CaseInsensitive_Mutator`.
+
+`_docs/disable-comment-syntax.md` (NEW): Stryker-disable-Comment-Syntax-Reference + Mutator-Class-zu-Kind-Mapping-Tabelle für die ~32 nicht-trivialen Mutator-Klassen + Hinweis auf next-line-Pragmatik (alias für once in stryker-netx).
+
+**Konsequenzen.**
+
+- (+) Aisess-Style `// Stryker disable next-line all` läuft ohne ERR-log durch (β fixed).
+- (+) Silent semantic corruption durch default-Statement-fallback eliminiert (γ fixed, kritischster Bug der drei).
+- (+) Class-Name-Verwirrung mit clearer error-Message + Doc-Pointer adressiert (α improved).
+- (+) Backwards-compatible: alle existing valid comments verhalten sich identisch.
+- (+) Pure regex+parser refactor — keine API-Änderungen an Mutator enum, MutationContext oder FilterMutators.
+- (–) `next-line`-Semantik weicht von Stryker.JS ab (alias zu `once`, nicht volle line-scope). Doc disclaimer explicit. Kein User-Pain weil das Aisess-spezifische Pattern (`disable next-line all` für equivalent-mutant-doc) mit `once-all` semantisch identisch wirkt.
+- (–) Mutator-Class-Name-Filter bleibt nicht-implementiert (Issue α). UX-Wunsch, kein Korrektheits-Bug.
+
+**Supersedes / supplements.**
+
+- **Closes** Aisess-v3.2.11-Folgereport (3 ERR-logs zu CommentParser).
+- **Updates** v3.2.11 ADR-039 indirekt — der Aisess-Workflow ist jetzt vollständig: ADR-039 Sprint 159 fixt den Filter-Resolver, ADR-040 Sprint 160 fixt den Disable-Comment-Parser. Beide ADRs zusammen schließen die Aisess-Bug-Klasse für v3.2.x.
+- **Bezug**: Issue α bleibt als UX-Wunsch dokumentiert. Sprint 161+ kann einen Per-Class-Name-Filter implementieren falls User-Bedarf surfaces.
+
+**Backed by.** Sprint 160 Maxential-Session "sprint-160-adr-040-comment-parser" (6 Schritte, 0 Branches). 11 neue Unit-Tests (Subagent worktree-isolated). Solution-wide build 0/0, Tests grün.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2818,5 +2923,6 @@ Das löst die Mehrdeutigkeit auf, dass ein Substring wie `"Domain"` sowohl `Aise
 | 0.19.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Doc bundle (post-Sprint-152): ADR-033 + ADR-035. **ADR-033** — Combined Multi-Project Report Aggregation discovery: ADR-031's "v3.3+ deferred"-Claim für Multi-Project-Report-Aggregation war FALSCH — Aggregation ist seit Sprint 1 implementiert via `StrykerRunner.AddRootFolderIfMultiProject` + single `OnAllMutantsTested(rootComponent)` call. Calculator-Tester Bug-Report-5-Verifikation hatte bereits "kombinierter Report" mit 375 Mutanten Total bestätigt. Backlog-Item 7 closed by discovery. **ADR-035** — TypeSyntax-Engine Refactor + HotSwap inkrementelles MT status-quo confirmation: beide Items bleiben in ihren existierenden ADR-Status (027 Phase 3 Skip-as-Architecture / 022 Proposed-no-commitment). Backlog-Items 3+4 closed-as-status-quo. Beide ADRs sind doc-only, kein Sprint, kein neuer Tag. |
 | 0.20.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 154 v3.2.8: ADR-034 — **JsonReport full AOT-trim**. Schließt ADR-024 v3.0-scope-deferral (Sprint 17). Source-gen-Kontext erweitert von 2 entry-types (`JsonReport`, `IJsonReport`) auf 9 types — die 6 konkreten Typen hinter den polymorphen Interface-Konvertern (`SourceFile`, `JsonMutant`, `Location`, `Position`, `JsonTestFile`, `JsonTest`) plus 3 concrete-dictionary-types (`Dictionary<string, SourceFile>` etc). `TypeInfoResolver` umgestellt von `Combine(SourceGen, DefaultReflection)` auf nur `JsonReportSerializerContext.Default` — Reflection-Fallback gestrichen. Hybrid-Custom-Konverter-Design unverändert (SYSLIB1220 verbietet sie auf source-gen attribute). Maxential 4-Schritte branchless. 13 JsonReport-related Tests grün post-change (11 Dogfood + 2 E2E), Solution-wide 2047 Tests grün, Semgrep clean. Tag **v3.2.8** — Backlog-Item 1 closed. |
 | 0.21.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 155 v3.2.9: ADR-037 — **RoslynSemanticDiagnostics v2** StatementSyntax-Coverage. Schließt Sprint-16-deferred-Item: Sprint-17 hatte Statement+Declaration-level Replacements als Out-of-Scope dokumentiert ("would need TryGetSpeculativeSemanticModel which is bulkier per call"). Sprint 155 implementiert Statement-Path. Maxential 4-Schritte mit 3-Branch ToT (S1=GetDiagnostics-fails-NotSupported, **S2=descendant-walk via GetSymbolInfo chosen**, S3=Compilation.AddSyntaxTrees rejected). `IsEquivalent` switch-pattern dispatched ExpressionSyntax → bestehender Sprint-17-Path, StatementSyntax → neuer `IsEquivalentStatement` (TryGetSpeculativeSemanticModel + descendant-walk via GetSymbolInfo, MemberBindingExpression-Skip von Sprint 137 wiederverwendet), Declaration → false (out-of-scope, v2.1 parser-only Filter handhabt structural validity). 6 Tests grün (1 alter test umbenannt mit Sprint-155-Verhalten + 1 neuer Declaration-out-of-scope-Test). O(1) per descendant beibehalten. Semgrep clean. Tag **v3.2.9** — Backlog-Item 2 closed. |
+| 0.24.0 | 2026-05-07 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 160 v3.2.12: ADR-040 — **CommentParser Bug-Triple — `next-line` Syntax + Skip-Label + Class-Name-Hint**. Aisess Platform Team Folgereport auf v3.2.11: produktive Stryker-disable-Comments wie `// Stryker disable next-line all : reason` produzieren ERR-logs, weil (β) Parser-Regex kein `next-line` Scope-Qualifier kennt (Stryker.JS-syntax), (γ) bei Parse-Failure des Mutator-Labels silent default-Statement-fallback applied wird (Korrektheits-Bug — User glaubt nichts disabled, in Wirklichkeit Statement-Mutations disabled), (α) Mutator-Class-Names wie `ConfigureAwait` gegen Kind-basiertes Filter-Design verwirrend fehl-schlagen ohne hint-message. Maxential-Session 6 Schritte ohne Branches → 3 backwards-compatible Sub-Fixes als ADR-040: D-γ Skip-Label (List<Mutator>, only Add on TryParse success — closes silent semantic corruption), D-β Regex-Extension `(?<once>once|)` → `(?<scope>next-line|once|)` mit `next-line` als pragmatischer Alias für `once` (single-mutation scope, Doc-disclaimer für volle line-scope-Differenz vs Stryker.JS), D-α.4-light Class-Name-Hint via `LooksLikeMutatorClassName` PascalCase-heuristik im LogLabelNotRecognized output. Pure regex+parser refactor — keine API-Änderungen an Mutator enum, MutationContext, FilterMutators. 11 neue CommentParserTests in `tests/Stryker.Core.Tests/Mutants/CommentParserTests.cs` (Subagent worktree-isolated). Neue `_docs/disable-comment-syntax.md` mit Class-zu-Kind-Mapping-Tabelle. Tag **v3.2.12** — Aisess v3.2.11-Folgereport closed. ADR-039 (Sprint 159) + ADR-040 (Sprint 160) zusammen schließen die Aisess-Bug-Klasse für v3.2.x. Issue α (Per-Class-Filter) honest-deferred als UX-Wunsch zu Sprint 161+. |
 | 0.23.0 | 2026-05-07 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 159 v3.2.11: ADR-039 — **Source-Project Filter Defense — 3-Layer-Architektur**. Aisess Platform Team Bug-Report (.slnx mit Solution-Folders + DDD-Onion 4-Layer): `dotnet stryker-netx 3.2.10` failed mit "Failed to analyze project builds" obwohl alle 5 Projekte per-Projekt erfolgreich analyzed. Diagnostic-Cycle (Maintainer-Request + Aisess-Response + 1316-Zeilen Diag-Transkript) confirmed H2: `mutableProjects = 0` weil `normalizedProjectUnderTestNameFilter` (= test-project-Name in Aisess-Config) alle Source-Projekte ausschließt. H1 latent (Stage-2 OrdinalIgnoreCase auf Windows fragil). H6 dead (Roslyn populiert ProjectReferences korrekt, Aspire-AppHost-SDK destabilisiert Workspace nicht). Maxential-Session "sprint-159-adr-039-filter-defense" (20 Schritte, 2 Branches locus-alpha + locus-beta) → 3-Layer-Defense gewählt: Layer 1 (α Fast-Fail in IdentifyProjects, ~10ms), Layer 2 (β.2 C-Check via neue ApplyProjectFilter-Methode mit IsTestProject()-Discrimination), Layer 3 (β.2 B-Fallback mit Warning + ungefilterten Return). Pre-emptive Stage-2 OrdinalIgnoreCase für latentes H1. Neue samples/AisessLikeSlnxFolders/ Integration-Test-Fixture (4-Layer DDD-Onion + `<Folder>`-`.slnx`) mit 4 Test-Cases. Tag **v3.2.11** — Aisess-Bug closed. |
 | 0.22.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 156 v3.2.10: ADR-038 — **MutationTestProcessTests Issue-#191 minimum-viable closure**. Issue #191 (Sprint 107 / v2.93.0) war seit ~50 Sprints offen. Sprint-107-Port hatte 5/9 upstream tests portiert mit Kommentar "Heavy FullRunScenario+CoverageAnalysis tests (8 of 9) defer for separate sprint due to v2.x pipeline drift". Sprint 156 portiert das einfache `ShouldNotTest_WhenThereAreNoMutations` (Empty-Mutants Short-Circuit Test) als 6. Test = 6/9 = minimum-viable. Die 4 heavy pipeline tests bleiben **honest-deferred** mit dokumentierten 3 Refactor-Voraussetzungen (shared-state test-fixture / Real-Pipeline-Wiring / TestResources/ExampleSourceFile.cs). Maxential 3-Schritte branchless. 9 MutationTestProcessTests grün (5 Sprint-107 + 1 Sprint-156 + 3 FullRunScenario-helper). Tag **v3.2.10** — Backlog-Item 6 closed. **Alle 7 Backlog-Items aus User-Direktive ("Damit machen wir weiter") sind nach Sprint 156 geschlossen** (Items 1, 2, 5-Class-A+B+D, 6 closed via Sprints 154/155/152/156; Items 3, 4 status-quo via ADR-035; Item 7 closed by discovery via ADR-033). |
