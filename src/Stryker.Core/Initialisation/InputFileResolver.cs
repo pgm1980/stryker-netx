@@ -243,6 +243,10 @@ public partial class InputFileResolver : IInputFileResolver
         var projectsWithDetails = solution.GetProjectsWithDetails(actualBuildType, actualPlatform)
             .Select(p => (p.file, framework: options.TargetFramework ?? string.Empty, p.buildType, NormalizePlatform(p.platform))).ToList();
 
+        // Sprint 159 (ADR-039) Layer 1: fast-fail validation against solution paths
+        // before any Roslyn workspace loading. Sub-100ms feedback for filter typos.
+        ValidateFilterMatchesAnyProject(normalizedProjectUnderTestNameFilter, projectsWithDetails);
+
         LogAnalyzingProjects(_logger, projectsWithDetails.Count);
         // we match test projects to mutable projects
         var mutableProjectsAnalyses = AnalyzeAllNeededProjects(projectsWithDetails,
@@ -360,10 +364,8 @@ public partial class InputFileResolver : IInputFileResolver
             foreach (var entry in list.Consume())
             {
                 var analyses = LoadProjectAnalyses(entry.projectFile, entry.framework, entry.configuration, entry.platform, options);
-                var buildResult = AnalyzeThisProject(entry.projectFile,
-                    analyses,
+                var buildResult = AnalyzeThisProject(analyses,
                     entry.framework,
-                    normalizedProjectUnderTestNameFilter,
                     options,
                     mutableProjectsAnalyses);
                 // scan references if recursive scan is enabled
@@ -371,7 +373,122 @@ public partial class InputFileResolver : IInputFileResolver
             }
         }
 
-        return mutableProjectsAnalyses;
+        // Sprint 159 (ADR-039): apply project filter centrally with full analysis
+        // collection available, instead of inside AnalyzeThisProject. Implements
+        // Layer 2 (proactive validation: rejects test-project-as-filter mis-config)
+        // and Layer 3 (zero-match safety-net: warns + returns unfiltered set).
+        return ApplyProjectFilter(mutableProjectsAnalyses, normalizedProjectUnderTestNameFilter);
+    }
+
+    /// <summary>
+    /// Sprint 159 (ADR-039): exact-filename match (with or without <c>.csproj</c>
+    /// extension), case-insensitive. Replaces the legacy substring match that caused
+    /// the Aisess <c>.slnx</c> bug — substring matches were ambiguous (filter
+    /// <c>"Domain"</c> matched both <c>Aisess.Domain.csproj</c> and a hypothetical
+    /// <c>Aisess.Domain.Tests.csproj</c>) and silently excluded all source projects
+    /// when the user passed a test-project name as filter.
+    /// </summary>
+    private static bool MatchesFilter(string projectFilePath, string filter)
+    {
+        if (string.IsNullOrEmpty(projectFilePath) || string.IsNullOrEmpty(filter))
+        {
+            return false;
+        }
+        return string.Equals(Path.GetFileName(projectFilePath), filter, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(
+                Path.GetFileNameWithoutExtension(projectFilePath),
+                Path.GetFileNameWithoutExtension(filter),
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Sprint 159 (ADR-039) Layer 2 + Layer 3 of the 3-layer filter defense.
+    /// Layer 2: throws InputException if the filter matches only test projects
+    /// (the Aisess mis-configuration case — the user passed a test-project name
+    /// where a source-project name is expected).
+    /// Layer 3: if the filter matches no source projects (e.g. matched source
+    /// project failed to build), logs a warning and returns the unfiltered set
+    /// so the pipeline continues with all source projects instead of failing
+    /// opaquely.
+    /// </summary>
+    private List<(IReadOnlyList<IProjectAnalysis> result, bool isTest)> ApplyProjectFilter(
+        List<(IReadOnlyList<IProjectAnalysis> result, bool isTest)> all,
+        string? filter)
+    {
+        if (string.IsNullOrEmpty(filter))
+        {
+            return all;
+        }
+
+        // Layer 2 (C-check): does the filter match only test projects?
+        var matchingProjects = all
+            .SelectMany(a => a.result)
+            .Where(p => MatchesFilter(p.ProjectFilePath, filter))
+            .ToList();
+
+        if (matchingProjects.Count > 0 && matchingProjects.TrueForAll(p => p.IsTestProject))
+        {
+            throw new InputException(
+                string.Create(CultureInfo.InvariantCulture,
+                    $"Project filter '{filter}' matches only test project(s): '{matchingProjects[0].ProjectFilePath}'. ") +
+                "Specify a source project (the project to be mutated, not the project that runs the tests).");
+        }
+
+        // Apply filter: test projects are always retained (they drive the matching
+        // pipeline); source projects only if at least one analysis result matches.
+        var filtered = all
+            .Where(a => a.isTest || a.result.Any(p => MatchesFilter(p.ProjectFilePath, filter)))
+            .ToList();
+
+        // Layer 3 (B-fallback): if the post-filter source-project count is zero
+        // (e.g. matched source project failed to build, or unforeseen edge case),
+        // log warning + return unfiltered set so the pipeline does not fail opaquely.
+        var sourceCount = filtered
+            .Where(a => !a.isTest)
+            .SelectMany(a => a.result)
+            .Count(p => p.BuildsAnAssembly());
+
+        if (sourceCount == 0)
+        {
+            LogFilterFallback(_logger, filter);
+            return all;
+        }
+
+        return filtered;
+    }
+
+    /// <summary>
+    /// Sprint 159 (ADR-039) Layer 1 of the 3-layer filter defense. Pre-validates
+    /// that the project filter matches at least one csproj path in the solution
+    /// before any Roslyn workspace loading happens. Provides a sub-100ms fast-fail
+    /// for filter-typo cases (legacy behaviour was to silently load every project
+    /// in the solution and only fail at the matching stage ~6 seconds later).
+    /// </summary>
+    private static void ValidateFilterMatchesAnyProject(
+        string? filter,
+        List<(string projectFile, string framework, string configuration, string platform)> projects)
+    {
+        if (string.IsNullOrEmpty(filter))
+        {
+            return;
+        }
+        if (projects.Exists(p => MatchesFilter(p.projectFile, filter)))
+        {
+            return;
+        }
+
+        var solutionRoot = projects.Count > 0
+            ? Path.GetDirectoryName(projects[0].projectFile) ?? string.Empty
+            : string.Empty;
+
+        var available = string.Join(
+            Environment.NewLine + "  - ",
+            projects.Select(p => Path.GetRelativePath(solutionRoot, p.projectFile)));
+
+        throw new InputException(
+            string.Create(CultureInfo.InvariantCulture,
+                $"Project filter '{filter}' matches no project in the solution. ") +
+            "Available projects:" + Environment.NewLine + "  - " + available);
     }
 
     private IReadOnlyList<IProjectAnalysis> LoadProjectAnalyses(string projectFile, string framework, string configuration, string platform, IStrykerOptions options)
@@ -413,10 +530,9 @@ public partial class InputFileResolver : IInputFileResolver
         }
     }
 
-    private IReadOnlyList<IProjectAnalysis> AnalyzeThisProject(string projectFilePath,
+    private IReadOnlyList<IProjectAnalysis> AnalyzeThisProject(
         IReadOnlyList<IProjectAnalysis> analyses,
         string framework,
-        string? normalizedProjectUnderTestNameFilter,
         IStrykerOptions options,
         List<(IReadOnlyList<IProjectAnalysis> result, bool isTest)> mutableProjectsAnalyses)
     {
@@ -437,14 +553,11 @@ public partial class InputFileResolver : IInputFileResolver
             buildResult = [SelectAnalysis(buildResult, framework)];
         }
 
-        // apply project name filter (except for test projects)
-        if (isTestProject || normalizedProjectUnderTestNameFilter == null ||
-            projectFilePath.Replace('\\', '/')
-                .Contains(normalizedProjectUnderTestNameFilter,
-                    StringComparison.InvariantCultureIgnoreCase))
-        {
-            mutableProjectsAnalyses.Add((buildResult, isTestProject));
-        }
+        // Sprint 159 (ADR-039): the project-name filter is no longer applied here.
+        // AnalyzeThisProject is now strictly per-project analysis; filter logic is
+        // centralised in ApplyProjectFilter, called once at the end of
+        // AnalyzeAllNeededProjects with the full analysis collection available.
+        mutableProjectsAnalyses.Add((buildResult, isTestProject));
 
         return buildResult;
     }
@@ -587,7 +700,14 @@ public partial class InputFileResolver : IInputFileResolver
 
     private static bool ScanProjectReferences(Dictionary<IProjectAnalysis, List<IProjectAnalysis>> mutableToTestMap, IProjectAnalysis[] mutableProjects, IProjectAnalysis testProject)
     {
-        var mutableProject = mutableProjects.FirstOrDefault(p => testProject.ProjectReferences.Contains(p.ProjectFilePath, StringComparer.Ordinal));
+        // Sprint 159 (ADR-039 Fix-3): replaces StringComparer.Ordinal — that comparator
+        // is case-sensitive on Windows, where paths are case-insensitive, and breaks on
+        // any drive-letter/separator/normalisation difference between the two strings
+        // even though both come from the same Roslyn solution snapshot. Path.GetFullPath
+        // normalises separators + resolves relative segments; OrdinalIgnoreCase covers
+        // the Windows case-insensitive filesystem semantics.
+        var mutableProject = mutableProjects.FirstOrDefault(p => testProject.ProjectReferences.Any(pr =>
+            string.Equals(Path.GetFullPath(pr), Path.GetFullPath(p.ProjectFilePath), StringComparison.OrdinalIgnoreCase)));
         if (mutableProject == null)
         {
             return false;
@@ -875,6 +995,13 @@ public partial class InputFileResolver : IInputFileResolver
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Could not find an assembly reference to a mutable assembly for project {ProjectName}. Will look into project references.")]
     private static partial void LogNoAssemblyRef(ILogger logger, string projectName);
+
+    // Sprint 159 (ADR-039 Layer 3): emitted when ApplyProjectFilter's zero-match
+    // safety-net kicks in — filter resolved to no source projects, so we retry
+    // without the filter rather than failing opaquely. Typically caused by a
+    // filter that matches a source project whose build itself failed.
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Project filter '{Filter}' produced no source projects. Retrying with all source projects.")]
+    private static partial void LogFilterFallback(ILogger logger, string filter);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "{Error}")]
     private static partial void LogError(ILogger logger, string error);

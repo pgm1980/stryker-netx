@@ -1,51 +1,45 @@
 ---
-current_sprint: "156"
-sprint_goal: "5-Sprint-Roadmap (Sprints 152-156) + 6 ADRs (033-038) — schließt User-Backlog-Direktive der 7 Items vollständig. v3.2.7 → v3.2.10 + 2 doc-only ADRs."
-branch: "chore/157-housekeeping-backlog-7items-closed"
-started_at: "2026-05-06"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
-sprint_backlog_written: true
-semgrep_passed: true
-tests_passed: true
-documentation_updated: true
+current_sprint: "159"
+sprint_goal: "Fix Aisess .slnx mutable-assembly-resolution bug (H2 confirmed): C+B-Kombi filter robustness + log clarity + latent-H1 pre-emptive. Target tag v3.2.11."
+branch: "fix/159-slnx-source-project-filter"
+started_at: "2026-05-07"
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
+sprint_backlog_written: false
+semgrep_passed: false
+tests_passed: false
+documentation_updated: false
 ---
-# Session State — Sprint 156 closed (User-Backlog-Direktive vollständig abgearbeitet)
+# Session State — Sprint 159 (Aisess `.slnx` Source-Project Filter Fix)
 
-## 🎯 Final State: All 7 Backlog-Items closed
+## Sprint Plan
 
-| # | Backlog-Item | Status | Sprint / ADR | Tag |
-|---|--------------|--------|--------------|-----|
-| 1 | JsonReport full AOT-trim | ✓ closed | Sprint 154 / ADR-034 | v3.2.8 |
-| 2 | RoslynDiagnostics v2 | ✓ closed | Sprint 155 / ADR-037 | v3.2.9 |
-| 3 | TypeSyntax-Engine Refactor | ✓ status-quo | ADR-035 (doc-only) | n/a |
-| 4 | HotSwap inkrementelles MT | ✓ status-quo | ADR-035 (doc-only) | n/a |
-| 5 | CI Integration Matrix Flakes | ✓ Class A+B+D closed (Class C deferred) | Sprint 152 / ADR-036 | v3.2.7 |
-| 6 | Issue #191 MutationTestProcessTests | ✓ closed | Sprint 156 / ADR-038 | v3.2.10 |
-| 7 | Combined Multi-Project Report | ✓ closed by discovery | ADR-033 (doc-only) | n/a |
+| # | Task | Status | Gates |
+|---|------|--------|-------|
+| 1 | ADR-039 — Source-project filter behavior in solution-mode (C+B Kombi) | open | doc-only |
+| 2 | Fix-1 (proactive validation) — pre-validate filter before AnalyzeAllNeededProjects loop | open | unit test (FluentAssertions) |
+| 3 | Fix-1 (zero-match fallback) — warn + retry without filter when mutableProjects=0 | open | unit test |
+| 4 | Fix-2 (log clarity) — replace misleading "Analyzing 0 projects" trio | open | snapshot test |
+| 5 | Fix-3 (latent H1 pre-emptive) — Stage-2 OrdinalIgnoreCase + Path.GetFullPath | open | unit test (Windows path edge cases) |
+| 6 | Fix-4 (integration test fixture) — `samples/AisessLikeSlnxFolders/` with 4-layer DDD-onion + `<Folder>` `.slnx` | open | E2E test |
+| 7 | Version bump + CHANGELOG + tag v3.2.11 + GitHub release | open | release notes |
 
-## 5-Sprint-Roadmap-Statistik
+## Hypothesis recap (from PR #250)
 
-- **4 GitHub Releases**: v3.2.7 (Sprint 152), v3.2.8 (Sprint 154), v3.2.9 (Sprint 155), v3.2.10 (Sprint 156)
-- **6 neue ADRs**: 033 (Combined Report discovery), 034 (JsonReport AOT-trim), 035 (TypeSyntax/HotSwap status-quo), 036 (CI build+test green), 037 (RoslynSemanticDiagnostics v2), 038 (Issue #191 minimum-viable closure)
-- **+3 Unit-Tests** (vs Sprint 151 baseline 2047 → 2050) — 1 Sprint-156 minimum-viable + 1 Sprint-156 regression-prevention + 1 Sprint-155-renamed
-- **CI-Pattern verbessert**: 6/33 SUCCESS → 10/25 SUCCESS (+ 4 jobs grün geworden)
-- **Issue #191 closed** (Sprint 107 v2.93.0 — ~50 Sprints offen)
+- **H2 confirmed**: filter-induced empty `mutableProjects` collection
+- **H6 dead**: Roslyn populates `ProjectReferences` correctly (4/4 for test project)
+- **H1 latent**: Stage-2 `StringComparer.Ordinal` is fragile on Windows — pre-emptive fix included
+- **Aisess workaround**: drop the `"project"` field from `stryker-config.json` (their interim fix while v3.2.11 ships)
 
-## Sprint 152-156 Doc-Bundle commits
+## Acceptance criteria
 
-- chore/153-adr-doc-bundle (PR #244): ADR-033 + ADR-035 (doc-only)
-- chore/157-housekeeping-backlog-7items-closed (this branch): MEMORY.md + state.md final-flip
-
-## Lessons (für künftige Sprint-Plannings)
-
-1. **Pre-impl recherche** entdeckt Auto-already-implemented features (ADR-033 Combined-Report — saved 1 sprint).
-2. **Honest-deferred-pattern via dedicated ADR** (035) für Items die major architectural reopens benötigen.
-3. **AOT-trim follow-up gap**: Sprint-154 missed `List<IJsonMutant>` für DashboardClient batch-publishing — caught by NEW regression test in Sprint 156.
-4. **CI matrix 3-class-failure-pattern** (Linux-path / Windows-path / windows-CI-timing) generalises beyond Stryker.
-5. **"Minimum-viable"** kann 6/9 statt 9/9 bedeuten wenn die remaining tests separate Refactor-effort brauchen (ADR-038 Issue #191).
-
-## Status
-
-User-Direktive ("Damit machen wir weiter") vollständig erfüllt. Backlog leer. Bereit für nächste User-Direktive oder neuen User-Bug-Report.
+- Aisess `.slnx` setup runs successfully OR fails with a clear, actionable error (no more `Failed to analyze project builds` on a misconfigured filter)
+- All Calculator-Tester E2E tests stay green
+- New `samples/AisessLikeSlnxFolders/` integration suite covers 4 filter cases:
+  1. happy path (source-project filter)
+  2. test-project as filter → clear error
+  3. non-existent filter → clear error
+  4. no filter → all source projects mutated
+- 0 warnings, 0 errors with `TreatWarningsAsErrors`
+- Semgrep scan green
