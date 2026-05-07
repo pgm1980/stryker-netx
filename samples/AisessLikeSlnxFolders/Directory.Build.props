@@ -1,0 +1,29 @@
+<Project>
+
+  <!--
+    samples/AisessLikeSlnxFolders/Directory.Build.props — intentionally minimal.
+    Mirrors samples/Directory.Build.props in purpose: sample projects exist only
+    as mutation-test fixtures for the Sprint-159 ADR-039 integration-test suite.
+    They intentionally do NOT inherit the production Directory.Build.props:
+      - TreatWarningsAsErrors + Roslynator + SonarAnalyzer + Meziantou would add
+        noise unrelated to the filter-defence behaviour being exercised.
+      - Stryker's MSBuildWorkspace analysis of samples works best without heavy
+        analyzer pipelines.
+      - No NuGet central-package-management: the sample uses pinned package
+        versions directly in each .csproj for hermetic, self-contained builds.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!--
+      ManagePackageVersionsCentrally is inherited as true from the repository
+      root Directory.Build.props + Directory.Packages.props. Do not override it
+      here; the test project .csproj references packages without Version attributes
+      and resolution happens from the root Directory.Packages.props.
+    -->
+  </PropertyGroup>
+
+</Project>
