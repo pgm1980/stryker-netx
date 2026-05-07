@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    DemoApp.Api — Sprint 159 Fix-4 integration-test fixture.
+    API / entry-point layer: references Application + Infrastructure.
+    Uses the Web SDK for a minimal ASP.NET Core stub (Hello World).
+    Acts as the Presentation layer in the 4-layer DDD-Onion.
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>DemoApp.Api</AssemblyName>
+    <RootNamespace>DemoApp.Api</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DemoApp.Application\DemoApp.Application.csproj" />
+    <ProjectReference Include="..\DemoApp.Infrastructure\DemoApp.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

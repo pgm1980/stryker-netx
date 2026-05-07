@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DemoApp.Tests — Sprint 159 Fix-4 integration-test fixture.
+    xUnit test project covering all four source layers.
+    Must NOT reference the root Directory.Packages.props (which uses central
+    package management) — package versions are pinned directly here so the
+    sample is self-contained and hermetic.
+    FluentAssertions is the MANDATORY assertion library per CLAUDE.md.
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>DemoApp.Tests</AssemblyName>
+    <RootNamespace>DemoApp.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!--
+    Package versions are resolved via the root Directory.Packages.props
+    (ManagePackageVersionsCentrally=true is inherited from root Directory.Build.props).
+    No Version attributes here — per CPM rules (NU1008 otherwise).
+  -->
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DemoApp.Api\DemoApp.Api.csproj" />
+    <ProjectReference Include="..\..\src\DemoApp.Application\DemoApp.Application.csproj" />
+    <ProjectReference Include="..\..\src\DemoApp.Domain\DemoApp.Domain.csproj" />
+    <ProjectReference Include="..\..\src\DemoApp.Infrastructure\DemoApp.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DemoApp.Domain — Sprint 159 Fix-4 integration-test fixture.
+    Domain layer: no project references. Contains Calculator with at least
+    3 binary operators (Add, Subtract, Multiply) so Stryker produces >= 3
+    mutations that the test-suite can kill (100 % mutation score gate).
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>DemoApp.Domain</AssemblyName>
+    <RootNamespace>DemoApp.Domain</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>
