@@ -2644,6 +2644,155 @@ Das Reflection-Fallback war der letzte Block für volle AOT-Trim. Sprint 154 ent
 
 ---
 
+## ADR-039: Source-Project Filter Defense — 3-Layer-Architektur (v3.2.11 / Sprint 159)
+
+**Status.** Accepted — Sprint 159 (v3.2.11, 2026-05-07).
+
+**Kontext.** Aisess Platform Team (`_bug_reporting/stryker-netx-3.2.10-slnx-mutable-assembly-bug.md`) reportete am 2026-05-07, dass `dotnet stryker-netx 3.2.10` auf einer Multi-Project `.slnx`-Solution mit 4-Layer-DDD-Onion-Architektur (Domain + Application + Infrastructure + Api) nicht läuft. Die Pipeline bricht ab mit `Failed to analyze project builds. Stryker cannot continue.` — obwohl alle 5 Projekte (1 Test + 4 Source) per-Projekt erfolgreich (`Succeeded: True`) analysiert werden. Der `--diag`-Log zeigte das misleading Trio `Could not find an assembly reference to a mutable assembly … Will look into project references. → Analyzing 0 projects → No project found, check settings and ensure project file is not corrupted`.
+
+**Discovery / Diagnostik-Zyklus.** Das stryker-netx-Maintainer-Team formulierte einen 3-Hypothesen-Diagnostic-Request (`_bug_reporting/aisess-diagnostic-request-stryker-netx-3.2.10.md`):
+- **H1**: Stage-2 `StringComparer.Ordinal` ist case-sensitive auf Windows
+- **H2**: `mutableProjects` ist leer wegen Filter-Auswirkung
+- **H6**: Roslyn `MSBuildWorkspace` populiert `ProjectReferences` nicht (Aspire-AppHost-SDK-Effekt?)
+
+Der Aisess-Team applied den Diagnostic-Patch + lief gegen den Aisess-Stack. Output (`_bug_reporting/diag-output-2026-05-07T14-26.txt`):
+
+```
+[DIAG] mutableProjectsAnalyses.Count = 1, analyzerTestProjects = 1, mutableProjects = 0
+[DIAG]   testProject.ProjectFilePath = 'C:\…\tests\Aisess.Tests\Aisess.Tests.csproj'
+[DIAG]     References.Count       = 353
+[DIAG]     ProjectReferences.Count = 4         ← Roslyn populated correctly
+[DIAG]       ProjectRef = '…\src\Aisess.Domain\Aisess.Domain.csproj'
+[DIAG]       …
+[DIAG]       References[Aisess] = '…\src\Aisess.Domain\bin\Debug\net10.0\Aisess.Domain.dll'
+[DIAG]       …
+```
+
+**H2 confirmed, H1 latent, H6 dead.** Wurzel-Ursache: `InputFileResolver.AnalyzeThisProject` (Z. 441-447) wendet einen Substring-Filter (`normalizedProjectUnderTestNameFilter` aus `--project` / config `"project"`) an — Source-Projekte werden NICHT zu `mutableProjectsAnalyses` hinzugefügt wenn ihr Pfad den Filter-Substring nicht enthält. Im Aisess-Setup steht im Config `"project": "Aisess.Tests.csproj"` (was eigentlich ein Test-Projekt-Name ist) — kein Source-Projekt-Pfad enthält diesen Substring, also wird `mutableProjects` leer, Stages 1+2 schlagen mit Null-Op-Vergleich fehl, und das Trio läuft ab.
+
+Der Filter-Field-Name `"project"` ist semantisch zweideutig (test-project? source-project?), und der aktuelle Failure-Modus ist opak.
+
+**Entscheidung.** **3-Layer-Filter-Defense-Architektur** in `InputFileResolver.cs`:
+
+**Layer 1 — Locus α (Fast-Fail)**: In `IdentifyProjects`, vor dem `AnalyzeAllNeededProjects`-Aufruf, eine kurze pre-validation gegen die `solution.GetProjectsWithDetails()`-Pfade. Wenn der Filter-String *keinen* Match in der Solution findet → `InputException` mit Liste der verfügbaren Projekte (volle relative Pfade vom Solution-Root, ~10ms-Fail-Path).
+
+**Filter-Match-Semantik (Sprint 159 Breaking-Change-Note)**: Filter-Match wechselt von Substring-basiert (legacy v1-v3.2.10) zu **exakter Filename-Match** (toleriert `.csproj`-Extension):
+```
+match := Path.GetFileName(p.ProjectFilePath).Equals(filter, OrdinalIgnoreCase)
+       || Path.GetFileNameWithoutExtension(p.ProjectFilePath).Equals(
+              Path.GetFileNameWithoutExtension(filter), OrdinalIgnoreCase)
+```
+Das löst die Mehrdeutigkeit auf, dass ein Substring wie `"Domain"` sowohl `Aisess.Domain.csproj` als auch hypothetische `Aisess.Domain.Tests.csproj` matcht. Backwards-incompatibility ist akzeptabel: User die heute den vollen `.csproj`-Filename als Filter passieren (Aisess-Setup), funktionieren weiterhin; User die einen Bare-Stem (`"Aisess.Domain"`) passieren, funktionieren ebenfalls (toleranter Stem-Match); User die einen Substring (`"Domain"`) passieren der nicht-eindeutig auflöst, kriegen jetzt einen klaren `Filter matches no project`-Error statt eines random Source-Projekt-Picks.
+
+**Layer 2 — Locus β.2 C-Check (Proactive Validation)**: Refactor von `AnalyzeThisProject`: der Filter wird NICHT mehr in der Per-Projekt-Loop angewendet. Stattdessen werden alle Projekte zu `mutableProjectsAnalyses` hinzugefügt. Eine neue `ApplyProjectFilter(allAnalyses, filter)`-Methode wird am Ende von `AnalyzeAllNeededProjects` aufgerufen und übernimmt die Filter-Logik. Wenn alle Filter-Matches Test-Projekte sind (= Aisess-Mis-Konfiguration) → `InputException` mit klarer Migration-Cue: *"Project filter '{filter}' matches only test project(s): '…'. Specify a source project (the project to be mutated, not the project that runs the tests)."*
+
+**Layer 3 — Locus β.2 B-Fallback (Safety-Net)**: In `ApplyProjectFilter`, nach dem Filter angewandt wurde — wenn die resultierende Source-Projekt-Anzahl 0 ist UND der Filter non-null ist → Warning loggen + die UNGEFILTERTE Collection zurückgeben. Schützt Edge-Cases (z.B. Filter matcht ein Source-Projekt das im Build failed) ohne opake Stille.
+
+**Begründung der Wahl.** Maxential-Session "sprint-159-adr-039-filter-defense" (20 Schritte, 2 ToT-Branches: Locus α + Locus β):
+
+- **Locus α isoliert** kann Aisess-Fall NICHT erkennen (kann pre-Roslyn-Loading nicht zwischen Test- und Source-Projekt unterscheiden). Aber als zusätzliche frühe Layer wertvoll für "filter spelled wrong"-Fall.
+- **Locus β.2** ist die saubere Architektur: Single-Responsibility (Filter-Logik zentralisiert in `ApplyProjectFilter`), `IsTestProject()` post-analysis verfügbar, keine invasive Tuple-Type-Änderung.
+- **C+B Kombi**: Proactive-Validation deckt Mis-Konfiguration ab (Test-Projekt-als-Filter, Filter-not-found); B-Safety-Net deckt orthogonale Edge-Cases ab (broken-build Source-Projekt, unforeseen Filter-Semantik).
+
+**Alternativen verworfen**:
+- B-only (nur Fallback ohne Validation): silent-retry-without-filter ist verwirrend für User der einen Tippfehler im Filter hat — verhindert klare Migration-Message.
+- C-only (nur Validation ohne Fallback): kann Edge-Cases (broken-build) nicht graceful handhaben.
+- Validation in `IdentifyProjects` only (Locus α isoliert): kann Aisess-Style Mis-Konfiguration nicht erkennen, weil `IsTestProject()` pre-analysis nicht verfügbar ist.
+
+**Implementation.**
+
+`src/Stryker.Core/Initialisation/InputFileResolver.cs`:
+
+1. **Layer 1** in `IdentifyProjects` (vor Z. 248):
+   ```csharp
+   ValidateFilterMatchesAnyProject(normalizedProjectUnderTestNameFilter, projectsWithDetails);
+   var mutableProjectsAnalyses = AnalyzeAllNeededProjects(projectsWithDetails, …);
+   ```
+
+2. **Layer 2 + 3** als neue `ApplyProjectFilter(...)`-Methode in `AnalyzeAllNeededProjects` (Filename-Match, nicht Substring):
+   ```csharp
+   private List<...> AnalyzeAllNeededProjects(...)
+   {
+       var allAnalyses = new List<(...)>();
+       // ... unchanged loop populates allAnalyses ...
+       return ApplyProjectFilter(allAnalyses, normalizedProjectUnderTestNameFilter);
+   }
+
+   private static bool MatchesFilter(string projectFilePath, string filter) =>
+       string.Equals(Path.GetFileName(projectFilePath), filter, StringComparison.OrdinalIgnoreCase)
+       || string.Equals(Path.GetFileNameWithoutExtension(projectFilePath),
+              Path.GetFileNameWithoutExtension(filter), StringComparison.OrdinalIgnoreCase);
+
+   private List<...> ApplyProjectFilter(List<(IReadOnlyList<IProjectAnalysis> result, bool isTest)> all, string? filter)
+   {
+       if (string.IsNullOrEmpty(filter)) return all;
+
+       // Layer 2 C-check: filter matches only test projects?
+       var matching = all.SelectMany(a => a.result)
+           .Where(p => MatchesFilter(p.ProjectFilePath, filter)).ToList();
+       if (matching.Count > 0 && matching.All(p => p.IsTestProject))
+       {
+           throw new InputException(
+               $"Project filter '{filter}' matches only test project(s): " +
+               $"'{matching[0].ProjectFilePath}'. " +
+               "Specify a source project (the project to be mutated, not the project that runs the tests).");
+       }
+
+       // Apply filter (test projects always retained — they drive the matching pipeline)
+       var filtered = all.Where(a => a.isTest || a.result.Any(p => MatchesFilter(p.ProjectFilePath, filter))).ToList();
+
+       // Layer 3 B-fallback
+       var sourceCount = filtered.Where(a => !a.isTest).SelectMany(a => a.result).Count(p => p.BuildsAnAssembly());
+       if (sourceCount == 0)
+       {
+           LogFilterFallback(_logger, filter);
+           return all;
+       }
+       return filtered;
+   }
+   ```
+
+3. `AnalyzeThisProject` (Z. 416-450): der Filter-Check (Z. 441-447) entfällt. Kollabiert auf `mutableProjectsAnalyses.Add((buildResult, isTestProject))`.
+
+4. **Stage-2-Pre-emptive (latent H1)** an Z. 590:
+   ```csharp
+   var mutableProject = mutableProjects.FirstOrDefault(p =>
+       testProject.ProjectReferences.Any(pr =>
+           string.Equals(Path.GetFullPath(pr), Path.GetFullPath(p.ProjectFilePath),
+               StringComparison.OrdinalIgnoreCase)));
+   ```
+
+5. **Log-Klarheit (Fix-2)**:
+   - `LogAnalyzingProjectCount` (Z. 829): `"Analyzing {Count} projects."` → `"Analyzing {Count} mutable source project(s)."`
+   - `LogNoProjectFound` (Z. 835): expandieren um Filter-Hint-Parameter
+   - 2 neue LoggerMessages: `LogFilterFallback`, `LogFilterMatchesAnyProject`
+
+6. **Integration-Test-Fixture**: neue `samples/AisessLikeSlnxFolders/`-Suite (4-Layer-DDD-Onion + `<Folder>`-Container `.slnx`) + `integrationtest/Stryker.IntegrationTest/AisessLikeSlnxFoldersTests.cs` mit 4 Test-Cases (happy path / source-project filter / test-project as filter / non-existent filter).
+
+**Konsequenzen.**
+
+- (+) Aisess-Mis-Konfiguration produziert klaren Error in <100ms statt 6s opaker Failure.
+- (+) Test-Projekt-als-Filter ist explizit benannt mit Migration-Cue.
+- (+) Backwards-compatible für valide Filter (Pipeline-Semantik unverändert).
+- (+) Single Responsibility: `AnalyzeThisProject` macht nur per-Projekt-Analyse; Filter-Logik in dedizierter Methode.
+- (+) Pre-emptive Stage-2-OrdinalIgnoreCase schließt latente Windows-Pfad-Sensitivität (H1) ohne separaten Sprint.
+- (–) Alle Solution-Projekte werden geladen, auch wenn Filter sie ausschließt — aber das Loading geschieht eh, weil Stage 2 den ProjectReference-Graph braucht.
+- (–) ~+30 LoC, ~-10 LoC, 2 neue LoggerMessages.
+
+**Supersedes / supplements.**
+
+- **Closes** Aisess `_bug_reporting/stryker-netx-3.2.10-slnx-mutable-assembly-bug.md` (H2 confirmed).
+- **Closes (pre-emptive)** latentes H1-Risiko von `StringComparer.Ordinal` in Stage 2.
+- **Confirms** dass H6 (Roslyn-Workspace-Project-Reference-Loading) NICHT betroffen ist — Aspire-AppHost-SDK destabilisiert den Workspace nicht.
+
+**Backed by.** Sprint 159 Maxential-Session "sprint-159-adr-039-filter-defense" (20 Schritte, 2 Branches: locus-alpha + locus-beta, beide via `full_integration` gemerged). Aisess-Diagnostic-Cycle: Bug-Report (502 Z.) + Diagnostic-Request (165 Z.) + Diagnostic-Response (216 Z.) + Diag-Transkript (1316 Z.).
+
+**Bezug zu Backlog-Items.**
+
+- Aisess-Bug-Report (Item-Class "external-customer-bug-report") wird als erstes "external-customer" Bug nach Calculator-Tester-Reports geschlossen. Zeigt dass Sprints 152-156 mit Calculator-Tester ein gut-geprüftes minimum-viable-Setup geliefert haben — der Aisess-Bug ist ein unabhängiger Filter-Modus, nicht ein Symptom der bekannten Bug-9-Klasse.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2669,4 +2818,5 @@ Das Reflection-Fallback war der letzte Block für volle AOT-Trim. Sprint 154 ent
 | 0.19.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Doc bundle (post-Sprint-152): ADR-033 + ADR-035. **ADR-033** — Combined Multi-Project Report Aggregation discovery: ADR-031's "v3.3+ deferred"-Claim für Multi-Project-Report-Aggregation war FALSCH — Aggregation ist seit Sprint 1 implementiert via `StrykerRunner.AddRootFolderIfMultiProject` + single `OnAllMutantsTested(rootComponent)` call. Calculator-Tester Bug-Report-5-Verifikation hatte bereits "kombinierter Report" mit 375 Mutanten Total bestätigt. Backlog-Item 7 closed by discovery. **ADR-035** — TypeSyntax-Engine Refactor + HotSwap inkrementelles MT status-quo confirmation: beide Items bleiben in ihren existierenden ADR-Status (027 Phase 3 Skip-as-Architecture / 022 Proposed-no-commitment). Backlog-Items 3+4 closed-as-status-quo. Beide ADRs sind doc-only, kein Sprint, kein neuer Tag. |
 | 0.20.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 154 v3.2.8: ADR-034 — **JsonReport full AOT-trim**. Schließt ADR-024 v3.0-scope-deferral (Sprint 17). Source-gen-Kontext erweitert von 2 entry-types (`JsonReport`, `IJsonReport`) auf 9 types — die 6 konkreten Typen hinter den polymorphen Interface-Konvertern (`SourceFile`, `JsonMutant`, `Location`, `Position`, `JsonTestFile`, `JsonTest`) plus 3 concrete-dictionary-types (`Dictionary<string, SourceFile>` etc). `TypeInfoResolver` umgestellt von `Combine(SourceGen, DefaultReflection)` auf nur `JsonReportSerializerContext.Default` — Reflection-Fallback gestrichen. Hybrid-Custom-Konverter-Design unverändert (SYSLIB1220 verbietet sie auf source-gen attribute). Maxential 4-Schritte branchless. 13 JsonReport-related Tests grün post-change (11 Dogfood + 2 E2E), Solution-wide 2047 Tests grün, Semgrep clean. Tag **v3.2.8** — Backlog-Item 1 closed. |
 | 0.21.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 155 v3.2.9: ADR-037 — **RoslynSemanticDiagnostics v2** StatementSyntax-Coverage. Schließt Sprint-16-deferred-Item: Sprint-17 hatte Statement+Declaration-level Replacements als Out-of-Scope dokumentiert ("would need TryGetSpeculativeSemanticModel which is bulkier per call"). Sprint 155 implementiert Statement-Path. Maxential 4-Schritte mit 3-Branch ToT (S1=GetDiagnostics-fails-NotSupported, **S2=descendant-walk via GetSymbolInfo chosen**, S3=Compilation.AddSyntaxTrees rejected). `IsEquivalent` switch-pattern dispatched ExpressionSyntax → bestehender Sprint-17-Path, StatementSyntax → neuer `IsEquivalentStatement` (TryGetSpeculativeSemanticModel + descendant-walk via GetSymbolInfo, MemberBindingExpression-Skip von Sprint 137 wiederverwendet), Declaration → false (out-of-scope, v2.1 parser-only Filter handhabt structural validity). 6 Tests grün (1 alter test umbenannt mit Sprint-155-Verhalten + 1 neuer Declaration-out-of-scope-Test). O(1) per descendant beibehalten. Semgrep clean. Tag **v3.2.9** — Backlog-Item 2 closed. |
+| 0.23.0 | 2026-05-07 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 159 v3.2.11: ADR-039 — **Source-Project Filter Defense — 3-Layer-Architektur**. Aisess Platform Team Bug-Report (.slnx mit Solution-Folders + DDD-Onion 4-Layer): `dotnet stryker-netx 3.2.10` failed mit "Failed to analyze project builds" obwohl alle 5 Projekte per-Projekt erfolgreich analyzed. Diagnostic-Cycle (Maintainer-Request + Aisess-Response + 1316-Zeilen Diag-Transkript) confirmed H2: `mutableProjects = 0` weil `normalizedProjectUnderTestNameFilter` (= test-project-Name in Aisess-Config) alle Source-Projekte ausschließt. H1 latent (Stage-2 OrdinalIgnoreCase auf Windows fragil). H6 dead (Roslyn populiert ProjectReferences korrekt, Aspire-AppHost-SDK destabilisiert Workspace nicht). Maxential-Session "sprint-159-adr-039-filter-defense" (20 Schritte, 2 Branches locus-alpha + locus-beta) → 3-Layer-Defense gewählt: Layer 1 (α Fast-Fail in IdentifyProjects, ~10ms), Layer 2 (β.2 C-Check via neue ApplyProjectFilter-Methode mit IsTestProject()-Discrimination), Layer 3 (β.2 B-Fallback mit Warning + ungefilterten Return). Pre-emptive Stage-2 OrdinalIgnoreCase für latentes H1. Neue samples/AisessLikeSlnxFolders/ Integration-Test-Fixture (4-Layer DDD-Onion + `<Folder>`-`.slnx`) mit 4 Test-Cases. Tag **v3.2.11** — Aisess-Bug closed. |
 | 0.22.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 156 v3.2.10: ADR-038 — **MutationTestProcessTests Issue-#191 minimum-viable closure**. Issue #191 (Sprint 107 / v2.93.0) war seit ~50 Sprints offen. Sprint-107-Port hatte 5/9 upstream tests portiert mit Kommentar "Heavy FullRunScenario+CoverageAnalysis tests (8 of 9) defer for separate sprint due to v2.x pipeline drift". Sprint 156 portiert das einfache `ShouldNotTest_WhenThereAreNoMutations` (Empty-Mutants Short-Circuit Test) als 6. Test = 6/9 = minimum-viable. Die 4 heavy pipeline tests bleiben **honest-deferred** mit dokumentierten 3 Refactor-Voraussetzungen (shared-state test-fixture / Real-Pipeline-Wiring / TestResources/ExampleSourceFile.cs). Maxential 3-Schritte branchless. 9 MutationTestProcessTests grün (5 Sprint-107 + 1 Sprint-156 + 3 FullRunScenario-helper). Tag **v3.2.10** — Backlog-Item 6 closed. **Alle 7 Backlog-Items aus User-Direktive ("Damit machen wir weiter") sind nach Sprint 156 geschlossen** (Items 1, 2, 5-Class-A+B+D, 6 closed via Sprints 154/155/152/156; Items 3, 4 status-quo via ADR-035; Item 7 closed by discovery via ADR-033). |

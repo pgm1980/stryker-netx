@@ -1,0 +1,21 @@
+<Solution>
+  <!--
+    AisessLikeSlnxFolders.slnx - Sprint 159 Fix-4 Integration-Test-Fixture.
+    Reproduces the Aisess-Platform pattern: a .slnx solution with Folder
+    container nodes grouping src/ and tests/ projects in a 4-layer DDD-Onion
+    architecture. This is the scenario where the project filter config
+    targeting a test-project name caused an opaque pipeline abort in v3.2.10.
+
+    ADR-039 (InputFileResolver 3-layer filter defence) makes the
+    four integration tests in AisessLikeSlnxFoldersTests green as of v3.2.11.
+  -->
+  <Folder Name="/src/">
+    <Project Path="src/DemoApp.Api/DemoApp.Api.csproj" />
+    <Project Path="src/DemoApp.Application/DemoApp.Application.csproj" />
+    <Project Path="src/DemoApp.Domain/DemoApp.Domain.csproj" />
+    <Project Path="src/DemoApp.Infrastructure/DemoApp.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DemoApp.Tests/DemoApp.Tests.csproj" />
+  </Folder>
+</Solution>

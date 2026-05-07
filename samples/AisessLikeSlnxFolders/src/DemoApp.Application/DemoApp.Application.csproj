@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DemoApp.Application — Sprint 159 Fix-4 integration-test fixture.
+    Application layer: references Domain only (no Infrastructure, no Web SDK).
+    Contains OrderService with methods that delegate to Calculator, creating
+    additional mutation targets in the Application layer.
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>DemoApp.Application</AssemblyName>
+    <RootNamespace>DemoApp.Application</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DemoApp.Domain\DemoApp.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
