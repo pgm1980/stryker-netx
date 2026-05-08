@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-`stryker-netx` is a fork of Stryker.NET that targets `.NET 10`, eliminates the `Buildalyzer` dependency in favour of `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace`, supports the modern `.slnx` (XML-based) solution format, and ships a substantially expanded mutation-operator catalogue plus a `MutationProfile` opt-in surface for tunable noise/aggression. All public CLI flags and the `stryker-config.json` schema remain 1:1 backwards-compatible with upstream Stryker.NET 4.14.1.
+`Stryker.NET-X` is a fork of Stryker.NET that targets `.NET 10`, eliminates the `Buildalyzer` dependency in favour of `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace`, supports the modern `.slnx` (XML-based) solution format, and ships a substantially expanded mutation-operator catalogue plus a `MutationProfile` opt-in surface for tunable noise/aggression. All public CLI flags and the `stryker-config.json` schema remain 1:1 backwards-compatible with upstream Stryker.NET 4.14.1.
 
 ## What's new in Stryker.NET-X
 
