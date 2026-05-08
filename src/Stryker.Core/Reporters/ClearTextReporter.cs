@@ -50,15 +50,19 @@ public class ClearTextReporter : IReporter
             _console.WriteLine();
             _console.WriteLine("All mutants have been tested, and your mutation score has been calculated");
 
+            // Sprint 161 (ADR-041 Issue 1, Aisess Anomaly C): compact one-letter
+            // column labels avoid the vertical-wrap on narrow terminals that the
+            // Aisess team reported on v3.2.11/v3.2.12. The 1-line legend is printed
+            // once below the table for first-time readers.
             var table = new Table()
                 .RoundedBorder()
                 .AddColumn("File", c => c.NoWrap())
-                .AddColumn("% score", c => c.Alignment(Justify.Right).NoWrap())
-                .AddColumn("# killed", c => c.Alignment(Justify.Right).NoWrap())
-                .AddColumn("# timeout", c => c.Alignment(Justify.Right).NoWrap())
-                .AddColumn("# survived", c => c.Alignment(Justify.Right).NoWrap())
-                .AddColumn("# no cov", c => c.Alignment(Justify.Right).NoWrap())
-                .AddColumn("# error", c => c.Alignment(Justify.Right).NoWrap());
+                .AddColumn("%", c => c.Alignment(Justify.Right).NoWrap())
+                .AddColumn("K", c => c.Alignment(Justify.Right).NoWrap())
+                .AddColumn("T", c => c.Alignment(Justify.Right).NoWrap())
+                .AddColumn("S", c => c.Alignment(Justify.Right).NoWrap())
+                .AddColumn("NoCov", c => c.Alignment(Justify.Right).NoWrap())
+                .AddColumn("Err", c => c.Alignment(Justify.Right).NoWrap());
 
             DisplayComponent(reportComponent, table);
 
@@ -68,6 +72,7 @@ public class ClearTextReporter : IReporter
             }
 
             _console.Write(table);
+            _console.WriteLine("Legend: % = mutation score | K = Killed | T = Timeout | S = Survived | NoCov = NoCoverage | Err = Compile/Runtime Error");
         }
     }
 

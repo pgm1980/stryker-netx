@@ -63,11 +63,16 @@ internal static partial class CommentParser
                 }
                 else
                 {
-                    // Sprint 160 (ADR-040 Issue α): if the unrecognised label looks like a Mutator
-                    // class name (PascalCase, alphanumeric), append a hint pointing the user at
-                    // the Kind-name they should use instead. Empty hint otherwise.
+                    // Sprint 160 (ADR-040 Issue α) + Sprint 161 (ADR-041 Issue 2 — fix my
+                    // Sprint-160 mistake): on PascalCase labels, the hint now (a) inlines
+                    // the 2 most-commonly-confused class-to-kind mappings so the message is
+                    // self-contained even for users who don't follow the URL, and (b) points
+                    // at a public stryker-netx-repo URL instead of a project-local path that
+                    // doesn't exist in the consuming user's repo.
                     var hint = LooksLikeMutatorClassName(label)
-                        ? "Hint: mutator class names are not accepted here — use the Mutator-Kind name (see _docs/disable-comment-syntax.md for the Class-to-Kind mapping)."
+                        ? "Hint: mutator class names are not accepted here — use the Mutator-Kind name. " +
+                          "Common: ConfigureAwait → Boolean, AsyncAwait → Boolean. Full table: " +
+                          "https://github.com/pgm1980/stryker-netx/blob/main/_docs/disable-comment-syntax.md"
                         : string.Empty;
                     LogLabelNotRecognized(Logger, label, node.GetLocation().GetMappedLineSpan().StartLinePosition, node.SyntaxTree.FilePath, string.Join(',', Enum.GetValues<Mutator>()), hint);
                 }
