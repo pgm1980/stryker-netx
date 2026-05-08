@@ -1,24 +1,21 @@
 # stryker-netx
 
-> **A 1:1 port of [Stryker.NET](https://github.com/stryker-mutator/stryker-net) 4.14.1 to C# 14 / .NET 10 — fully `.slnx`-aware — with an extended mutation-operator and feature catalogue that rivals PIT, cargo-mutants, and mutmut.**
+> **Stryker.NET-X is a port of [Stryker.NET](https://github.com/stryker-mutator/stryker-net) 4.14.1 to C# 14 / .NET 10 — fully `.slnx`-aware — with an extended mutation-operator and feature catalogue that rivals PIT, cargo-mutants, and mutmut.**
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-`stryker-netx` is a fork of Stryker.NET that targets `.NET 10`, eliminates the `Buildalyzer` dependency in favour of `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace`, supports the modern `.slnx` (XML-based) solution format, and (since v2.0.0) ships a substantially expanded mutation-operator catalogue plus a `MutationProfile` opt-in surface for tunable noise/aggression. All public CLI flags and the `stryker-config.json` schema remain 1:1 backwards-compatible with upstream Stryker.NET 4.14.1.
+`stryker-netx` is a fork of Stryker.NET that targets `.NET 10`, eliminates the `Buildalyzer` dependency in favour of `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace`, supports the modern `.slnx` (XML-based) solution format, and ships a substantially expanded mutation-operator catalogue plus a `MutationProfile` opt-in surface for tunable noise/aggression. All public CLI flags and the `stryker-config.json` schema remain 1:1 backwards-compatible with upstream Stryker.NET 4.14.1.
 
-## What's new in v2.x line
+## What's new in Stryker.NET-X
 
-v2.x is **fully backwards-compatible**: existing v1.x users see zero behavioral change unless they opt into a stronger mutation profile.
+**Fully backwards-compatible**: existing users see zero behavioral change unless they opt into a stronger mutation profile.
 
 - **`--mutation-profile` flag** (`Defaults` | `Stronger` | `All`) — orthogonal to `--mutation-level`; controls *which mutators* run (not just which mutations).
-- **25 net-new mutators** across 6 batches (typed-driven, PIT-1, PIT-2 + cargo-mutants, .NET-greenfield, v2.0.1 spec-gap closure, **v2.1.0 filter pipeline + operator completion**).
-- **4 equivalent-mutant filters** in the pipeline (`IdentityArithmetic`, `IdempotentBoolean`, `ConservativeDefaultsEquality`, `RoslynDiagnostics` — the v2.1.0 mutmut-style mypy/pyrefly pre-filter).
-- **Operator hierarchy** + `[MutationProfileMembership]` attribute on every mutator (ADR-014, ADR-018).
-- **SemanticModel-driven type-aware mutators** (ADR-015) — used by `TypeDrivenReturn`, `ArgumentPropagation`, `MemberVariable`, `MethodBodyReplacement`.
-- **Equivalent-Mutant Filter pipeline** as a first-class stage (ADR-017).
-- **`--engine` flag** — deprecated v2.2.0 per ADR-021 (was based on a wrong mental model; accepted as a no-op shim).
-
-See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md) for the full upgrade story.
+- **25 net-new mutators** across 6 batches (typed-driven, PIT-1, PIT-2 + cargo-mutants, .NET-greenfield, spec-gap closure, **filter pipeline + operator completion**).
+- **4 equivalent-mutant filters** in the pipeline (`IdentityArithmetic`, `IdempotentBoolean`, `ConservativeDefaultsEquality`, `RoslynDiagnostics` — the mutmut-style mypy/pyrefly pre-filter).
+- **Operator hierarchy** + `[MutationProfileMembership]` attribute on every mutator.
+- **SemanticModel-driven type-aware mutators** — used by `TypeDrivenReturn`, `ArgumentPropagation`, `MemberVariable`, `MethodBodyReplacement`.
+- **Equivalent-Mutant Filter pipeline** as a first-class stage.
 
 ## Why this fork exists
 
@@ -57,7 +54,7 @@ dotnet tool install -g dotnet-stryker-netx
 Pin a specific version:
 
 ```bash
-dotnet tool install -g dotnet-stryker-netx --version 2.0.0
+dotnet tool install -g dotnet-stryker-netx --version 3.2.13
 ```
 
 ## Quickstart
@@ -82,7 +79,7 @@ Or with a `stryker-config.json`:
 dotnet stryker-netx --config-file stryker-config.json
 ```
 
-CLI flags, configuration schema, and reporter outputs are 1:1 compatible with [upstream Stryker.NET configuration docs](https://stryker-mutator.io/docs/stryker-net/configuration).
+CLI flags, configuration schema, and reporter outputs are mostly compatible with [upstream Stryker.NET configuration docs](https://stryker-mutator.io/docs/stryker-net/configuration).
 
 ## Mutation Profiles (v2.0.0)
 
