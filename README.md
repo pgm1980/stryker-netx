@@ -1,4 +1,4 @@
-# stryker-netx
+# Stryker.NET-X
 
 > **Stryker.NET-X is a port of [Stryker.NET](https://github.com/stryker-mutator/stryker-net) 4.14.1 to C# 14 / .NET 10 — fully `.slnx`-aware — with an extended mutation-operator and feature catalogue that rivals PIT, cargo-mutants, and mutmut.**
 
