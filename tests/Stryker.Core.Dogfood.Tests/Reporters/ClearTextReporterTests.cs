@@ -70,9 +70,10 @@ public class ClearTextReporterTests : TestBase
 
         console.Output.Should().Contain("All mutants have been tested");
         console.Output.Should().Contain("File");
-        console.Output.Should().Contain("% score");
-        console.Output.Should().Contain("# killed");
-        console.Output.Should().Contain("# survived");
+        // Sprint 161 (ADR-041): compact one-letter column labels — see ClearTextReporter.cs.
+        console.Output.Should().Contain("%");
+        console.Output.Should().Contain("K");
+        console.Output.Should().Contain("S");
         console.Output.Should().Contain("FolderA/SomeFile.cs");
     }
 
@@ -113,13 +114,20 @@ public class ClearTextReporterTests : TestBase
 
         target.OnAllMutantsTested(rootFolder, It.IsAny<TestProjectsInfo>());
 
-        // Width(160) keeps headers un-truncated
+        // Sprint 161 (ADR-041 Issue 1): compact one-letter labels avoid the
+        // vertical-wrap on narrow terminals reported by Aisess team. The 1-line
+        // legend below the table maps the labels for first-time readers.
         console.Output.Should().Contain("File");
-        console.Output.Should().Contain("% score");
-        console.Output.Should().Contain("# killed");
-        console.Output.Should().Contain("# timeout");
-        console.Output.Should().Contain("# survived");
-        console.Output.Should().Contain("# no cov");
-        console.Output.Should().Contain("# error");
+        console.Output.Should().Contain("%");
+        console.Output.Should().Contain("K");
+        console.Output.Should().Contain("T");
+        console.Output.Should().Contain("S");
+        console.Output.Should().Contain("NoCov");
+        console.Output.Should().Contain("Err");
+        console.Output.Should().Contain("Legend:");
+        console.Output.Should().Contain("Killed");
+        console.Output.Should().Contain("Timeout");
+        console.Output.Should().Contain("Survived");
+        console.Output.Should().Contain("NoCoverage");
     }
 }

@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Stryker.Abstractions;
 using Stryker.Core.Mutants;
@@ -259,5 +261,83 @@ public sealed class CommentParserTests : IntegrationTestBase
         result.FilteredMutators!.Should().ContainSingle()
             .Which.Should().Be(Mutator.Boolean,
                 "mutator label parsing must be case-insensitive");
+    }
+
+    /// <summary>
+    /// ADR-041 Issue 2 verification (Sprint 161, fixes Sprint-160 mistake): when a
+    /// PascalCase mutator class name like <c>ConfigureAwait</c> is rejected, the ERR-log
+    /// hint must point at a PUBLIC URL (stryker-netx GitHub repo) instead of a
+    /// project-local path that doesn't exist in the consuming user's repo. The hint
+    /// must also inline the 2 most-commonly-confused class-to-kind mappings so the
+    /// message is self-contained even without click-through.
+    ///
+    /// Implementation: this test captures the logger output via
+    /// <see cref="Microsoft.Extensions.Logging.Testing"/>-style approach by replacing
+    /// the static <see cref="ApplicationLogging.LoggerFactory"/> with a list-capturing
+    /// factory before the parse call.
+    /// </summary>
+    [Fact]
+    public void Disable_NextLine_ClassName_HintIncludesPublicUrl()
+    {
+        var captured = new List<string>();
+        var originalFactory = ApplicationLogging.LoggerFactory;
+        ApplicationLogging.LoggerFactory = LoggerFactory.Create(builder =>
+        {
+            _ = builder.AddProvider(new ListLoggerProvider(captured));
+        });
+
+        try
+        {
+            var ctx = BuildContext();
+            var node = NodeWithLeadingComment("// Stryker disable next-line ConfigureAwait : reason");
+
+            _ = CommentParser.ParseNodeLeadingComments(node, ctx);
+
+            // The hint must include the public-URL fallback (clickable in modern terminals)
+            // so consuming users can navigate to the canonical class-to-kind mapping table.
+            captured.Should().Contain(s => s.Contains("github.com/pgm1980/stryker-netx", StringComparison.Ordinal),
+                "Sprint 161 (ADR-041 Issue 2): hint must reference the public stryker-netx repo URL");
+            captured.Should().Contain(s => s.Contains("disable-comment-syntax.md", StringComparison.Ordinal),
+                "the URL must deep-link to the canonical Class-to-Kind mapping document");
+            // Self-contained hint: the 2 most-commonly-confused class-to-kind mappings
+            // must be inlined so users don't HAVE to click the URL to act on the message.
+            captured.Should().Contain(s => s.Contains("ConfigureAwait", StringComparison.Ordinal)
+                                        && s.Contains("Boolean", StringComparison.Ordinal),
+                "ConfigureAwait → Boolean mapping must be inlined in the hint");
+            captured.Should().Contain(s => s.Contains("AsyncAwait", StringComparison.Ordinal),
+                "AsyncAwait must also appear inline as the 2nd most-commonly-confused class");
+            // The pre-Sprint-161 project-local path must NOT appear: that was the bug
+            // that caused user confusion ("file not found in MY repo").
+            captured.Should().NotContain(s => s.Contains("see _docs/disable-comment-syntax.md for the Class-to-Kind mapping)", StringComparison.Ordinal),
+                "Sprint 161 fixed: project-local path was misleading because users searched for it in THEIR own repo");
+        }
+        finally
+        {
+            ApplicationLogging.LoggerFactory = originalFactory;
+        }
+    }
+
+    /// <summary>
+    /// Sprint 161: minimal in-memory <see cref="ILoggerProvider"/> capturing every
+    /// formatted log message into the provided list. Used only by
+    /// <see cref="Disable_NextLine_ClassName_HintIncludesPublicUrl"/> to inspect the
+    /// hint string emitted by <c>LogLabelNotRecognized</c>.
+    /// </summary>
+    private sealed class ListLoggerProvider(List<string> sink) : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => new ListLogger(sink);
+        public void Dispose() { }
+
+        private sealed class ListLogger(List<string> sink) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel logLevel) => true;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+                Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                ArgumentNullException.ThrowIfNull(formatter);
+                sink.Add(formatter(state, exception));
+            }
+        }
     }
 }

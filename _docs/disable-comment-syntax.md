@@ -156,7 +156,92 @@ All disable-comment forms that were valid before Sprint 160 produce the same
 filter behaviour after Sprint 160. ADR-040 is a pure parser-layer fix with no
 API breakage.
 
+## Pitfalls & Subtleties (Sprint 161 / ADR-041 — observed on production codebases)
+
+The Aisess Platform Team's Hardening-Sprint-2.5 validation (24 mutation runs over
+v3.2.12) surfaced three subtleties that are **arguably correct behaviour** but
+catch users off-guard. Documented here for reference.
+
+### `next-line` covers exactly ONE statement
+
+`// Stryker disable next-line all` disables mutations on the **immediately
+following single C# statement**, not on the entire next textual line. For
+multi-line constructs — chained method calls, object initializers spanning
+multiple lines, fluent-builder chains — each line that hosts mutations needs
+its own `next-line` directive.
+
+```csharp
+// ❌ ONLY the first statement (var x = …) is disabled below:
+// Stryker disable next-line all : reason
+var x = SomeOp();
+DoSomethingElse();    // ← still mutated
+
+// ✅ For multi-line / chained patterns, one directive per line:
+// Stryker disable next-line all : reason
+var builder = services
+    // Stryker disable next-line all : reason
+    .AddHealthChecks()
+    // Stryker disable next-line all : reason
+    .AddNpgSql(connectionString);
+
+// ✅ Or use the block form for an entire method:
+// Stryker disable all : reason
+public IServiceCollection AddHealthChecks(...) { /* … */ }
+// Stryker restore all
+```
+
+### stryker-netx scans ALL files for disable-comments — even outside `--mutate` scope
+
+The parser walks every C# file in the analyzed solution looking for
+Stryker-disable directives, **regardless of the `--mutate` filter**. A
+malformed disable-comment in any file produces ERR-logs even when that file is
+not being mutated.
+
+```bash
+# Run targets HealthChecks ONLY:
+dotnet stryker-netx --mutate "**/HealthChecks/**"
+
+# But a malformed comment in a non-targeted file still surfaces:
+[ERR] foo not recognized as a mutator at 42,8, src/Aisess.Api/Middleware/TenantContextMiddleware.cs.
+```
+
+This is by design — the parser cannot know in advance which files will produce
+mutation candidates after coverage filtering. **Action**: fix or remove
+malformed disable-comments project-wide, not just in `--mutate`-targeted files.
+
+### `--mutation-profile Stronger` auto-sets `--mutation-level Advanced` (ADR-025)
+
+Since v3.1.0, the mutation profile silently raises the mutation level when no
+explicit `--mutation-level` is supplied:
+
+| `--mutation-profile` | Auto-applied `--mutation-level` (when not set explicitly) |
+|---|---|
+| `Defaults` | `Basic` |
+| `Stronger` | `Advanced` |
+| `All` | `Complete` |
+
+Override only if you want a different combination, e.g.
+
+```bash
+dotnet stryker-netx --mutation-profile All --mutation-level Basic
+```
+
+for the maximum mutator catalogue but with conservative mutation aggressiveness.
+
+The auto-bump is logged at INFO level on stryker-netx startup with a message
+like:
+
+```
+[INF] mutation-level auto-set to Advanced based on mutation-profile=Stronger
+      (no explicit --mutation-level supplied). Override with --mutation-level
+      if needed. (ADR-025)
+```
+
+This is **normal informational output**, not an error.
+
 ## See also
 
-- [ADR-040 in `architecture_specification.md`](architecture%20spec/architecture_specification.md) — full architecture decision record
-- Maxential-Session `sprint-160-adr-040-comment-parser` — 6 thoughts of design rationale
+- [ADR-040 in `architecture_specification.md`](architecture%20spec/architecture_specification.md) — Sprint 160 decision record
+- [ADR-041 in `architecture_specification.md`](architecture%20spec/architecture_specification.md) — Sprint 161 decision record (Aisess-Validation followup)
+- Maxential-Session `sprint-160-adr-040-comment-parser` — 6 thoughts of design rationale (Sprint 160)
+- Maxential-Session `sprint-161-adr-041-aisess-followup` — 4 thoughts of design rationale (Sprint 161)

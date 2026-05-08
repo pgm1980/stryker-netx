@@ -2898,6 +2898,87 @@ Bei PascalCase-Labels (`LooksLikeMutatorClassName(label) == true`) wird der ERRO
 
 ---
 
+## ADR-041: Aisess-Validation-Followup — Hint-URL + Cleartext-Header + Disable-Comment-Doc-Updates (v3.2.13 / Sprint 161)
+
+**Status.** Accepted — Sprint 161 (v3.2.13, 2026-05-08).
+
+**Kontext.** Aisess Platform Team führte einen dedizierten Hardening-Sprint 2.5 durch (24 Mutation-Runs über 7 Schichten × 3 Profile + 3 extras), um v3.2.12 produktiv zu validieren (`_bug_reporting/stryker_netx_3.2.12_validation.md` + `_bug_reporting/hardening_sprint_2.5_backlog.md`). Ergebnis:
+
+- **3 von 4 v3.2.11-Anomalien in v3.2.12 fixed**: A (configureawait diagnostics improved), B (next-line für object-initializers fully fixed → 75% kleinerer Disable-Footprint im Aisess-Code), D (war misreading — Score-Formel ist `(Killed+Timeout) / (Killed+Survived+Timeout+NoCoverage)`).
+- **1 unchanged**: C (Cleartext-Reporter column-headers wrap vertical).
+- **1 NEW informational behavior**: G (`--mutation-profile Stronger` auto-sets `--mutation-level Advanced` per ADR-025 — INFO-log, kein Bug).
+- **3 OFFENE Issues identifiziert** für künftige Adressierung — Sprint 161 schließt diese.
+
+**Issue 2 — Hint-Message Project-Local-Path-Bug (ein Sprint-160-Fehler von mir).** ADR-040 hatte in `CommentParser.cs` eine Hint-Message hardcodet die auf `_docs/disable-comment-syntax.md` als project-local Pfad zeigt. Aisess-User sehen die Message in ihrem Tool-Output und suchen die Datei in IHREM Repo → existiert nicht → Verwirrung.
+
+**Issue 1 (UX, Anomaly C) — Cleartext-Reporter-Header-Layout.** Spectre.Console-Tabelle wraps Header-Strings (`% score`, `# killed`, `# timeout`, `# survived`, `# no cov`, `# error`) vertikal auf engen Terminals → mehrdeutig.
+
+**Issue 3 + Lesson #7 — Doc-Lücken.** Drei Pitfalls aus dem Aisess-Bericht ohne explizite Doc-Coverage: `next-line` covers exactly ONE statement (off-by-one bei multi-line expressions), stryker-netx scans ALL files for disable-comments (auch außerhalb `--mutate`-Filter), ADR-025 auto-mutation-level INFO-log.
+
+**Entscheidung.** Drei orthogonale backwards-compatible Sub-Fixes (Maxential-Session "sprint-161-adr-041-aisess-followup", 4 Schritte, 0 Branches — Sub-Decisions waren orthogonale weighted-choices, keine konkurrierenden Architekturen):
+
+**D-Hint = D-Hint.3 Hybrid** (CommentParser.cs):
+```csharp
+"Hint: mutator class names are not accepted here — use the Mutator-Kind name. " +
+"Common: ConfigureAwait → Boolean, AsyncAwait → Boolean. Full table: " +
+"https://github.com/pgm1980/stryker-netx/blob/main/_docs/disable-comment-syntax.md"
+```
+Self-contained even ohne Klick: 2 most-common mappings inline + public URL für full table.
+
+**D-Reporter = D-Reporter.1 mit Legend** (ClearTextReporter.cs):
+```csharp
+.AddColumn("%", ...)
+.AddColumn("K", ...)      // Killed
+.AddColumn("T", ...)      // Timeout
+.AddColumn("S", ...)      // Survived
+.AddColumn("NoCov", ...)  // NoCoverage
+.AddColumn("Err", ...)    // Compile/Runtime Error
+// nach Table-render:
+_console.WriteLine("Legend: % = mutation score | K = Killed | T = Timeout | S = Survived | NoCov = NoCoverage | Err = Compile/Runtime Error");
+```
+Compact one-letter labels passen in eine Zeile (no wrap auf engen Terminals); 1-line Legend für first-time-readers.
+
+**D-Doc = D-Doc.1 (single "Pitfalls & Subtleties" section in `_docs/disable-comment-syntax.md`):** drei neue Subsections für die drei Pitfalls oben. Discoverability via einzelne "Why doesn't my disable-comment work?"-Section statt fragmentiert über andere Sections.
+
+**Alternativen verworfen**:
+- D-Hint.1 (URL only): Hint wäre cryptic ohne click-through. URL kann auch broken sein.
+- D-Hint.2 (only inline mapping ohne URL): wird sehr lang bei mehr als 2-3 Klassen, repeats per parse-failure.
+- D-Reporter.2 (widen all columns): macht Tabelle sehr breit, schrumpft File-Spalte → noch weniger lesbar auf narrow terminals.
+- D-Doc.2/3 (verteilte Sub-Sections): Discoverability schlechter.
+
+**Implementation.**
+
+`src/Stryker.Core/Mutants/CsharpNodeOrchestrators/CommentParser.cs`: Hint-string von project-local path → public URL + 2 inline mappings.
+
+`src/Stryker.Core/Reporters/ClearTextReporter.cs`: Column-Header-Strings auf compact one-letter Labels umgestellt + 1-Zeile Legend nach Table-render.
+
+`tests/Stryker.Core.Dogfood.Tests/Reporters/ClearTextReporterTests.cs`: Existing assertions auf neue compact-labels updated, plus assertions auf `Legend:` + Legend-Wörter.
+
+`tests/Stryker.Core.Tests/Mutants/CommentParserTests.cs`: 1 neuer [Fact] `Disable_NextLine_ClassName_HintIncludesPublicUrl` der den Hint-format verifiziert (must contain "github.com/pgm1980/stryker-netx" + "ConfigureAwait → Boolean").
+
+`_docs/disable-comment-syntax.md`: Neue Section "Pitfalls & Subtleties" mit drei Subsections (next-line single-statement, cross-scope scan, ADR-025 auto-mutation-level).
+
+`_bug_reporting/stryker_netx_3.2.12_validation.md` + `_bug_reporting/hardening_sprint_2.5_backlog.md`: Aisess-Validation-Archive committed (Pattern wie Sprint 158 Bug-Report intake).
+
+**Konsequenzen.**
+
+- (+) Aisess-User sehen jetzt eine actionable Hint-Message (URL + inline mappings) statt project-local-path-Verwirrung.
+- (+) Cleartext-Reporter-Output passt auf narrow Terminals ohne Header-Wrap; Legend macht compact-labels self-explanatory.
+- (+) Drei dokumentierte Pitfalls reduzieren Support-Aufwand für künftige User.
+- (+) Backwards-compatible: keine API-Änderungen, kein Verhaltens-Bruch für valid disable-comments.
+- (–) Cleartext-Reporter-Layout ist subtle Breaking-Change für Tools/Scripts die Header-Strings parsen — aber das ist Reporter-Output, nicht stable API. Risiko low.
+- (–) Inline-mapping in Hint-Message ist hardcoded auf 2 Klassen (ConfigureAwait, AsyncAwait); andere häufig-confused Klassen müssen via URL nachgeschlagen werden.
+
+**Supersedes / supplements.**
+
+- **Closes** Aisess `_bug_reporting/stryker_netx_3.2.12_validation.md` Issues 1, 2, 3 + Lesson #7 + Anomaly G doc.
+- **Updates** ADR-040 indirekt — Hint-Message wird produktiv-tauglich (mein Sprint-160-Fehler korrigiert).
+- **Bezug**: ADR-039 (Sprint 159) + ADR-040 (Sprint 160) + ADR-041 (Sprint 161) zusammen schließen die Aisess-Bug-Klasse für v3.2.x final.
+
+**Backed by.** Sprint 161 Maxential-Session "sprint-161-adr-041-aisess-followup" (4 Schritte, 0 Branches). 1 neuer CommentParser-Test + ClearTextReporter-Tests updated. Solution-wide build 0/0, Tests grün.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -2923,6 +3004,7 @@ Bei PascalCase-Labels (`LooksLikeMutatorClassName(label) == true`) wird der ERRO
 | 0.19.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Doc bundle (post-Sprint-152): ADR-033 + ADR-035. **ADR-033** — Combined Multi-Project Report Aggregation discovery: ADR-031's "v3.3+ deferred"-Claim für Multi-Project-Report-Aggregation war FALSCH — Aggregation ist seit Sprint 1 implementiert via `StrykerRunner.AddRootFolderIfMultiProject` + single `OnAllMutantsTested(rootComponent)` call. Calculator-Tester Bug-Report-5-Verifikation hatte bereits "kombinierter Report" mit 375 Mutanten Total bestätigt. Backlog-Item 7 closed by discovery. **ADR-035** — TypeSyntax-Engine Refactor + HotSwap inkrementelles MT status-quo confirmation: beide Items bleiben in ihren existierenden ADR-Status (027 Phase 3 Skip-as-Architecture / 022 Proposed-no-commitment). Backlog-Items 3+4 closed-as-status-quo. Beide ADRs sind doc-only, kein Sprint, kein neuer Tag. |
 | 0.20.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 154 v3.2.8: ADR-034 — **JsonReport full AOT-trim**. Schließt ADR-024 v3.0-scope-deferral (Sprint 17). Source-gen-Kontext erweitert von 2 entry-types (`JsonReport`, `IJsonReport`) auf 9 types — die 6 konkreten Typen hinter den polymorphen Interface-Konvertern (`SourceFile`, `JsonMutant`, `Location`, `Position`, `JsonTestFile`, `JsonTest`) plus 3 concrete-dictionary-types (`Dictionary<string, SourceFile>` etc). `TypeInfoResolver` umgestellt von `Combine(SourceGen, DefaultReflection)` auf nur `JsonReportSerializerContext.Default` — Reflection-Fallback gestrichen. Hybrid-Custom-Konverter-Design unverändert (SYSLIB1220 verbietet sie auf source-gen attribute). Maxential 4-Schritte branchless. 13 JsonReport-related Tests grün post-change (11 Dogfood + 2 E2E), Solution-wide 2047 Tests grün, Semgrep clean. Tag **v3.2.8** — Backlog-Item 1 closed. |
 | 0.21.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 155 v3.2.9: ADR-037 — **RoslynSemanticDiagnostics v2** StatementSyntax-Coverage. Schließt Sprint-16-deferred-Item: Sprint-17 hatte Statement+Declaration-level Replacements als Out-of-Scope dokumentiert ("would need TryGetSpeculativeSemanticModel which is bulkier per call"). Sprint 155 implementiert Statement-Path. Maxential 4-Schritte mit 3-Branch ToT (S1=GetDiagnostics-fails-NotSupported, **S2=descendant-walk via GetSymbolInfo chosen**, S3=Compilation.AddSyntaxTrees rejected). `IsEquivalent` switch-pattern dispatched ExpressionSyntax → bestehender Sprint-17-Path, StatementSyntax → neuer `IsEquivalentStatement` (TryGetSpeculativeSemanticModel + descendant-walk via GetSymbolInfo, MemberBindingExpression-Skip von Sprint 137 wiederverwendet), Declaration → false (out-of-scope, v2.1 parser-only Filter handhabt structural validity). 6 Tests grün (1 alter test umbenannt mit Sprint-155-Verhalten + 1 neuer Declaration-out-of-scope-Test). O(1) per descendant beibehalten. Semgrep clean. Tag **v3.2.9** — Backlog-Item 2 closed. |
+| 0.25.0 | 2026-05-08 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 161 v3.2.13: ADR-041 — **Aisess-Validation-Followup — Hint-URL + Cleartext-Header + Disable-Comment-Doc-Updates**. Aisess Platform Team Hardening-Sprint-2.5 (24 Mutation-Runs) validierte v3.2.12: 3/4 v3.2.11-Anomalien funktional fixed (A diagnostics improved, B fully fixed, D was misreading), 1 unchanged (C cleartext column-header layout), 1 new informational (G ADR-025 auto-mutation-level INFO-log), 3 OFFENE Issues identifiziert. Sprint 161 schließt diese 3 Issues + Lesson #7. Maxential 4 Schritte 0 Branches → ADR-041 mit 3 orthogonalen backwards-compatible Sub-Fixes: D-Hint.3 Hybrid (CommentParser.cs Hint von project-local path → public URL https://github.com/pgm1980/stryker-netx/blob/main/_docs/disable-comment-syntax.md + 2 inline class-to-kind mappings ConfigureAwait→Boolean, AsyncAwait→Boolean — fixt mein Sprint-160-Fehler), D-Reporter.1 mit Legend (ClearTextReporter compact one-letter Spalten-Labels `% K T S NoCov Err` + 1-line Legend unter Table für first-time-readers, no-wrap auf narrow terminals), D-Doc.1 single "Pitfalls & Subtleties" Section in `_docs/disable-comment-syntax.md` (next-line covers ONE statement / cross-scope file-scan / ADR-025 auto-mutation-level). 1 neuer CommentParser-Test (HintIncludesPublicUrl) + ClearTextReporterTests-Header-Assertions updated. Aisess-Validation-Archive committed (`_bug_reporting/stryker_netx_3.2.12_validation.md` + `hardening_sprint_2.5_backlog.md`). Pure UX/doc work + 1 Hint-Bug-Fix — keine API-Änderungen. Tag **v3.2.13**. ADR-039 + ADR-040 + ADR-041 zusammen schließen die Aisess-Bug-Klasse für v3.2.x final. |
 | 0.24.0 | 2026-05-07 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 160 v3.2.12: ADR-040 — **CommentParser Bug-Triple — `next-line` Syntax + Skip-Label + Class-Name-Hint**. Aisess Platform Team Folgereport auf v3.2.11: produktive Stryker-disable-Comments wie `// Stryker disable next-line all : reason` produzieren ERR-logs, weil (β) Parser-Regex kein `next-line` Scope-Qualifier kennt (Stryker.JS-syntax), (γ) bei Parse-Failure des Mutator-Labels silent default-Statement-fallback applied wird (Korrektheits-Bug — User glaubt nichts disabled, in Wirklichkeit Statement-Mutations disabled), (α) Mutator-Class-Names wie `ConfigureAwait` gegen Kind-basiertes Filter-Design verwirrend fehl-schlagen ohne hint-message. Maxential-Session 6 Schritte ohne Branches → 3 backwards-compatible Sub-Fixes als ADR-040: D-γ Skip-Label (List<Mutator>, only Add on TryParse success — closes silent semantic corruption), D-β Regex-Extension `(?<once>once|)` → `(?<scope>next-line|once|)` mit `next-line` als pragmatischer Alias für `once` (single-mutation scope, Doc-disclaimer für volle line-scope-Differenz vs Stryker.JS), D-α.4-light Class-Name-Hint via `LooksLikeMutatorClassName` PascalCase-heuristik im LogLabelNotRecognized output. Pure regex+parser refactor — keine API-Änderungen an Mutator enum, MutationContext, FilterMutators. 11 neue CommentParserTests in `tests/Stryker.Core.Tests/Mutants/CommentParserTests.cs` (Subagent worktree-isolated). Neue `_docs/disable-comment-syntax.md` mit Class-zu-Kind-Mapping-Tabelle. Tag **v3.2.12** — Aisess v3.2.11-Folgereport closed. ADR-039 (Sprint 159) + ADR-040 (Sprint 160) zusammen schließen die Aisess-Bug-Klasse für v3.2.x. Issue α (Per-Class-Filter) honest-deferred als UX-Wunsch zu Sprint 161+. |
 | 0.23.0 | 2026-05-07 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 159 v3.2.11: ADR-039 — **Source-Project Filter Defense — 3-Layer-Architektur**. Aisess Platform Team Bug-Report (.slnx mit Solution-Folders + DDD-Onion 4-Layer): `dotnet stryker-netx 3.2.10` failed mit "Failed to analyze project builds" obwohl alle 5 Projekte per-Projekt erfolgreich analyzed. Diagnostic-Cycle (Maintainer-Request + Aisess-Response + 1316-Zeilen Diag-Transkript) confirmed H2: `mutableProjects = 0` weil `normalizedProjectUnderTestNameFilter` (= test-project-Name in Aisess-Config) alle Source-Projekte ausschließt. H1 latent (Stage-2 OrdinalIgnoreCase auf Windows fragil). H6 dead (Roslyn populiert ProjectReferences korrekt, Aspire-AppHost-SDK destabilisiert Workspace nicht). Maxential-Session "sprint-159-adr-039-filter-defense" (20 Schritte, 2 Branches locus-alpha + locus-beta) → 3-Layer-Defense gewählt: Layer 1 (α Fast-Fail in IdentifyProjects, ~10ms), Layer 2 (β.2 C-Check via neue ApplyProjectFilter-Methode mit IsTestProject()-Discrimination), Layer 3 (β.2 B-Fallback mit Warning + ungefilterten Return). Pre-emptive Stage-2 OrdinalIgnoreCase für latentes H1. Neue samples/AisessLikeSlnxFolders/ Integration-Test-Fixture (4-Layer DDD-Onion + `<Folder>`-`.slnx`) mit 4 Test-Cases. Tag **v3.2.11** — Aisess-Bug closed. |
 | 0.22.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 156 v3.2.10: ADR-038 — **MutationTestProcessTests Issue-#191 minimum-viable closure**. Issue #191 (Sprint 107 / v2.93.0) war seit ~50 Sprints offen. Sprint-107-Port hatte 5/9 upstream tests portiert mit Kommentar "Heavy FullRunScenario+CoverageAnalysis tests (8 of 9) defer for separate sprint due to v2.x pipeline drift". Sprint 156 portiert das einfache `ShouldNotTest_WhenThereAreNoMutations` (Empty-Mutants Short-Circuit Test) als 6. Test = 6/9 = minimum-viable. Die 4 heavy pipeline tests bleiben **honest-deferred** mit dokumentierten 3 Refactor-Voraussetzungen (shared-state test-fixture / Real-Pipeline-Wiring / TestResources/ExampleSourceFile.cs). Maxential 3-Schritte branchless. 9 MutationTestProcessTests grün (5 Sprint-107 + 1 Sprint-156 + 3 FullRunScenario-helper). Tag **v3.2.10** — Backlog-Item 6 closed. **Alle 7 Backlog-Items aus User-Direktive ("Damit machen wir weiter") sind nach Sprint 156 geschlossen** (Items 1, 2, 5-Class-A+B+D, 6 closed via Sprints 154/155/152/156; Items 3, 4 status-quo via ADR-035; Item 7 closed by discovery via ADR-033). |
