@@ -318,6 +318,50 @@ public sealed class CommentParserTests : IntegrationTestBase
     }
 
     /// <summary>
+    /// ADR-042 §6 verification (Sprint 162 — fixes my Sprint-160 regression):
+    /// <c>// Stryker disable next-line all,Boolean</c> must NOT produce an ERR-log
+    /// and MUST short-circuit to all-enum-values (the `all` wildcard wins when it
+    /// appears anywhere in the comma-separated list, regardless of other tokens).
+    ///
+    /// Pre-Sprint-162: ADR-040's `string.Equals(rawMutators, "all", ...)` whole-string
+    /// check failed because rawMutators was `"all,Boolean"` (not exact-equal to `"all"`).
+    /// The split-and-loop then tried <c>Enum.TryParse&lt;Mutator&gt;("all", ...)</c>
+    /// which fails → ERR-log "Unknown mutator kind 'all'" on every run.
+    /// </summary>
+    [Fact]
+    public void Disable_AllInCommaList_AppliesAllKinds()
+    {
+        var ctx = BuildContext();
+        var node = NodeWithLeadingComment("// Stryker disable next-line all,Boolean : reason");
+
+        var result = CommentParser.ParseNodeLeadingComments(node, ctx);
+
+        result.FilteredMutators.Should().NotBeNull();
+        result.FilteredMutators!.Should().BeEquivalentTo(
+            Enum.GetValues<Mutator>(),
+            "ADR-042 §6: `all` anywhere in the comma-list short-circuits to all enum values");
+    }
+
+    /// <summary>
+    /// ADR-042 §6 case-insensitive verification: `ALL,Boolean` and `boolean,all` must
+    /// both work — the short-circuit is case-insensitive.
+    /// </summary>
+    [Theory]
+    [InlineData("// Stryker disable next-line ALL,Boolean : reason")]
+    [InlineData("// Stryker disable next-line Boolean,all : reason")]
+    [InlineData("// Stryker disable next-line Boolean, ALL, Statement : reason")]
+    public void Disable_AllInCommaList_CaseInsensitive_AppliesAllKinds(string comment)
+    {
+        var ctx = BuildContext();
+        var node = NodeWithLeadingComment(comment);
+
+        var result = CommentParser.ParseNodeLeadingComments(node, ctx);
+
+        result.FilteredMutators.Should().NotBeNull();
+        result.FilteredMutators!.Should().BeEquivalentTo(Enum.GetValues<Mutator>());
+    }
+
+    /// <summary>
     /// Sprint 161: minimal in-memory <see cref="ILoggerProvider"/> capturing every
     /// formatted log message into the provided list. Used only by
     /// <see cref="Disable_NextLine_ClassName_HintIncludesPublicUrl"/> to inspect the

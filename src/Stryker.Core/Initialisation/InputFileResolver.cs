@@ -102,23 +102,52 @@ public partial class InputFileResolver : IInputFileResolver
     }
 
     /// <summary>
-    /// Sprint 141 + 150 (Bug #8 from Calculator-Tester Bug-Report 4): when the test
-    /// project references multiple source projects, decide between three outcomes —
-    /// throw the disambiguation exception (default), accept all references when
-    /// <c>--all-projects</c> opted-in (Sprint 150 / ADR-031), or fall through to
-    /// solution-mode (handled earlier in <see cref="ResolveSourceProjectInfos"/>).
+    /// Sprint 141 + 150 (Bug #8 from Calculator-Tester Bug-Report 4) + Sprint 162
+    /// (ADR-042 §3): when the test project references multiple source projects,
+    /// decide between four outcomes — accept all references when <c>--all-projects</c>
+    /// opted-in (Sprint 150 / ADR-031), narrow via short-name <c>--project</c>
+    /// filter when exactly one match results (Sprint 162 / ADR-042 §3), throw the
+    /// disambiguation exception with an improved error message, or fall through
+    /// to solution-mode (handled earlier in <see cref="ResolveSourceProjectInfos"/>).
     /// </summary>
     private List<SourceProjectInfo> ResolveMultiReferenceCase(
         IStrykerOptions options, List<SourceProjectInfo> result)
     {
-        // Sprint 150 (ADR-031): explicit opt-in to multi-project mutation. The
-        // downstream ProjectOrchestrator already iterates the SourceProjectInfo
-        // list (used by solution-mode), so no engine-side changes are needed.
+        // Sprint 150 (ADR-031): explicit opt-in to multi-project mutation.
         if (options.IsAllProjectsMode)
         {
             LogAllProjectsMode(_logger, result.Count);
             return result;
         }
+
+        // Sprint 162 (ADR-042 §3): if the user supplied --project <short-name>
+        // (e.g. "Aisess.Application"), try to filter the references down to a
+        // single match using MatchesFilter (filename-with-or-without-csproj-ext,
+        // case-insensitive). This fixes the misleading "more than one project
+        // reference" error when the user HAS supplied --project but with a
+        // short-name that the upstream resolver didn't recognise.
+        if (!string.IsNullOrEmpty(options.ProjectName))
+        {
+            var byShortName = result
+                .Where(p => MatchesFilter(p.Analysis.ProjectFilePath, options.ProjectName))
+                .ToList();
+            if (byShortName.Count == 1)
+            {
+                LogSelectedProject(_logger, byShortName[0].Analysis.ProjectFilePath);
+                return byShortName;
+            }
+            if (byShortName.Count > 1)
+            {
+                throw new InputException(
+                    string.Create(CultureInfo.InvariantCulture,
+                        $"Project filter '{options.ProjectName}' is ambiguous — multiple test-project references match. ") +
+                    "Please supply a more specific value or an absolute .csproj path." + Environment.NewLine +
+                    BuildReferenceChoice(byShortName.Select(p => p.Analysis.ProjectFilePath)));
+            }
+            // byShortName.Count == 0 → fall through to the existing multi-reference error
+            // (the user-supplied name does not match any reference, so we list the choices).
+        }
+
         var stringBuilder = new StringBuilder().AppendLine(
                 "Test project contains more than one project reference. Please set the project option (https://stryker-mutator.io/docs/stryker-net/configuration#project-file-name) to specify which project to mutate.")
             .AppendLine("Alternatively, run stryker-netx with --all-projects to mutate ALL referenced source projects sequentially, or with --solution <path>.slnx for whole-solution mode.")
