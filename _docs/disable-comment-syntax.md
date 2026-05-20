@@ -166,9 +166,9 @@ catch users off-guard. Documented here for reference.
 
 `// Stryker disable next-line all` disables mutations on the **immediately
 following single C# statement**, not on the entire next textual line. For
-multi-line constructs — chained method calls, object initializers spanning
-multiple lines, fluent-builder chains — each line that hosts mutations needs
-its own `next-line` directive.
+multi-statement sequences, each statement that hosts mutations needs its own
+`next-line` directive — or wrap the whole block with `// Stryker disable …` /
+`// Stryker restore …`:
 
 ```csharp
 // ❌ ONLY the first statement (var x = …) is disabled below:
@@ -176,19 +176,52 @@ its own `next-line` directive.
 var x = SomeOp();
 DoSomethingElse();    // ← still mutated
 
-// ✅ For multi-line / chained patterns, one directive per line:
+// ✅ One directive per statement:
 // Stryker disable next-line all : reason
-var builder = services
-    // Stryker disable next-line all : reason
-    .AddHealthChecks()
-    // Stryker disable next-line all : reason
-    .AddNpgSql(connectionString);
+var x = SomeOp();
+// Stryker disable next-line all : reason
+DoSomethingElse();
 
 // ✅ Or use the block form for an entire method:
 // Stryker disable all : reason
 public IServiceCollection AddHealthChecks(...) { /* … */ }
 // Stryker restore all
 ```
+
+### Multi-line method-chains: `next-line` between chain-links now works (Sprint 165 / ADR-045)
+
+Before v3.2.17, `// Stryker disable next-line` placed **between continuation
+lines of a multi-line method-chain expression** (such as `.ConfigureAwait(false)`
+on its own line) was silently ignored, because Roslyn attaches the comment
+trivia to the chain-link's operator token (`.` / `?.`) rather than to the
+parent statement. The verbose wrap-style workaround was the only reliable form.
+
+**v3.2.17 fixes this.** The directive can now be placed directly above the line
+containing the mutation token, even mid-chain:
+
+```csharp
+// ✅ v3.2.17+: directly above the chain-link works as expected.
+var framework = await _repository
+    .GetBySlugAsync(slug, cancellationToken)
+    // Stryker disable next-line Boolean : equivalent — xUnit no SyncContext
+    .ConfigureAwait(false);
+
+// ✅ Same for LINQ chains:
+var page = items
+    .Where(x => x.IsActive)
+    // Stryker disable next-line Linq : equivalent — boundary-test elsewhere
+    .Select(x => x.Name);
+
+// ✅ Same for conditional-access (?.) and binary-expression continuations.
+```
+
+Covered chain-link types: `MemberAccessExpression` (`.X`),
+`ConditionalAccessExpression` (`?.`), `BinaryExpression` (`+`, `-`, `&&`, etc.),
+`AssignmentExpression` (`=`, `+=`, etc.), `MemberBindingExpression` (the `.X`
+member-binding inside a `?.X` chain), and `InvocationExpression` whose call
+target is one of the above. The wrap-style (`// Stryker disable all` /
+`// Stryker restore all`) remains available as an alternative when disabling a
+multi-statement block is more readable than one directive per chain-link.
 
 ### stryker-netx scans ALL files for disable-comments — even outside `--mutate` scope
 
