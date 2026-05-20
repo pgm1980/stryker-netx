@@ -11,6 +11,7 @@ using Stryker.Abstractions.Options;
 using Stryker.Abstractions.Testing;
 using Stryker.Core.MutationTest;
 using Stryker.Core.ProjectComponents.SourceProjects;
+using Stryker.Utilities.Heartbeat;
 using Stryker.Utilities.MSBuild;
 
 namespace Stryker.Core.Initialisation;
@@ -30,6 +31,12 @@ public partial class InitialisationProcess(
     public IReadOnlyCollection<SourceProjectInfo> GetMutableProjectsInfo(IStrykerOptions options)
     {
         LogAnalysisStarting(_logger);
+        // Sprint 163 (ADR-043, §2 from Aisess Anomalies Report): wrap project analysis
+        // in a HeartbeatLogger so the user sees a periodic "Project analysis in
+        // progress: 30s elapsed" log even when a single MSBuildWorkspace.OpenProjectAsync
+        // call blocks the worker thread for minutes. Without this, the user-visible
+        // gap between "Analysis starting" and "Analysis complete" is silent.
+        using var heartbeat = new HeartbeatLogger(_logger, "Project analysis");
         try
         {
             // project mode

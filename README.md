@@ -73,6 +73,8 @@ cd /path/to/your/solution
 dotnet stryker-netx --solution YourApp.slnx
 ```
 
+> ⚠️ **Solution-mode requires the working directory to match the solution directory.** Passing `--solution path/to/elsewhere.slnx` while `cd`'d into a different directory (e.g. `tests/MyApp.Tests/`) does **not** activate whole-solution mutation mode — stryker-netx falls back to single-project mode. To enable solution-wide discovery, `cd` to the solution directory first. (Heartbeat logs emitted every 30s during long analysis + initial-test-run phases will tell you whether the tool is making progress; see ADR-043.)
+
 Or with a `stryker-config.json`:
 
 ```bash
