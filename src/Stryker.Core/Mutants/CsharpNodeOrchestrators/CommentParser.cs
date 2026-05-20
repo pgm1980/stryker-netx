@@ -41,43 +41,11 @@ internal static partial class CommentParser
             _ => false,
         };
 
-        // Sprint 160 (ADR-040 Issue γ): array-with-default-fallback (Mutator[] = Statement on
-        // unrecognised label) replaced by List<Mutator> with skip-on-failure. Closes silent
-        // semantic corruption where a typo in a mutator label silently disabled Statement
-        // mutations on the targeted code position.
-        List<Mutator> filteredMutators;
+        // Sprint 160 (ADR-040 Issue γ) + Sprint 162 (ADR-042 §6): parse the mutator-list
+        // into a List<Mutator>, skip-on-failure for unrecognised labels, and short-circuit
+        // to all-enum-values when "all" appears anywhere in the comma-separated list.
         var rawMutators = match.Groups["mutators"].Value.Trim();
-        if (string.Equals(rawMutators, "all", StringComparison.OrdinalIgnoreCase))
-        {
-            filteredMutators = [.. Enum.GetValues<Mutator>()];
-        }
-        else
-        {
-            var labels = rawMutators.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-            filteredMutators = new List<Mutator>(labels.Length);
-            foreach (var label in labels)
-            {
-                if (Enum.TryParse<Mutator>(label, true, out var value))
-                {
-                    filteredMutators.Add(value);
-                }
-                else
-                {
-                    // Sprint 160 (ADR-040 Issue α) + Sprint 161 (ADR-041 Issue 2 — fix my
-                    // Sprint-160 mistake): on PascalCase labels, the hint now (a) inlines
-                    // the 2 most-commonly-confused class-to-kind mappings so the message is
-                    // self-contained even for users who don't follow the URL, and (b) points
-                    // at a public stryker-netx-repo URL instead of a project-local path that
-                    // doesn't exist in the consuming user's repo.
-                    var hint = LooksLikeMutatorClassName(label)
-                        ? "Hint: mutator class names are not accepted here — use the Mutator-Kind name. " +
-                          "Common: ConfigureAwait → Boolean, AsyncAwait → Boolean. Full table: " +
-                          "https://github.com/pgm1980/stryker-netx/blob/main/_docs/disable-comment-syntax.md"
-                        : string.Empty;
-                    LogLabelNotRecognized(Logger, label, node.GetLocation().GetMappedLineSpan().StartLinePosition, node.SyntaxTree.FilePath, string.Join(',', Enum.GetValues<Mutator>()), hint);
-                }
-            }
-        }
+        var filteredMutators = ParseMutatorList(rawMutators, node);
 
         // Sprint 160 (ADR-040 Issue β): scope group accepts `next-line` (alias for `once`,
         // single-mutation scope), `once` (existing single-mutation scope), or empty
@@ -87,6 +55,45 @@ internal static partial class CommentParser
                             || string.Equals(scope, "next-line", StringComparison.Ordinal);
 
         return context.FilterMutators(disable, [.. filteredMutators], isOnceOrNextLine, comment);
+    }
+
+    /// <summary>
+    /// Sprint 162 (ADR-042 §6): centralised mutator-list parsing. Extracted out of
+    /// <see cref="ParseStrykerComment"/> to keep that method under the MA0051 60-line cap.
+    /// Behavior:
+    /// <list type="bullet">
+    ///   <item>If <c>"all"</c> appears as ANY comma-separated token (case-insensitive),
+    ///   return every <see cref="Mutator"/> enum value (union-semantik: all ∪ X = all).</item>
+    ///   <item>Otherwise, parse each non-empty trimmed token via <c>Enum.TryParse&lt;Mutator&gt;</c>.
+    ///   Failed labels emit <see cref="LogLabelNotRecognized"/> (with a class-name-hint
+    ///   for PascalCase labels) and are skipped — no silent default-Statement fallback.</item>
+    /// </list>
+    /// </summary>
+    private static List<Mutator> ParseMutatorList(string rawMutators, SyntaxNode node)
+    {
+        var labels = rawMutators.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (labels.Any(l => string.Equals(l, "all", StringComparison.OrdinalIgnoreCase)))
+        {
+            return [.. Enum.GetValues<Mutator>()];
+        }
+        var result = new List<Mutator>(labels.Length);
+        foreach (var label in labels)
+        {
+            if (Enum.TryParse<Mutator>(label, true, out var value))
+            {
+                result.Add(value);
+            }
+            else
+            {
+                var hint = LooksLikeMutatorClassName(label)
+                    ? "Hint: mutator class names are not accepted here — use the Mutator-Kind name. " +
+                      "Common: ConfigureAwait → Boolean, AsyncAwait → Boolean. Full table: " +
+                      "https://github.com/pgm1980/stryker-netx/blob/main/_docs/disable-comment-syntax.md"
+                    : string.Empty;
+                LogLabelNotRecognized(Logger, label, node.GetLocation().GetMappedLineSpan().StartLinePosition, node.SyntaxTree.FilePath, string.Join(',', Enum.GetValues<Mutator>()), hint);
+            }
+        }
+        return result;
     }
 
     /// <summary>
