@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
 using Stryker.Abstractions;
 using Stryker.Core.Mutants;
@@ -109,12 +110,73 @@ internal static partial class CommentParser
 
     public static MutationContext ParseNodeLeadingComments(SyntaxNode node, MutationContext context)
     {
+        // Sprint 165 (ADR-045, §5 from Aisess STRYKER_NETX_ANOMALIES_AND_BUGS report):
+        // also scan operator-token leading-trivia for chain-link nodes. Without this,
+        // // Stryker disable next-line directives placed between continuation lines of
+        // a multi-line method-chain (e.g., before `.ConfigureAwait(false)`) are silently
+        // ignored — Roslyn attaches mid-chain comments to the OperatorToken `.` of the
+        // chain-link MAE, which is not on the existing scan-path (GetFirstToken-LeadingTrivia
+        // gives leading-trivia of the LEFTMOST deep token).
         var comments = node.GetFirstToken(true).GetPreviousToken(true)
             .TrailingTrivia.Union(node.GetLeadingTrivia())
+            .Union(GetIntraChainOperatorTrivia(node))
             .Where(t => t.IsKind(SyntaxKind.MultiLineCommentTrivia) || t.IsKind(SyntaxKind.SingleLineCommentTrivia)).ToList();
         var result = comments.Aggregate(context, (current, t) => ProcessComment(node, current, t.ToString()));
 
         return result;
+    }
+
+    /// <summary>
+    /// Sprint 165 (ADR-045): returns the leading-trivia of operator tokens that sit at
+    /// the boundary between chain-link continuations of a multi-line expression. Roslyn
+    /// attaches mid-chain comments to these operator tokens, not to the node's deepest
+    /// first-token. Without this scan, <c>// Stryker disable next-line</c> directives
+    /// placed between continuation lines (e.g.,
+    /// <code>
+    /// await _repo.GetAsync(slug)
+    ///     // Stryker disable next-line all : reason
+    ///     .ConfigureAwait(false);
+    /// </code>
+    /// ) are silently ignored. Reported in
+    /// <c>_bug_reporting/stryker-netx-3.2.12-disable-directive-multiline-statement.md</c>.
+    /// </summary>
+    /// <remarks>
+    /// For <see cref="InvocationExpressionSyntax"/> with an MAE/MBE Expression child,
+    /// we return the child's operator-token leading-trivia. Lifting it to the Invocation's
+    /// <see cref="NodeSpecificOrchestrator{T,T2}.PrepareContext"/> is essential — only at
+    /// that level does the filter propagate to the <c>ArgList</c> sibling containing the
+    /// mutation target. For direct chain-link nodes (MAE/CAE/Binary/Assignment/MemberBinding),
+    /// returning their own operator-token leading-trivia covers cases where the chain-link
+    /// is the immediate Expression child of a non-Invocation parent.
+    /// </remarks>
+    private static SyntaxTriviaList GetIntraChainOperatorTrivia(SyntaxNode node)
+    {
+        // Lift mid-chain trivia to the InvocationExpression level when the call target
+        // is a chain-link (the common `.ConfigureAwait(false)`, `.Then(...)`, `.Where(...)` shape).
+        if (node is InvocationExpressionSyntax inv)
+        {
+            if (inv.Expression is MemberAccessExpressionSyntax invMae)
+            {
+                return invMae.OperatorToken.LeadingTrivia;
+            }
+            if (inv.Expression is MemberBindingExpressionSyntax invMbe)
+            {
+                return invMbe.OperatorToken.LeadingTrivia;
+            }
+        }
+        // Direct chain-link node: scan its own operator-token leading-trivia. Provides
+        // redundancy when the same node is also wrapped in an InvocationExpression
+        // (idempotent under SyntaxTrivia deduplication + FilterMutators), and covers
+        // cases where the chain-link is not wrapped in an Invocation.
+        return node switch
+        {
+            MemberAccessExpressionSyntax mae => mae.OperatorToken.LeadingTrivia,
+            ConditionalAccessExpressionSyntax cae => cae.OperatorToken.LeadingTrivia,
+            BinaryExpressionSyntax bex => bex.OperatorToken.LeadingTrivia,
+            AssignmentExpressionSyntax aex => aex.OperatorToken.LeadingTrivia,
+            MemberBindingExpressionSyntax mbe => mbe.OperatorToken.LeadingTrivia,
+            _ => default(SyntaxTriviaList),
+        };
     }
 
     [ExcludeFromCodeCoverage(Justification = "Difficult to test timeouts")]

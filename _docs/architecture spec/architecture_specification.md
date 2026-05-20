@@ -3119,6 +3119,101 @@ Strukturell identisch zu Sprint 22 (`--mutation-profile` war JSON+Engine plumbed
 
 ---
 
+## ADR-045: Multi-Line Method-Chain `// Stryker disable next-line` Scope (v3.2.17 / Sprint 165)
+
+**Status.** Accepted — Sprint 165 (v3.2.17, 2026-05-20).
+
+**Kontext.** Aisess Platform Team `STRYKER_NETX_ANOMALIES_AND_BUGS.md` §5 + dedizierter Bug-Report `_bug_reporting/stryker-netx-3.2.12-disable-directive-multiline-statement.md` (Medium severity): das `// Stryker disable next-line`-Direktiv wird **silent ignored** wenn es ZWISCHEN zwei Continuation-Lines eines Multi-Line Method-Chain Expressions platziert wird, z.B.:
+
+```csharp
+var framework = await _frameworkRepository
+    .GetBySlugAsync(slug, cancellationToken)
+    // Stryker disable next-line all : equivalent — xUnit no SyncContext.
+    .ConfigureAwait(false);   // Boolean false→true mutation SURVIVES
+```
+
+Aisess-Team standardisierte auf den verbose Wrap-Style Workaround (`// Stryker disable all` + `// Stryker restore all` um das ganze Statement), markierte es aber als "inflated infrastructure" (3 Zeilen Disable-Boilerplate statt 1 pro Stelle).
+
+**Root-Cause-Analyse**: Roslyn attached Trivia an den NÄCHSTEN Token. Eine Komment-Trivia zwischen `.GetBySlugAsync(slug,ct)` und `.ConfigureAwait(false)` landet als Leading-Trivia des OperatorTokens `.` der `.ConfigureAwait` MemberAccessExpression (NICHT in der Leading-Trivia des LiteralExpression `false`, NICHT in der Leading-Trivia des umgebenden LocalDeclarationStatements).
+
+Stryker's `CommentParser.ParseNodeLeadingComments` scant nur:
+1. `node.GetFirstToken(true).GetPreviousToken(true).TrailingTrivia` — Trailing-Trivia des Tokens VOR dem deepest-first-Token des Nodes
+2. `node.GetLeadingTrivia()` — Leading-Trivia des deepest-first-Tokens
+
+Für Chain-Link-Nodes (z.B. MAE `.ConfigureAwait` mit Expression=`_frameworkRepository.GetBySlugAsync(slug,ct)`) ist `GetFirstToken(true)` der LEFTMOST Token der LHS-Sub-Expression (also `_frameworkRepository`). Der Mid-Chain Comment, attached an `.ConfigureAwait`'s `.` OperatorToken, ist auf KEINEM existing Scan-Pfad.
+
+**Entscheidung.** Maxential-Session "sprint-165-adr-045-multiline-chain-comment-scope" (5 Schritte, 0 Branches): Erweitere `ParseNodeLeadingComments` um ein neues `GetIntraChainOperatorTrivia(SyntaxNode)` Helper, das die Leading-Trivia von Operator-Tokens an Chain-Link-Boundaries scannt:
+
+- **`InvocationExpressionSyntax`** mit Expression-Child = `MemberAccessExpressionSyntax` oder `MemberBindingExpressionSyntax`: scan `inv.Expression.OperatorToken.LeadingTrivia`. **Critical**: lifting-to-InvocationExpression-level ist essentiell, weil die `MutationContext.FilterMutators(newContext=true)` einen neuen Context erzeugt, der nur an Descendants des FINDING-Nodes weitergegeben wird. Der Mutation-Target `false` ist in `OuterInvocation.ArgumentList`, das ein SIBLING der `MAE` ist (NICHT ein Descendant). Lifting an die OuterInvocation propagiert den Filter zu beiden Children (MAE + ArgList).
+- **Direkte Chain-Link-Nodes** (MemberAccessExpression, ConditionalAccessExpression, BinaryExpression, AssignmentExpression, MemberBindingExpression): scan eigene `OperatorToken.LeadingTrivia`. Redundant zu Invocation-Lift wenn der Chain-Link in einem Invocation eingebettet ist (idempotent unter SyntaxTrivia-Dedup + FilterMutators), aber notwendig für Fälle wo der Chain-Link direkter Expression-Child eines non-Invocation Parents ist (z.B. Property-Access ohne trailing parens, BinaryExpression-Continuation).
+
+```csharp
+private static SyntaxTriviaList GetIntraChainOperatorTrivia(SyntaxNode node)
+{
+    if (node is InvocationExpressionSyntax inv)
+    {
+        if (inv.Expression is MemberAccessExpressionSyntax invMae)
+            return invMae.OperatorToken.LeadingTrivia;
+        if (inv.Expression is MemberBindingExpressionSyntax invMbe)
+            return invMbe.OperatorToken.LeadingTrivia;
+    }
+    return node switch
+    {
+        MemberAccessExpressionSyntax mae => mae.OperatorToken.LeadingTrivia,
+        ConditionalAccessExpressionSyntax cae => cae.OperatorToken.LeadingTrivia,
+        BinaryExpressionSyntax bex => bex.OperatorToken.LeadingTrivia,
+        AssignmentExpressionSyntax aex => aex.OperatorToken.LeadingTrivia,
+        MemberBindingExpressionSyntax mbe => mbe.OperatorToken.LeadingTrivia,
+        _ => default,
+    };
+}
+```
+
+**Alternativen verworfen**:
+- **Line-based directive table** (architektonisch korrekt: pre-scan alle Stryker-Comments pro Syntax-Tree, baue Line→Direktive-Map, check at Mutation-Emit-Time): erfordert komplettes Refactoring von Comment-Discovery + MutationContext-Threading. Out-of-scope für v3.2.x Patch. Bleibt als Future-Direction für v3.3+ wenn Architecture-Refactor priorisiert wird.
+- **Per-Statement DescendantToken-Walk** (von einem StatementSyntax-Node scanne alle DescendantTokens auf Stryker-Comments): broader scan, würde aber auch außer-Statement-Comments-in-nested-Lambdas catchen → over-application. Pragmatic-Hybrid (current ADR-045-Fix) ist surgical.
+
+**Out of scope (honest-deferred)**:
+- Cases wo der User `// Stryker disable next-line` ABOVE dem parent statement platziert, mit Erwartung dass next-line nur die ERSTE Zeile des Statements covert nicht das ganze Statement. Diese case (Bug-Report § 7 Row 3 + ad-hoc User-Interpretation) erfordert echte Line-Scope-Semantik statt subtree-scope. Bleibt unverändert: subtree-scope ist Stryker's documented Verhalten.
+- Pointer-Member-Access (`->`) und IsPatternExpression-Scenarios — rare/awkward Patterns, kein Aisess-Bedarf.
+
+**Implementation.**
+
+`src/Stryker.Core/Mutants/CsharpNodeOrchestrators/CommentParser.cs`:
+- Added `using Microsoft.CodeAnalysis.CSharp.Syntax;` für InvocationExpression/MAE/CAE/BinaryExpression/AssignmentExpression/MemberBindingExpression Syntax-Types
+- Modified `ParseNodeLeadingComments`: `Union(GetIntraChainOperatorTrivia(node))` added zur Comments-Source-Chain
+- New private static `GetIntraChainOperatorTrivia(SyntaxNode) -> SyntaxTriviaList` Helper mit InvocationExpression-Lift + Direct-Chain-Link Switch (return type `SyntaxTriviaList` not `IEnumerable<SyntaxTrivia>` per CA1859)
+
+`tests/Stryker.Core.Tests/Mutants/CommentParserTests.cs`: 7 neue Tests:
+- `NextLine_Boolean_BetweenChainLinks_AppliesFilter` (Aisess primary case — `.ConfigureAwait(false)`-Pattern)
+- `NextLine_All_BetweenChainLinks_AppliesAllKinds` (with `all` keyword)
+- `NextLine_BetweenLinqChainLinks_AppliesFilter` (LINQ chain `.Where().Select()`)
+- `NextLine_BeforeConditionalAccess_AppliesFilter` (CAE `x?.M()`)
+- `NextLine_BetweenBinaryOperands_AppliesFilter` (BinaryExpression `a + b`)
+- `NextLine_SingleLineChain_NoMidComment_NoFilter` (Regression: no over-application on single-line)
+- `NextLine_AboveStatement_StillWorks_AfterSprint165` (Regression: existing statement-boundary path intact)
+
+Plus 2 new helpers: `FindFirst<T>(string body)` + `FindInvocationByName(string body, string methodName)`.
+
+**Konsequenzen.**
+
+- (+) Aisess-User können `// Stryker disable next-line` directly above `.ConfigureAwait(false)` (between chain-links) platzieren — funktioniert jetzt wie erwartet. 3-Zeilen-Wrap-Style-Boilerplate wird auf 1-Zeile reduzierbar.
+- (+) Multi-Line LINQ-Chains, Conditional-Access-Chains, BinaryExpression-Continuations alle profitieren symmetrisch.
+- (+) Backwards-compatible: existing leading-trivia + previous-trailing-trivia Scan-Pfade unverändert. Single-line + statement-boundary Cases regression-tested.
+- (+) Idempotent unter Trivia-Dedup: wenn der Mid-Chain-Comment SOWOHL via Invocation-Lift ALS AUCH via direct-MAE-Switch gefunden wird, ist `Union<SyntaxTrivia>` value-equality-basiert (deduplikiert strukturell) und `FilterMutators` ist idempotent für gleiche Inputs.
+- (–) Subtree-Over-Application: setzt der Filter an InvocationExpression-Level, propagiert er an ALLE Descendants (inkl. LHS Sub-Expression `.GetBySlugAsync(slug,ct)`). Für typische Patterns mit Locals/Parameters in der LHS (Aisess-Case) keine Mutations there → kein observable Side-Effect. Für literal-heavy LHS könnte over-application auftreten, aber ist nicht-schlechter als der bisherige Wrap-Style-Workaround der ALLES im Wrap disabled.
+- (–) Sprint-165-Fix löst NICHT die "next-line above parent statement covers only first line"-User-Erwartung. Bleibt subtree-scoped per current architecture. Future v3.3+ kann line-based-directive-table einführen.
+
+**Supersedes / supplements.**
+
+- **Closes** Aisess `_bug_reporting/STRYKER_NETX_ANOMALIES_AND_BUGS.md` §5 und das dedizierte `_bug_reporting/stryker-netx-3.2.12-disable-directive-multiline-statement.md`.
+- **Updates** `_docs/disable-comment-syntax.md` "Pitfalls & Subtleties" Section: remove "multi-line method-chains" Pitfall (now fixed); keep wrap-style as Documented-Alternative für Block-Disable von Multi-Statement-Sections.
+- **Complement** zu ADR-040 (Sprint 160: `next-line` Syntax-Acceptance) + ADR-041 (Sprint 161: Hint-URL etc.) + ADR-042 (Sprint 162: `all` in Comma-List) — ADR-039 → ADR-045 schließen die Aisess `// Stryker disable …`-Klasse für v3.2.x final.
+
+**Backed by.** Sprint 165 Maxential-Session "sprint-165-adr-045-multiline-chain-comment-scope" (5 Schritte, 0 Branches). 7 neue CommentParser-Tests (5 Primary-Cases + 2 Regressions) + Build/Test 0/0. Solution-wide: 2099 Tests grün (+7 vs Sprint 164 baseline 2092; Stryker.Core.Tests 448 → 455).
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -3144,6 +3239,7 @@ Strukturell identisch zu Sprint 22 (`--mutation-profile` war JSON+Engine plumbed
 | 0.19.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Doc bundle (post-Sprint-152): ADR-033 + ADR-035. **ADR-033** — Combined Multi-Project Report Aggregation discovery: ADR-031's "v3.3+ deferred"-Claim für Multi-Project-Report-Aggregation war FALSCH — Aggregation ist seit Sprint 1 implementiert via `StrykerRunner.AddRootFolderIfMultiProject` + single `OnAllMutantsTested(rootComponent)` call. Calculator-Tester Bug-Report-5-Verifikation hatte bereits "kombinierter Report" mit 375 Mutanten Total bestätigt. Backlog-Item 7 closed by discovery. **ADR-035** — TypeSyntax-Engine Refactor + HotSwap inkrementelles MT status-quo confirmation: beide Items bleiben in ihren existierenden ADR-Status (027 Phase 3 Skip-as-Architecture / 022 Proposed-no-commitment). Backlog-Items 3+4 closed-as-status-quo. Beide ADRs sind doc-only, kein Sprint, kein neuer Tag. |
 | 0.20.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 154 v3.2.8: ADR-034 — **JsonReport full AOT-trim**. Schließt ADR-024 v3.0-scope-deferral (Sprint 17). Source-gen-Kontext erweitert von 2 entry-types (`JsonReport`, `IJsonReport`) auf 9 types — die 6 konkreten Typen hinter den polymorphen Interface-Konvertern (`SourceFile`, `JsonMutant`, `Location`, `Position`, `JsonTestFile`, `JsonTest`) plus 3 concrete-dictionary-types (`Dictionary<string, SourceFile>` etc). `TypeInfoResolver` umgestellt von `Combine(SourceGen, DefaultReflection)` auf nur `JsonReportSerializerContext.Default` — Reflection-Fallback gestrichen. Hybrid-Custom-Konverter-Design unverändert (SYSLIB1220 verbietet sie auf source-gen attribute). Maxential 4-Schritte branchless. 13 JsonReport-related Tests grün post-change (11 Dogfood + 2 E2E), Solution-wide 2047 Tests grün, Semgrep clean. Tag **v3.2.8** — Backlog-Item 1 closed. |
 | 0.21.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 155 v3.2.9: ADR-037 — **RoslynSemanticDiagnostics v2** StatementSyntax-Coverage. Schließt Sprint-16-deferred-Item: Sprint-17 hatte Statement+Declaration-level Replacements als Out-of-Scope dokumentiert ("would need TryGetSpeculativeSemanticModel which is bulkier per call"). Sprint 155 implementiert Statement-Path. Maxential 4-Schritte mit 3-Branch ToT (S1=GetDiagnostics-fails-NotSupported, **S2=descendant-walk via GetSymbolInfo chosen**, S3=Compilation.AddSyntaxTrees rejected). `IsEquivalent` switch-pattern dispatched ExpressionSyntax → bestehender Sprint-17-Path, StatementSyntax → neuer `IsEquivalentStatement` (TryGetSpeculativeSemanticModel + descendant-walk via GetSymbolInfo, MemberBindingExpression-Skip von Sprint 137 wiederverwendet), Declaration → false (out-of-scope, v2.1 parser-only Filter handhabt structural validity). 6 Tests grün (1 alter test umbenannt mit Sprint-155-Verhalten + 1 neuer Declaration-out-of-scope-Test). O(1) per descendant beibehalten. Semgrep clean. Tag **v3.2.9** — Backlog-Item 2 closed. |
+| 0.29.0 | 2026-05-20 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 165 v3.2.17: ADR-045 — **Multi-Line Method-Chain `// Stryker disable next-line` Scope Fix**. Aisess `STRYKER_NETX_ANOMALIES_AND_BUGS.md` §5 + dedizierter Bug-Report (Medium severity): `// Stryker disable next-line` zwischen Continuation-Lines eines Multi-Line Method-Chain (z.B. zwischen `.GetAsync(slug)` und `.ConfigureAwait(false)`) wurde silent ignored, weil Roslyn die Comment-Trivia an `.ConfigureAwait` MAE's OperatorToken `.` attached — NICHT auf existing Scan-Path (GetFirstToken-LeadingTrivia gibt LEFTMOST-deep-Token's Leading-Trivia). Aisess-Team verwendete Verbose-Wrap-Style-Workaround (3 Zeilen Disable-Boilerplate pro Mutation). Maxential 5 Schritte 0 Branches → ADR-045 erweitert `CommentParser.ParseNodeLeadingComments` mit `GetIntraChainOperatorTrivia(SyntaxNode)` Helper: für `InvocationExpressionSyntax` mit MAE/MBE-Expression-Child scan `inv.Expression.OperatorToken.LeadingTrivia` (Critical: lift-to-Invocation-Level propagiert Filter zu ArgList-Sibling containing Mutation-Target), für direkte Chain-Link-Nodes (MAE/CAE/Binary/Assignment/MemberBinding) scan eigene OperatorToken-Leading-Trivia. Return-Type `SyntaxTriviaList` not `IEnumerable<SyntaxTrivia>` per CA1859. Out-of-scope: Line-based directive table architectural rewrite (v3.3+ future), `// disable next-line` above-parent-statement subtree-scope-semantic (unchanged). 7 neue CommentParser-Tests: 5 Primary-Cases (ConfigureAwait+Boolean, ConfigureAwait+all, LINQ-chain, ConditionalAccess, Binary) + 2 Regressions (single-line-no-overapply, statement-boundary-still-works). Update `_docs/disable-comment-syntax.md`: remove "multi-line method-chains" Pitfall. Backwards-compatible. Solution-wide 2099 Tests grün (+7 vs Sprint 164, Stryker.Core.Tests 448→455). Tag **v3.2.17** — §5 closed. ADR-039 → ADR-045 schließen die Aisess `// Stryker disable …`-Klasse für v3.2.x final. |
 | 0.28.0 | 2026-05-20 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 164 v3.2.16: ADR-044 — **`--test-case-filter` CLI-Flag + `--test-filter` Alias**. Aisess `STRYKER_NETX_ANOMALIES_AND_BUGS.md` §4 (Medium): Stryker's initial-test-run discovers ALLE 3 840 Tests inkl. 186 `[Trait("Category", "Integration")]`-Tests die Docker-Testcontainers brauchen → "59 tests are failing" verzerrt Mutation-Baseline. Pre-Impl-Recherche zeigt `TestCaseFilter` ist bereits JSON+VsTest end-to-end plumbed (TestCaseFilterInput + IStrykerOptions + StrykerInputs + VsTestRunner TestRunCriteria + VsTestContextInformation runsettings XML); nur CLI-Registration fehlt — strukturell identisch zu Sprint 22 (mutation-profile CLI-Gap). Maxential 5 Schritte 0 Branches. ADR-044: D1 BEIDE Namen accepted (`--test-case-filter` canonical, JSON-aligned + `--test-filter` Alias matched Aisess §10 wishlist + `dotnet test --filter` Microsoft-Konvention) via Sprint-149 RewriteReportersAlias-Pattern; D2 long-only (Sprint-150 Precedent, short-flag-space congested rund um -t/-tp); D3 Category=Misc (matched `--test-runner`); D4 MTP-Runner-Forwarding honest-deferred (MTP-Runner-Code hat null TestCaseFilter-Referenzen, Aisess nutzt xUnit/VsTest); D5 keine Syntax-Validation (Parity mit `dotnet test --filter`). Implementation: 1 AddCliInput + extrahiert in PrepareTestCaseFilterCliOption-Helper (MA0051-60-Zeilen-Cap-Refactor wie Sprint-148), 1 RewriteTestFilterAlias static helper, 10 neue Tests (4 Rewrite-Theory + 4 Non-Rewrite-Theory + 2 End-to-End-Facts), README CLI-Beispiel-Update. Backwards-compatible. Solution-wide 2092 Tests grün (+10 vs Sprint-163 baseline). Tag **v3.2.16** — §4 closed für xUnit/VsTest-User. |
 | 0.27.0 | 2026-05-20 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 163 v3.2.15: ADR-043 — **Solution-Mode Heartbeat-Diagnostics — Silent-Hang UX-Fix**. Aisess Platform Team `STRYKER_NETX_ANOMALIES_AND_BUGS.md` §2 (HIGH severity): `--solution <path>.slnx` lief 50+ Minuten ohne Log-Output zwischen "Analyzing 1 test project(s)" und "Analysis complete" weil per-project Logs (LogAnalyzingProjectFile, LogAnalyzingProjectCount) auf Debug-Level liegen. Maxential-Session 8 Schritte, 1 Branch (A_HeartbeatLogger evaluated). Neuer `HeartbeatLogger` (sealed IDisposable in `src/Stryker.Utilities/Heartbeat/`) mit Timer + Stopwatch + Interlocked-CAS-Guard + `[LoggerMessage]` source-gen partials. Default-Interval 30s (hardcoded, matched bug-reporter §10-Wishlist-#2). Installiert an 2 Phase-Entry-Points: `InitialisationProcess.GetMutableProjectsInfo` (Project Analysis) + `InitialTestProcess.InitialTestAsync` (Initial Test Run). `LogAnalyzingProjectCount` promoted Debug → Information (one-shot Summary). Branch B (inline phase-tracking) verworfen: tickt nicht während SINGLE-Projekt-Hang. Root-Cause-Investigation der 50-min-Outlier honest-deferred (kein Repro ohne Aisess-Sources). 16 neue HeartbeatLogger-Unit-Tests (Dispose-without-tick / periodic / stops / idempotent / arg-validation × 4 / FormatElapsed-Theory × 6 + Negative + InvariantCulture). CA1873 false-positive auf FormatElapsed in LoggerMessage-Args via #pragma + Begründung. xUnit1030 vs MA0004 file-level-pragma per Sprint-32-Konvention. Backwards-compatible, keine API-Änderungen. Tag **v3.2.15** — §2 closed. |
 | 0.26.0 | 2026-05-19 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 162 v3.2.14: ADR-042 — **Aisess Anomalies Quick-Wins §6 (`all,Boolean` Parser-Regression) + §3 (Short-Name `--project` Resolver)**. Retroactive ADR-Entry (in Sprint 162 nicht zum Spec hinzugefügt). §6 closure: ADR-040's `string.Equals(rawMutators, "all")` whole-string-Vergleich missed comma-list-Inputs wie `all,Boolean` → silent ERR-log "Unknown mutator kind 'all'" trotz user-intended All-Disable. Fix: `labels.Any(l => string.Equals(l, "all", OrdinalIgnoreCase))` Short-Circuit auf ALLEN comma-separated tokens. Plus MA0051-60-Zeilen-Cap-Refactor via Extraktion von `ParseMutatorList` aus `ParseStrykerComment`. §3 closure: `ResolveMultiReferenceCase` akzeptiert jetzt short-name `--project Aisess.Application` via Sprint-159 `MatchesFilter`-Helper (filename-with-or-without-csproj-extension, case-insensitive). Bei 1 Match → success. Bei >1 → improved disambiguation-error ("Project filter 'X' is ambiguous — multiple references match"). Plus 4 neue CommentParser-Tests + Bug-Report-Intake-Files. Tag **v3.2.14** — Aisess-Anomalies-Report §3 + §6 closed. |

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
@@ -358,6 +359,200 @@ public sealed class CommentParserTests : IntegrationTestBase
         var result = CommentParser.ParseNodeLeadingComments(node, ctx);
 
         result.FilteredMutators.Should().NotBeNull();
+        result.FilteredMutators!.Should().BeEquivalentTo(Enum.GetValues<Mutator>());
+    }
+
+    // ----- Sprint 165 (ADR-045, §5 from Aisess STRYKER_NETX_ANOMALIES_AND_BUGS report) -----
+    // Multi-line method-chain // Stryker disable next-line directive scope:
+    // the directive must be found when placed between continuation lines of a chain.
+
+    /// <summary>
+    /// Sprint 165 helper: parse a multi-line C# snippet wrapped in a class+method and
+    /// return the first node of the requested type, so tests can assert on the chain-link
+    /// node (e.g., the InvocationExpression representing <c>.ConfigureAwait(false)</c>)
+    /// rather than the outer statement.
+    /// </summary>
+    private static T FindFirst<T>(string methodBody) where T : SyntaxNode
+    {
+        var source = $"class C {{ void M() {{ {methodBody} }} }}";
+        var tree = CSharpSyntaxTree.ParseText(source);
+        return tree.GetRoot().DescendantNodes().OfType<T>().First();
+    }
+
+    /// <summary>
+    /// Helper: find the InvocationExpression whose method-name (rightmost name in the
+    /// chain) matches the supplied <paramref name="methodName"/>. Used to target the
+    /// specific chain-link the test cares about (e.g., the <c>.ConfigureAwait</c> call
+    /// in a multi-link chain).
+    /// </summary>
+    private static InvocationExpressionSyntax FindInvocationByName(string methodBody, string methodName)
+    {
+        var source = $"class C {{ void M() {{ {methodBody} }} }}";
+        var tree = CSharpSyntaxTree.ParseText(source);
+        return tree.GetRoot().DescendantNodes()
+            .OfType<InvocationExpressionSyntax>()
+            .First(inv =>
+                (inv.Expression is MemberAccessExpressionSyntax mae && string.Equals(mae.Name.Identifier.ValueText, methodName, StringComparison.Ordinal)) ||
+                (inv.Expression is MemberBindingExpressionSyntax mbe && string.Equals(mbe.Name.Identifier.ValueText, methodName, StringComparison.Ordinal)));
+    }
+
+    /// <summary>
+    /// Sprint 165 PRIMARY CASE (the Aisess §5 reproducer): a
+    /// <c>// Stryker disable next-line Boolean</c> directive placed between two chain links
+    /// of a multi-line method-chain (specifically: between the previous call and
+    /// <c>.ConfigureAwait(false)</c>) must populate <c>FilteredMutators</c> on the
+    /// resulting <c>MutationContext</c>. Pre-Sprint-165 this directive was silently
+    /// ignored because the comment trivia is attached to the inner-MAE's operator-token,
+    /// which the existing leading-trivia scan didn't reach.
+    /// </summary>
+    [Fact]
+    public void NextLine_Boolean_BetweenChainLinks_AppliesFilter()
+    {
+        var body = """
+            var x = await _repo
+                .GetAsync(slug)
+                // Stryker disable next-line Boolean : equivalent — xUnit no SyncContext
+                .ConfigureAwait(false);
+            """;
+        var inv = FindInvocationByName(body, "ConfigureAwait");
+        var ctx = BuildContext();
+
+        var result = CommentParser.ParseNodeLeadingComments(inv, ctx);
+
+        result.FilteredMutators.Should().NotBeNull(
+            "mid-chain // Stryker disable next-line must be visible at the InvocationExpression level — Sprint 165 / ADR-045");
+        result.FilteredMutators!.Should().ContainSingle()
+            .Which.Should().Be(Mutator.Boolean,
+                "the Aisess §5 primary case must filter exactly the Boolean kind");
+    }
+
+    /// <summary>
+    /// Same Aisess case with <c>// Stryker disable next-line all</c> instead of a
+    /// specific kind. Must populate FilteredMutators with EVERY enum value (combined
+    /// ADR-042 §6 + ADR-045 fix).
+    /// </summary>
+    [Fact]
+    public void NextLine_All_BetweenChainLinks_AppliesAllKinds()
+    {
+        var body = """
+            var x = await _repo
+                .GetAsync(slug)
+                // Stryker disable next-line all : equivalent
+                .ConfigureAwait(false);
+            """;
+        var inv = FindInvocationByName(body, "ConfigureAwait");
+        var ctx = BuildContext();
+
+        var result = CommentParser.ParseNodeLeadingComments(inv, ctx);
+
+        result.FilteredMutators.Should().NotBeNull();
+        result.FilteredMutators!.Should().BeEquivalentTo(
+            Enum.GetValues<Mutator>(),
+            "mid-chain `// Stryker disable next-line all` must filter every Mutator kind");
+    }
+
+    /// <summary>
+    /// Sprint 165 LINQ-chain coverage: a <c>// Stryker disable next-line Linq</c>
+    /// between <c>.Where(...)</c> and <c>.Select(...)</c> must be visible at the
+    /// <c>.Select(...)</c> InvocationExpression level.
+    /// </summary>
+    [Fact]
+    public void NextLine_BetweenLinqChainLinks_AppliesFilter()
+    {
+        var body = """
+            var x = items
+                .Where(i => i > 0)
+                // Stryker disable next-line Linq : reason
+                .Select(i => i * 2);
+            """;
+        var inv = FindInvocationByName(body, "Select");
+        var ctx = BuildContext();
+
+        var result = CommentParser.ParseNodeLeadingComments(inv, ctx);
+
+        result.FilteredMutators.Should().NotBeNull();
+        result.FilteredMutators!.Should().ContainSingle()
+            .Which.Should().Be(Mutator.Linq);
+    }
+
+    /// <summary>
+    /// Sprint 165 ConditionalAccess coverage: when the user writes a conditional-access
+    /// chain like <c>x?.M()</c>, the comment between <c>x</c> and <c>?.M()</c> is attached
+    /// to the <see cref="ConditionalAccessExpressionSyntax"/>'s operator-token. The fix's
+    /// direct-chain-link switch must surface this.
+    /// </summary>
+    [Fact]
+    public void NextLine_BeforeConditionalAccess_AppliesFilter()
+    {
+        var body = """
+            var x = _maybeRepo
+                // Stryker disable next-line all : reason
+                ?.GetAsync(slug);
+            """;
+        var cae = FindFirst<ConditionalAccessExpressionSyntax>(body);
+        var ctx = BuildContext();
+
+        var result = CommentParser.ParseNodeLeadingComments(cae, ctx);
+
+        result.FilteredMutators.Should().NotBeNull();
+        result.FilteredMutators!.Should().BeEquivalentTo(Enum.GetValues<Mutator>());
+    }
+
+    /// <summary>
+    /// Sprint 165 BinaryExpression coverage: a <c>// Stryker disable next-line Arithmetic</c>
+    /// between two operands of a multi-line binary expression must be visible at the
+    /// <see cref="BinaryExpressionSyntax"/>'s operator-token (e.g., <c>+</c>).
+    /// </summary>
+    [Fact]
+    public void NextLine_BetweenBinaryOperands_AppliesFilter()
+    {
+        var body = """
+            var x = a
+                // Stryker disable next-line Arithmetic : reason
+                + b;
+            """;
+        var bex = FindFirst<BinaryExpressionSyntax>(body);
+        var ctx = BuildContext();
+
+        var result = CommentParser.ParseNodeLeadingComments(bex, ctx);
+
+        result.FilteredMutators.Should().NotBeNull();
+        result.FilteredMutators!.Should().ContainSingle()
+            .Which.Should().Be(Mutator.Arithmetic);
+    }
+
+    /// <summary>
+    /// REGRESSION: single-line chain (no inter-link comment) must still produce no
+    /// FilteredMutators when ParseNodeLeadingComments is called on the InvocationExpression.
+    /// Verifies that the Sprint-165 helper does not over-apply to single-line cases.
+    /// </summary>
+    [Fact]
+    public void NextLine_SingleLineChain_NoMidComment_NoFilter()
+    {
+        var body = "var x = _repo.GetAsync(slug).ConfigureAwait(false);";
+        var inv = FindInvocationByName(body, "ConfigureAwait");
+        var ctx = BuildContext();
+
+        var result = CommentParser.ParseNodeLeadingComments(inv, ctx);
+
+        result.FilteredMutators.Should().BeNull(
+            "single-line chains with no mid-link comment must produce no filter — Sprint 165 must not over-apply");
+    }
+
+    /// <summary>
+    /// REGRESSION: the existing leading-trivia path (directive ABOVE a complete statement)
+    /// still works. ADR-045 only EXTENDS the trivia search, it must not break the
+    /// pre-existing behaviour for statement-boundary directives.
+    /// </summary>
+    [Fact]
+    public void NextLine_AboveStatement_StillWorks_AfterSprint165()
+    {
+        var ctx = BuildContext();
+        var node = NodeWithLeadingComment("// Stryker disable next-line all : reason");
+
+        var result = CommentParser.ParseNodeLeadingComments(node, ctx);
+
+        result.FilteredMutators.Should().NotBeNull("the existing statement-boundary path must remain functional");
         result.FilteredMutators!.Should().BeEquivalentTo(Enum.GetValues<Mutator>());
     }
 
