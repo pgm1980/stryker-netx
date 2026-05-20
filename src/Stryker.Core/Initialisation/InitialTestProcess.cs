@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Stryker.Abstractions;
 using Stryker.Abstractions.Options;
 using Stryker.Abstractions.Testing;
+using Stryker.Utilities.Heartbeat;
 
 namespace Stryker.Core.Initialisation;
 
@@ -26,6 +27,14 @@ public partial class InitialTestProcess(ILogger<InitialTestProcess> logger) : II
         // Setup a stopwatch to record the initial test duration
         var stopwatch = new Stopwatch();
         stopwatch.Start();
+
+        // Sprint 163 (ADR-043, §2 + §10-wishlist-#2 from Aisess Anomalies Report):
+        // wrap the initial-test-run in a HeartbeatLogger so the user sees a periodic
+        // "Initial test run in progress: 30s elapsed" log line during long test
+        // discovery + execution phases. The Aisess team observed a 9-minute silent
+        // gap between "Initial test run started." and "59 tests are failing." —
+        // this fixes that.
+        using var heartbeat = new HeartbeatLogger(_logger, "Initial test run");
 
         var initTestRunResult = await testRunner.InitialTestAsync(project).ConfigureAwait(false);
         // Stop stopwatch immediately after test run

@@ -974,7 +974,12 @@ public partial class InputFileResolver : IInputFileResolver
     [LoggerMessage(Level = LogLevel.Debug, Message = "Using {ProjectFile} as test project")]
     private static partial void LogUsingTestProject(ILogger logger, string projectFile);
 
-    [LoggerMessage(Level = LogLevel.Debug, Message = "Analyzing {Count} projects.")]
+    // Sprint 163 (ADR-043, §2 from Aisess Anomalies Report): promoted from Debug → Information
+    // so the user gets a one-shot "Analyzing N projects" summary log before the project-analysis
+    // phase begins. Combined with the HeartbeatLogger (every 30s), this gives the user enough
+    // signal to distinguish "in progress" from "stuck" during the previously-silent gap between
+    // "Analyzing 1 test project(s)" and "Analysis complete".
+    [LoggerMessage(Level = LogLevel.Information, Message = "Analyzing {Count} projects.")]
     private static partial void LogAnalyzingProjectCount(ILogger logger, int count);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Project analysis failed.")]
