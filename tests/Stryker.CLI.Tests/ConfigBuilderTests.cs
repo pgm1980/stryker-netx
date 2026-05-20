@@ -264,6 +264,8 @@ public sealed class ConfigBuilderTests : IDisposable
         inputs.Setup(x => x.DisableMixMutantsInput).Returns(new DisableMixMutantsInput());
         inputs.Setup(x => x.AdditionalTimeoutInput).Returns(new AdditionalTimeoutInput());
         inputs.Setup(x => x.BreakOnInitialTestFailureInput).Returns(new BreakOnInitialTestFailureInput());
+        // Sprint 166 Phase C (ADR-046 §C, Aisess Wishlist #9): --break-after diagnostic flag.
+        inputs.Setup(x => x.BreakAfterInput).Returns(new BreakAfterInput());
     }
 
     private static void SetupReportingAndStorageInputs(Mock<IStrykerInputs> inputs)

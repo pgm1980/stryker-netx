@@ -146,35 +146,44 @@ public sealed class CommentParserTests : IntegrationTestBase
     }
 
     /// <summary>
-    /// ADR-040 D-α verification: "ConfigureAwait" is a Mutator class name, not a
-    /// Mutator-Kind name.  The parser must skip it (empty <c>FilteredMutators</c>),
+    /// ADR-040 D-α verification: a PascalCase class name NOT in the Sprint-166
+    /// alias table (e.g., <c>NakedReceiver</c>) is a Mutator class name, not a
+    /// Mutator-Kind name. The parser must skip it (empty <c>FilteredMutators</c>),
     /// not silently apply a <c>Mutator.Statement</c> fallback.
     /// </summary>
+    /// <remarks>
+    /// Sprint 166 (ADR-046 §B) added <c>ConfigureAwait</c> / <c>AsyncAwait</c> /
+    /// <c>AsyncAwaitResult</c> as RECOGNIZED aliases mapping to
+    /// <see cref="Mutator.Boolean"/>. This test uses <c>NakedReceiver</c> (a real
+    /// mutator class name NOT in the alias table) to keep validating the
+    /// skip-on-unrecognised behaviour.
+    /// </remarks>
     [Fact]
     public void Disable_NextLine_ClassName_SkipsLabelWithHint()
     {
         var ctx = BuildContext();
-        var node = NodeWithLeadingComment("// Stryker disable next-line ConfigureAwait : reason");
+        var node = NodeWithLeadingComment("// Stryker disable next-line NakedReceiver : reason");
 
         var result = CommentParser.ParseNodeLeadingComments(node, ctx);
 
         result.FilteredMutators.Should().NotBeNull(
             "FilterMutators is still called, but with an empty array");
         result.FilteredMutators!.Should().BeEmpty(
-            "unrecognised label 'ConfigureAwait' must be skipped — no silent Mutator.Statement fallback");
+            "unrecognised label 'NakedReceiver' must be skipped — no silent Mutator.Statement fallback");
     }
 
     /// <summary>
     /// ADR-040 D-γ verification (mixed input): when a comma-separated label list
     /// contains both a valid Mutator-Kind ("Boolean") and an invalid one
-    /// ("ConfigureAwait"), only the valid one must appear in <c>FilteredMutators</c>.
-    /// Specifically, <c>Mutator.Statement</c> must NOT appear.
+    /// (<c>NakedReceiver</c>, NOT in Sprint-166 alias table), only the valid one
+    /// must appear in <c>FilteredMutators</c>. Specifically, <c>Mutator.Statement</c>
+    /// must NOT appear.
     /// </summary>
     [Fact]
     public void Disable_Mixed_Valid_And_Invalid_PartialApply()
     {
         var ctx = BuildContext();
-        var node = NodeWithLeadingComment("// Stryker disable Boolean, ConfigureAwait : reason");
+        var node = NodeWithLeadingComment("// Stryker disable Boolean, NakedReceiver : reason");
 
         var result = CommentParser.ParseNodeLeadingComments(node, ctx);
 
@@ -184,6 +193,48 @@ public sealed class CommentParserTests : IntegrationTestBase
                 "only the valid label Boolean must be in the filter");
         result.FilteredMutators.Should().NotContain(Mutator.Statement,
             "Mutator.Statement must NOT appear — that would indicate the pre-ADR-040 fallback bug");
+    }
+
+    /// <summary>
+    /// Sprint 166 (ADR-046 §B, Aisess §7 + Wishlist #6): the <c>ConfigureAwait</c>
+    /// class name is now a RECOGNIZED alias for <see cref="Mutator.Boolean"/>.
+    /// Previously (pre-Sprint-166) this label produced an ERR-log via the Sprint-161
+    /// hint mechanism — now it resolves silently to Boolean.
+    /// </summary>
+    [Fact]
+    public void Disable_NextLine_ConfigureAwaitAlias_MapsToBoolean()
+    {
+        var ctx = BuildContext();
+        var node = NodeWithLeadingComment("// Stryker disable next-line ConfigureAwait : equivalent — xUnit");
+
+        var result = CommentParser.ParseNodeLeadingComments(node, ctx);
+
+        result.FilteredMutators.Should().NotBeNull();
+        result.FilteredMutators!.Should().ContainSingle()
+            .Which.Should().Be(Mutator.Boolean,
+                "ConfigureAwait is a Sprint-166 alias resolving to Boolean (the kind ConfigureAwaitMutator emits)");
+    }
+
+    /// <summary>
+    /// Sprint 166 (ADR-046 §B): same alias behaviour for <c>AsyncAwait</c> and
+    /// <c>AsyncAwaitResult</c> — both resolve to <see cref="Mutator.Boolean"/>.
+    /// Case-insensitive.
+    /// </summary>
+    [Theory]
+    [InlineData("// Stryker disable next-line AsyncAwait : reason")]
+    [InlineData("// Stryker disable next-line AsyncAwaitResult : reason")]
+    [InlineData("// Stryker disable next-line configureawait : reason")] // lowercase
+    [InlineData("// Stryker disable next-line CONFIGUREAWAIT : reason")] // uppercase
+    public void Disable_NextLine_ClassNameAliases_MapToBoolean(string comment)
+    {
+        var ctx = BuildContext();
+        var node = NodeWithLeadingComment(comment);
+
+        var result = CommentParser.ParseNodeLeadingComments(node, ctx);
+
+        result.FilteredMutators.Should().NotBeNull();
+        result.FilteredMutators!.Should().ContainSingle()
+            .Which.Should().Be(Mutator.Boolean);
     }
 
     /// <summary>
@@ -266,17 +317,18 @@ public sealed class CommentParserTests : IntegrationTestBase
 
     /// <summary>
     /// ADR-041 Issue 2 verification (Sprint 161, fixes Sprint-160 mistake): when a
-    /// PascalCase mutator class name like <c>ConfigureAwait</c> is rejected, the ERR-log
-    /// hint must point at a PUBLIC URL (stryker-netx GitHub repo) instead of a
-    /// project-local path that doesn't exist in the consuming user's repo. The hint
-    /// must also inline the 2 most-commonly-confused class-to-kind mappings so the
-    /// message is self-contained even without click-through.
-    ///
-    /// Implementation: this test captures the logger output via
-    /// <see cref="Microsoft.Extensions.Logging.Testing"/>-style approach by replacing
-    /// the static <see cref="ApplicationLogging.LoggerFactory"/> with a list-capturing
-    /// factory before the parse call.
+    /// PascalCase mutator class name is rejected, the ERR-log hint must point at a
+    /// PUBLIC URL (stryker-netx GitHub repo) instead of a project-local path that
+    /// doesn't exist in the consuming user's repo. The hint must also inline the 2
+    /// most-commonly-confused class-to-kind mappings so the message is self-contained
+    /// even without click-through.
     /// </summary>
+    /// <remarks>
+    /// Sprint 166 (ADR-046 §B) made <c>ConfigureAwait</c> / <c>AsyncAwait</c> /
+    /// <c>AsyncAwaitResult</c> RECOGNIZED aliases (no hint fires for those any more).
+    /// This test now uses <c>NakedReceiver</c> (a real Stryker mutator class name NOT
+    /// in the Sprint-166 alias table) to keep validating the Sprint-161 hint format.
+    /// </remarks>
     [Fact]
     public void Disable_NextLine_ClassName_HintIncludesPublicUrl()
     {
@@ -290,7 +342,7 @@ public sealed class CommentParserTests : IntegrationTestBase
         try
         {
             var ctx = BuildContext();
-            var node = NodeWithLeadingComment("// Stryker disable next-line ConfigureAwait : reason");
+            var node = NodeWithLeadingComment("// Stryker disable next-line NakedReceiver : reason");
 
             _ = CommentParser.ParseNodeLeadingComments(node, ctx);
 

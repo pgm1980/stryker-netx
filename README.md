@@ -133,6 +133,25 @@ Or in `stryker-config.json`:
 
 The expression is forwarded verbatim to the underlying VsTest test host (via `TestRunCriteria.TestCaseFilter` and the `<TestCaseFilter>` runsettings element). Syntax matches [Microsoft's selective-unit-tests guide](https://learn.microsoft.com/dotnet/core/testing/selective-unit-tests) — `Category=Unit`, `Priority!=High`, `FullyQualifiedName~Namespace.Sub`, `&`/`|` boolean combinators. Currently supported on the VsTest runner only; MTP-runner forwarding is on the v3.3 roadmap (see ADR-044).
 
+## Diagnostic-only runs (`--break-after`, v3.2.18+)
+
+Verify project / build / test-discovery configuration without paying for the full per-mutant test loop. Useful when iterating on `--project`, `--solution`, `--mutate`, or `--test-filter` arguments against a large suite.
+
+```bash
+dotnet stryker-netx --break-after analysis            # ~30 s — verify project discovery only
+dotnet stryker-netx --break-after build               # build the projects, then exit
+dotnet stryker-netx --break-after initial-test-run    # baseline test run, then exit (no mutations)
+dotnet stryker-netx --break-after mutation-generation # generate mutants + flush partial HTML report, then exit (no per-mutant test loop)
+```
+
+Or via `stryker-config.json`:
+
+```json
+{ "stryker-config": { "break-after": "mutation-generation" } }
+```
+
+The Aisess team's pain point (Anomalies Report § 10 wishlist #9): a 3 600-test suite paid ≈ 9 min per diagnostic run before any actionable output appeared. With `--break-after`, the same diagnostic finishes in ≈ 30 s. See ADR-046 §C.
+
 ## Operator catalogue (v2.4.0)
 
 | Family | v1.x mutators (Defaults) | Stronger additions | All-only additions |

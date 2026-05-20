@@ -80,6 +80,16 @@ internal static partial class CommentParser
         var result = new List<Mutator>(labels.Length);
         foreach (var label in labels)
         {
+            // Sprint 166 (ADR-046 §B, Aisess Wishlist #6 + §7): try the class-name
+            // alias table first (ConfigureAwait / AsyncAwait / AsyncAwaitResult →
+            // Boolean). Only on alias-miss + Enum.TryParse-miss do we fall through
+            // to the Sprint-161 PascalCase-hint mechanism. The hint stays valuable
+            // for OTHER unrecognised class names not in the alias table.
+            if (MutatorClassNameAliases.TryResolve(label, out var aliasedMutator))
+            {
+                result.Add(aliasedMutator);
+                continue;
+            }
             if (Enum.TryParse<Mutator>(label, true, out var value))
             {
                 result.Add(value);

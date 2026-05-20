@@ -285,6 +285,13 @@ public class StrykerOptions : IStrykerOptions
     public bool BreakOnInitialTestFailure { get; set; }
 
     /// <summary>
+    /// Sprint 166 (ADR-046 §C, Aisess Wishlist #9): diagnostic break-after phase.
+    /// Default <see cref="BreakAfterPhase.None"/> preserves existing behaviour. See
+    /// <see cref="BreakAfterPhase"/> for the per-phase semantics.
+    /// </summary>
+    public BreakAfterPhase BreakAfter { get; init; }
+
+    /// <summary>
     /// The test runner to use for executing tests
     /// </summary>
     public TestRunner TestRunner { get; init; }

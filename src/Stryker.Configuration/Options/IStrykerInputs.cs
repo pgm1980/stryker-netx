@@ -59,6 +59,12 @@ public interface IStrykerInputs
     OpenReportInput OpenReportInput { get; init; }
     OpenReportEnabledInput OpenReportEnabledInput { get; init; }
     BreakOnInitialTestFailureInput BreakOnInitialTestFailureInput { get; init; }
+
+    /// <summary>
+    /// Sprint 166 (ADR-046 §C, Aisess Wishlist #9): diagnostic break-after-phase flag.
+    /// </summary>
+    BreakAfterInput BreakAfterInput { get; init; }
+
     TestRunnerInput TestRunnerInput { get; init; }
 
     IStrykerOptions ValidateAll();

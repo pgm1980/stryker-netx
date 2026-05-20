@@ -120,15 +120,29 @@ not just `BooleanMutator`).
 | `UoiMutator` | `Update` |
 | `WithExpressionMutator` | `Initializer` |
 
-> **Note**: passing a class name like `ConfigureAwait` directly to a disable-comment
-> produces an ERR-log because Mutator-Class names are not accepted; the parser
-> emits a hint in the error message pointing to this doc. To disable
-> ConfigureAwait-related mutations, use `// Stryker disable Boolean` (which
-> disables ALL mutators of Kind `Boolean`, including `BooleanMutator`,
-> `MatchGuardMutator`, `NegateConditionMutator`, and `ConfigureAwaitMutator`).
+> **Sprint 166 update (v3.2.18, ADR-046 §B)**: the three most-commonly-confused
+> mutator class names are now ACCEPTED as user-input aliases and silently
+> resolved to the underlying kind. Case-insensitive:
+>
+> | Alias label | Resolves to | Why |
+> |---|---|---|
+> | `ConfigureAwait` | `Boolean` | `ConfigureAwaitMutator` swaps the `.ConfigureAwait(false)` literal |
+> | `AsyncAwait` | `Boolean` | `AsyncAwaitMutator` rewrites `await x` to `x.GetAwaiter().GetResult()` (Boolean-typed) |
+> | `AsyncAwaitResult` | `Boolean` | `AsyncAwaitResultMutator` — v2.3 spec-faithful `.Result` variant |
+>
+> So `// Stryker disable next-line ConfigureAwait : equivalent` now works as
+> expected. Previously (v3.2.13 – v3.2.17) it produced the Sprint-161 hint URL
+> error; even earlier (v3.2.12 and below) it silently disabled `Statement`
+> mutations as a fallback (Bug C). All OTHER class names still produce the
+> hint URL — the alias table is intentionally small (3 entries) to keep the
+> user-input surface area predictable. To disable ALL mutators of Kind
+> `Boolean` (including those not in the alias table), use
+> `// Stryker disable Boolean` as before.
 
-A finer-grained per-class filter is tracked as a Sprint 161+ UX-improvement
-(Issue α in ADR-040).
+A finer-grained per-class filter (where `ConfigureAwait` disables ONLY
+`ConfigureAwaitMutator` mutations and not other Boolean-kind mutations on the
+same line) is tracked as a v3.3+ enhancement (Branch C from ADR-046 §B
+Maxential).
 
 ## Parse-failure behavior (Sprint 160 ADR-040 Bug-C fix)
 

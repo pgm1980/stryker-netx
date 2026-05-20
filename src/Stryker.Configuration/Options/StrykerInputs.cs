@@ -82,6 +82,12 @@ public partial class StrykerInputs : IStrykerInputs
     public OpenReportInput OpenReportInput { get; init; } = new();
     public OpenReportEnabledInput OpenReportEnabledInput { get; init; } = new();
     public BreakOnInitialTestFailureInput BreakOnInitialTestFailureInput { get; init; } = new();
+
+    /// <summary>
+    /// Sprint 166 (ADR-046 §C, Aisess Wishlist #9): diagnostic break-after-phase flag.
+    /// </summary>
+    public BreakAfterInput BreakAfterInput { get; init; } = new();
+
     public TestRunnerInput TestRunnerInput { get; init; } = new();
 
     public IStrykerOptions ValidateAll()
@@ -173,6 +179,8 @@ public partial class StrykerInputs : IStrykerInputs
             SinceTarget = sinceTarget,
             ReportTypeToOpen = OpenReportInput.Validate(OpenReportEnabledInput.Validate()),
             BreakOnInitialTestFailure = BreakOnInitialTestFailureInput.Validate(),
+            // Sprint 166 (ADR-046 §C): diagnostic --break-after flag.
+            BreakAfter = BreakAfterInput.Validate(),
             TestRunner = TestRunnerInput.Validate(),
             MutantIdProvider = new BasicIdProvider()
         };

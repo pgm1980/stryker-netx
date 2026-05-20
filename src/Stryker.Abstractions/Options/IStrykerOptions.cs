@@ -16,6 +16,16 @@ public interface IStrykerOptions
     string? S3Region { get; init; }
     BaselineProvider BaselineProvider { get; init; }
     bool BreakOnInitialTestFailure { get; set; }
+
+    /// <summary>
+    /// Sprint 166 (ADR-046 §C, Aisess Wishlist #9): diagnostic flag — when not
+    /// <see cref="BreakAfterPhase.None"/>, Stryker performs every pipeline phase
+    /// up to and including the named boundary, then terminates cleanly without
+    /// running the per-mutant test loop. Default <see cref="BreakAfterPhase.None"/>
+    /// preserves existing behaviour.
+    /// </summary>
+    BreakAfterPhase BreakAfter { get; init; }
+
     int Concurrency { get; init; }
     string? Configuration { get; init; }
     string? DashboardApiKey { get; init; }

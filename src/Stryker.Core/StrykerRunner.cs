@@ -45,33 +45,7 @@ public partial class StrykerRunner(
 
         try
         {
-            // Mutate
-            _mutationTestProcesses = [.. await _projectOrchestrator.MutateProjectsAsync(options, reporters).ConfigureAwait(false)];
-
-            var rootComponent = AddRootFolderIfMultiProject([.. _mutationTestProcesses.Select(x => x.Input.SourceProjectInfo.ProjectContents)], options);
-            var combinedTestProjectsInfo = _mutationTestProcesses.Select(mtp => mtp.Input.TestProjectsInfo).Aggregate((a, b) => (TestProjectsInfo)a + (TestProjectsInfo)b);
-
-            LogMutantsCountIfEnabled(rootComponent);
-
-            AnalyzeCoverage(options);
-
-            // Filter
-            foreach (var project in _mutationTestProcesses)
-            {
-                project.FilterMutants();
-            }
-
-            // Report
-            reporters.OnMutantsCreated(rootComponent, combinedTestProjectsInfo);
-
-            var mutantsNotRun = rootComponent.NotRunMutants().ToList();
-
-            if (mutantsNotRun.Count == 0)
-            {
-                return CompleteWithoutRun(options, rootComponent, combinedTestProjectsInfo, reporters);
-            }
-
-            return await ExecuteMutationTestAsync(options, rootComponent, combinedTestProjectsInfo, reporters, mutantsNotRun).ConfigureAwait(false);
+            return await ExecutePipelineAsync(options, reporters).ConfigureAwait(false);
         }
 #if !DEBUG
         // S2139: log-and-rethrow is intentional here — in non-DEBUG builds the user sees a
@@ -93,6 +67,87 @@ public partial class StrykerRunner(
             stopwatch.Stop();
             LogTimeElapsed(_logger, stopwatch.Elapsed);
         }
+    }
+
+    /// <summary>
+    /// Sprint 166 (ADR-046 §C): extracted from <see cref="RunMutationTestAsync"/> to
+    /// keep that method under MA0051's 60-line cap after the diagnostic short-circuit
+    /// addition. Same refactor pattern as Sprint 148 BuildCommandLineApplication.
+    /// </summary>
+    private async Task<StrykerRunResult> ExecutePipelineAsync(IStrykerOptions options, IReporter reporters)
+    {
+        // Mutate
+        _mutationTestProcesses = [.. await _projectOrchestrator.MutateProjectsAsync(options, reporters).ConfigureAwait(false)];
+
+        // Sprint 166 (ADR-046 §C, Aisess Wishlist #9): diagnostic short-circuit.
+        // The non-None sentinel is the authoritative "stopped early" signal —
+        // _mutationTestProcesses may be empty (analysis/build/initial-test-run
+        // break-points) OR populated (mutation-generation), so we cannot rely on
+        // the count alone.
+        if (options.BreakAfter != BreakAfterPhase.None)
+        {
+            return CompleteEarlyForDiagnostic(options, reporters);
+        }
+
+        var rootComponent = AddRootFolderIfMultiProject([.. _mutationTestProcesses.Select(x => x.Input.SourceProjectInfo.ProjectContents)], options);
+        var combinedTestProjectsInfo = _mutationTestProcesses.Select(mtp => mtp.Input.TestProjectsInfo).Aggregate((a, b) => (TestProjectsInfo)a + (TestProjectsInfo)b);
+
+        LogMutantsCountIfEnabled(rootComponent);
+        AnalyzeCoverage(options);
+
+        // Filter
+        foreach (var project in _mutationTestProcesses)
+        {
+            project.FilterMutants();
+        }
+
+        // Report
+        reporters.OnMutantsCreated(rootComponent, combinedTestProjectsInfo);
+
+        var mutantsNotRun = rootComponent.NotRunMutants().ToList();
+        if (mutantsNotRun.Count == 0)
+        {
+            return CompleteWithoutRun(options, rootComponent, combinedTestProjectsInfo, reporters);
+        }
+
+        return await ExecuteMutationTestAsync(options, rootComponent, combinedTestProjectsInfo, reporters, mutantsNotRun).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sprint 166 (ADR-046 §C, Aisess Wishlist #9): clean diagnostic exit path for
+    /// the <c>--break-after</c> flag. Disposes the test runner and emits a partial
+    /// "what would have been tested" HTML/JSON report when the break-point was
+    /// <see cref="BreakAfterPhase.MutationGeneration"/> (i.e. mutants were generated
+    /// but never tested). For earlier break-points (analysis/build/initial-test-run),
+    /// no mutants exist yet, so reporter callbacks are skipped.
+    /// </summary>
+    private StrykerRunResult CompleteEarlyForDiagnostic(IStrykerOptions options, IReporter reporters)
+    {
+        // CA1873 false-positive: source-gen [LoggerMessage] partials check IsEnabled
+        // internally, but the analyzer cannot see through the .ToString() call. Guard
+        // it manually. Same pattern as Sprint 163 (ADR-043) HeartbeatLogger.
+#pragma warning disable CA1873 // Avoid potentially expensive logging argument evaluation
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            LogDiagnosticEarlyExit(_logger, options.BreakAfter.ToString());
+        }
+#pragma warning restore CA1873
+
+        // For mutation-generation break-point, flush a partial OnMutantsCreated report
+        // so the user sees the would-be mutants list. For earlier break-points there
+        // are no mutants to report — just dispose and return.
+        if (options.BreakAfter == BreakAfterPhase.MutationGeneration && _mutationTestProcesses.Any())
+        {
+            var rootComponent = AddRootFolderIfMultiProject([.. _mutationTestProcesses.Select(x => x.Input.SourceProjectInfo.ProjectContents)], options);
+            var combinedTestProjectsInfo = _mutationTestProcesses.Select(mtp => mtp.Input.TestProjectsInfo).Aggregate((a, b) => (TestProjectsInfo)a + (TestProjectsInfo)b);
+            LogMutantsCountIfEnabled(rootComponent);
+            reporters.OnMutantsCreated(rootComponent, combinedTestProjectsInfo);
+            _projectOrchestrator.Dispose();
+            return new StrykerRunResult(options, rootComponent.GetMutationScore());
+        }
+
+        _projectOrchestrator.Dispose();
+        return new StrykerRunResult(options, double.NaN);
     }
 
     private StrykerRunResult CompleteWithoutRun(IStrykerOptions options, IReadOnlyProjectComponent rootComponent, ITestProjectsInfo combinedTestProjectsInfo, IReporter reporters)
@@ -219,4 +274,11 @@ public partial class StrykerRunner(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Capture mutant coverage using '{OptimizationMode}' mode.")]
     private static partial void LogCaptureCoverage(ILogger logger, OptimizationModes optimizationMode);
+
+    // Sprint 166 (ADR-046 §C, Aisess Wishlist #9): emitted when --break-after has
+    // triggered a clean diagnostic exit at the named phase. Different from the
+    // per-phase log emitted by ProjectOrchestrator — this one runs at the runner
+    // level after the orchestrator has returned.
+    [LoggerMessage(Level = LogLevel.Information, Message = "Stryker exits cleanly after the --break-after '{Phase}' diagnostic break-point. The per-mutant test loop did not execute.")]
+    private static partial void LogDiagnosticEarlyExit(ILogger logger, string phase);
 }

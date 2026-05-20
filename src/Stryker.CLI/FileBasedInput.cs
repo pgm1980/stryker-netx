@@ -92,6 +92,10 @@ public class FileBasedInput : IExtraData
     [JsonPropertyName("break-on-initial-test-failure")]
     public bool? BreakOnInitialTestFailure { get; init; }
 
+    // Sprint 166 (ADR-046 §C, Aisess Wishlist #9): diagnostic break-after-phase flag.
+    [JsonPropertyName("break-after")]
+    public string? BreakAfter { get; init; }
+
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? ExtraData { get; set; }
 }

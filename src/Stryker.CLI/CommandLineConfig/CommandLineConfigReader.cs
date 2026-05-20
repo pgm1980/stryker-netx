@@ -263,7 +263,25 @@ public class CommandLineConfigReader
         AddCliInput(inputs.TestRunnerInput, "test-runner", "t", argumentHint: "vstest,mtp", category: InputCategory.Misc);
         // Sprint 164 (ADR-044, §4 Aisess): see PrepareTestCaseFilterCliOption for rationale.
         PrepareTestCaseFilterCliOption(inputs);
+        // Sprint 166 (ADR-046 §C, Aisess Wishlist #9): see PrepareBreakAfterCliOption for rationale.
+        PrepareBreakAfterCliOption(inputs);
     }
+
+    /// <summary>
+    /// Sprint 166 (ADR-046 §C, Aisess Wishlist #9): expose <c>--break-after</c> as a
+    /// CLI flag. Backed by <see cref="Stryker.Configuration.Options.Inputs.BreakAfterInput"/>
+    /// which validates the user-supplied string against <see cref="Stryker.Abstractions.BreakAfterPhase"/>.
+    /// Long-only — short-flag space around <c>-b</c>/<c>-t</c> is congested; the
+    /// flag is for diagnostic runs (rarely typed) so the long form is fine.
+    /// </summary>
+    /// <remarks>Extracted from <see cref="PrepareCliOptions"/> to keep that method
+    /// under MA0051's 60-line cap (same refactor pattern as Sprint 148, 150, 162, 164).</remarks>
+    private void PrepareBreakAfterCliOption(IStrykerInputs inputs) =>
+        // argumentHint uses comma-separator (not | which is McMaster's template delimiter)
+        // matching the precedent set by --test-runner ("vstest,mtp").
+        AddCliInput(inputs.BreakAfterInput, "break-after", null,
+            argumentHint: "analysis,build,initial-test-run,mutation-generation",
+            category: InputCategory.Misc);
 
     /// <summary>
     /// Sprint 164 (ADR-044, §4 from Aisess STRYKER_NETX_ANOMALIES_AND_BUGS report):

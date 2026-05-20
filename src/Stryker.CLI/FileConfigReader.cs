@@ -58,6 +58,8 @@ public static class FileConfigReader
         if (config.TestRunner is { } testRunner) { inputs.TestRunnerInput.SuppliedInput = testRunner; }
         if (config.DashboardUrl is { } dashboardUrl) { inputs.DashboardUrlInput.SuppliedInput = dashboardUrl; }
         if (config.ReportFileName is { } reportFileName) { inputs.ReportFileNameInput.SuppliedInput = reportFileName; }
+        // Sprint 166 (ADR-046 §C, Aisess Wishlist #9): diagnostic --break-after flag.
+        if (config.BreakAfter is { } breakAfter) { inputs.BreakAfterInput.SuppliedInput = breakAfter; }
     }
 
     private static void ApplyMutationInputs(FileBasedInput config, IStrykerInputs inputs)
