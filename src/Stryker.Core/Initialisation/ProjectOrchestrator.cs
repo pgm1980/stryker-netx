@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mono.Cecil;
+using Stryker.Abstractions;
 using Stryker.Abstractions.Baseline;
 using Stryker.Abstractions.Exceptions;
 using Stryker.Abstractions.Options;
@@ -64,7 +65,23 @@ public sealed partial class ProjectOrchestrator : IProjectOrchestrator
             return [];
         }
 
+        // Sprint 166 (ADR-046 §C, Aisess Wishlist #9): --break-after analysis stops here.
+        // Caller (StrykerRunner) detects the early-stop via options.BreakAfter != None,
+        // not via the empty list — so returning [] from this branch is safe.
+        if (options.BreakAfter == BreakAfterPhase.Analysis)
+        {
+            LogBreakAfterReached(_logger, "analysis");
+            return [];
+        }
+
         _initializationProcess.BuildProjects(options, projectInfos);
+
+        // Sprint 166 (ADR-046 §C): --break-after build stops here.
+        if (options.BreakAfter == BreakAfterPhase.Build)
+        {
+            LogBreakAfterReached(_logger, "build");
+            return [];
+        }
 
         // create a test runner based on the selected option
         _runner = runner ?? CreateTestRunner(options);
@@ -72,11 +89,28 @@ public sealed partial class ProjectOrchestrator : IProjectOrchestrator
         InitializeDashboardProjectInformation(options, projectInfos.First());
         var inputs = await _initializationProcess.GetMutationTestInputsAsync(options, projectInfos, _runner).ConfigureAwait(false);
 
+        // Sprint 166 (ADR-046 §C): --break-after initial-test-run stops here.
+        if (options.BreakAfter == BreakAfterPhase.InitialTestRun)
+        {
+            LogBreakAfterReached(_logger, "initial-test-run");
+            return [];
+        }
+
         var mutationTestProcesses = new ConcurrentBag<IMutationTestProcess>();
         Parallel.ForEach(inputs, mutationTestInput =>
         {
             mutationTestProcesses.Add(_projectMutator.MutateProject(options, mutationTestInput, reporters));
         });
+
+        // Sprint 166 (ADR-046 §C): --break-after mutation-generation stops here, but
+        // we return the populated mtps so the caller can OPTIONALLY emit a partial
+        // "what would have been tested" report. The caller's options.BreakAfter
+        // sentinel check is what actually triggers the short-circuit.
+        if (options.BreakAfter == BreakAfterPhase.MutationGeneration)
+        {
+            LogBreakAfterReached(_logger, "mutation-generation");
+        }
+
         return mutationTestProcesses;
     }
 
@@ -179,6 +213,11 @@ public sealed partial class ProjectOrchestrator : IProjectOrchestrator
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "No project to mutate. Stryker will exit prematurely.")]
     private static partial void LogNoProjectToMutate(ILogger logger);
+
+    // Sprint 166 (ADR-046 §C, Aisess Wishlist #9): emitted when the --break-after flag
+    // triggers a clean diagnostic-only termination at the named pipeline phase.
+    [LoggerMessage(Level = LogLevel.Information, Message = "Break-after '{Phase}' reached. Stryker will terminate cleanly without proceeding to the mutation test loop.")]
+    private static partial void LogBreakAfterReached(ILogger logger, string phase);
 
     [LoggerMessage(Level = LogLevel.Trace, Message = "{Subject} missing for the dashboard reporter, reading it from {TargetPath}. Note that this requires SourceLink to be properly configured in {ProjectPath}")]
     private static partial void LogSubjectMissing(ILogger logger, string subject, string targetPath, string projectPath);

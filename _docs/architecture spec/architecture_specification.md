@@ -3214,6 +3214,112 @@ Plus 2 new helpers: `FindFirst<T>(string body)` + `FindInvocationByName(string b
 
 ---
 
+## ADR-046: Aisess Wishlist Mega-Sprint — `--break-after` + ConfigureAwait Alias + Disable-Directive Scoping (v3.2.18 / Sprint 166)
+
+**Status.** Accepted — Sprint 166 (v3.2.18, 2026-05-20).
+
+**Kontext.** Aisess Platform Team `STRYKER_NETX_ANOMALIES_AND_BUGS.md` Wishlist (§10) — drei verbliebene Items nach Sprints 162–165 die alle Aisess-§7/§8/§-Wishlist-Items adressieren. User-Direktive für Sprint 166: "Strikt nach CLAUDE.md. Nutze MAXential und ToT mit jeweils maximaler Denktiefe bei Architektur- und Designentscheidungen sowie komplexen Algorithmen." Drei separate Maxential-Sessions (eine pro Phase, jede mit ToT-Branches für die Implementierungs-Alternativen).
+
+ADR-046 bundlet drei orthogonale Sub-Decisions unter dem Aisess-Wishlist-Closure-Theme:
+- **§A**: §8 + Wishlist #4 + #7 — Disable-Directive Scoping + Startup-Summary
+- **§B**: §7 + Wishlist #6 — ConfigureAwait First-Class Mutator-Kind Alias
+- **§C**: Wishlist #9 — `--break-after` Diagnostic-Flag
+
+### Sub-decision §A: Disable-Directive Scoping (Aisess §8 + Wishlist #4 + #7)
+
+**Problem.** `CsharpMutationProcess.Mutate` iteriert `projectInfo.GetAllFiles()` und ruft `orchestrator.Mutate(...)` auf JEDER Datei → recursive Node-Walk → `CommentParser.ParseNodeLeadingComments` auf jedem Node → ERR-Log bei kaputten Disable-Direktiven. Selbst wenn der User per `--mutate "fileA.cs"` einschränkt, parsen wir Disable-Comments in fileZ.cs und produzieren ERR-Logs für etwas das nicht mutiert wird. Wishlist #7 zusätzlich: konsolidierter Startup-Summary statt per-mutator-Spam.
+
+**Maxential-Session "scoping-s3-hybrid"** mit ToT-Evaluation (3 Branches):
+- S1 (skip outside-scope orchestration): Score 0.85 — direct fix für §8
+- S2 (aggregate ERR-logs in summary): Score 0.55 — fixes Wishlist #7 only
+- **S3 (hybrid S1+S2)**: Score 0.9 — chosen winner
+
+**Entscheidung.** Layer-1: File-Level Pre-Filter in `CsharpMutationProcess.Mutate` via neue private `IsFileInMutateScope(CsharpFileLeaf, IStrykerOptions)` Helper. Spiegelt `FilePatternMutantFilter`'s Glob-Match-Logic aber OHNE Span-Checks (File-Level Scope ist Superset des Per-Mutation Scope). Outside-Scope Files: Log Debug "skipped" + assign empty `file.Mutants` + skip orchestrator-call. Default `**/*` Pattern → alle Files in scope → keine Regression.
+
+Layer-2: Single Startup-Summary INF-Log nach dem Per-File Walk: `"Disable-directive validation: scanned N files in --mutate scope (M skipped)."` Counter `scannedFiles`/`skippedFiles` in der Loop.
+
+### Sub-decision §B: ConfigureAwait First-Class Mutator-Kind Alias (Aisess §7 + Wishlist #6)
+
+**Problem.** `// Stryker disable next-line ConfigureAwait : reason` produziert ERR-Log weil `ConfigureAwait` eine MUTATOR-KLASSEN-NAME (`ConfigureAwaitMutator`) ist, NICHT ein `Mutator`-Enum-Wert. Sprint 161 (ADR-041) hatte einen Hint-URL hinzugefügt, aber nicht das Root-Problem gelöst.
+
+**Maxential-Session "configureawait-alias"** mit ToT-Evaluation (3 Branches):
+- A (extend Mutator enum): Score 0.5 — BREAKS back-compat (`--ignore-mutations Boolean` würde nicht mehr ConfigureAwait-Mutationen filtern; SemVer-breaking)
+- **B (parser-level alias only)**: Score 0.7 — chosen winner
+- C (per-class filter table on Mutation): Score 0.6 — too disruptive für v3.2.x patch, defer to v3.3+
+
+**Entscheidung.** Neue private static `MutatorClassNameAliases.cs` Helper-Klasse mit `TryResolve(string, out Mutator)`-Method. Alias-Table:
+- `ConfigureAwait` → `Mutator.Boolean` (primary §7 case — `ConfigureAwaitMutator.Type = Boolean`)
+- `AsyncAwait` → `Mutator.Boolean`
+- `AsyncAwaitResult` → `Mutator.Boolean`
+
+Case-insensitive (via `StringComparison.OrdinalIgnoreCase`). Integration: `CommentParser.ParseMutatorList` versucht den Alias-Table ZUERST, dann `Enum.TryParse`, dann den Sprint-161 PascalCase-Hint-Fallback. 100% backwards-compatible — `Mutator` enum unverändert, `ConfigureAwaitMutator.Type` unverändert (bleibt `Boolean`).
+
+### Sub-decision §C: `--break-after` Diagnostic Flag (Wishlist #9)
+
+**Problem.** Aisess hat 3 600-test-Suite. Jeder Diagnostik-Run um `--project`/`--mutate`-Config zu verifizieren zahlt ≈9 min Initial-Test-Discovery vor irgendeinem actionable Output. User wünscht `--break-after build` / `--break-after initial-test-run` Flag für ≈30s Diagnostik-Runs.
+
+**Maxential-Session "break-after-design"** mit ToT-Evaluation (4 Branches):
+- A (inline `if (BreakAfter == X) return []`): Score 0.6 — empty-return ambiguity (broke-early vs no-projects-found)
+- B (special `EarlyStopException`): Score 0.4 — anti-pattern per Sonar S3877 (exceptions for normal flow)
+- C (runner-only break-points after MutateProjectsAsync): Score 0.3 — can't stop BEFORE the 9-min initial-test-run (the actual user need!)
+- **D (Hybrid: inline-ifs + `options.BreakAfter != None` sentinel)**: Score 0.9 — chosen winner
+
+**Entscheidung.** Neuer `BreakAfterPhase`-Enum in `Stryker.Abstractions` mit Werten `None=0`, `Analysis=1`, `Build=2`, `InitialTestRun=3`, `MutationGeneration=4`. Ordinal-Komparison erlaubt `>=` semantik wenn nötig. Neuer `BreakAfterInput` in `Stryker.Configuration.Options.Inputs` mit kebab-case-string-input + Validate() → BreakAfterPhase.
+
+4 inline if-checks in `ProjectOrchestrator.MutateProjectsAsync` (nach GetMutableProjectsInfo / BuildProjects / GetMutationTestInputsAsync / MutateProject loop). Single short-circuit in `StrykerRunner.RunMutationTestAsync` — gated by `options.BreakAfter != BreakAfterPhase.None` sentinel (NOT by count, weil mutation-generation break-point returns populated mtps). Neue private `CompleteEarlyForDiagnostic`-Helper-Method bei mutation-generation flushed partial `OnMutantsCreated`-Report.
+
+CLI flag `--break-after analysis,build,initial-test-run,mutation-generation` (comma-separator in argumentHint, weil McMaster `|` als Template-Delimiter benutzt; comma-style matched `--test-runner vstest,mtp`-Precedent). JSON-Config-Key `break-after`. Long-only — short-flag-Space congested.
+
+### Implementation
+
+**Phase §C (--break-after)** — files:
+- NEW `src/Stryker.Abstractions/BreakAfterPhase.cs` (enum)
+- NEW `src/Stryker.Configuration/Options/Inputs/BreakAfterInput.cs` (Input<string> mit Validate-zu-enum + Allowed-Options-List)
+- EDIT `src/Stryker.Abstractions/Options/IStrykerOptions.cs` (+ `BreakAfterPhase BreakAfter { get; init; }`)
+- EDIT `src/Stryker.Configuration/Options/StrykerOptions.cs` (impl property)
+- EDIT `src/Stryker.Configuration/Options/IStrykerInputs.cs` + `StrykerInputs.cs` (+ `BreakAfterInput BreakAfterInput { get; init; } = new()`)
+- EDIT `src/Stryker.Configuration/Options/StrykerInputs.cs::BuildStrykerOptions` (assign `BreakAfter = BreakAfterInput.Validate()`)
+- EDIT `src/Stryker.CLI/CommandLineConfig/CommandLineConfigReader.cs` (new private `PrepareBreakAfterCliOption(IStrykerInputs)` — MA0051 extraction-pattern)
+- EDIT `src/Stryker.CLI/FileBasedInput.cs` (+ `[JsonPropertyName("break-after")] string? BreakAfter`)
+- EDIT `src/Stryker.CLI/FileConfigReader.cs` + `FileConfigGenerator.cs` (JSON round-trip)
+- EDIT `src/Stryker.Core/Initialisation/ProjectOrchestrator.cs` (4 inline if-checks + new `LogBreakAfterReached` LoggerMessage)
+- EDIT `src/Stryker.Core/StrykerRunner.cs` (1 short-circuit + extract `ExecutePipelineAsync` helper for MA0051 + new `CompleteEarlyForDiagnostic` + new `LogDiagnosticEarlyExit` LoggerMessage)
+
+**Phase §B (ConfigureAwait alias)** — files:
+- NEW `src/Stryker.Core/Mutants/CsharpNodeOrchestrators/MutatorClassNameAliases.cs` (internal static, alias-table + `TryResolve`)
+- EDIT `src/Stryker.Core/Mutants/CsharpNodeOrchestrators/CommentParser.cs::ParseMutatorList` (consult alias-table before enum-tryparse)
+
+**Phase §A (scoping)** — files:
+- EDIT `src/Stryker.Core/MutationTest/CsharpMutationProcess.cs::Mutate` (file-level scope check + scanned/skipped counters + summary log)
+- EDIT same file (new private `IsFileInMutateScope(CsharpFileLeaf, IStrykerOptions)` helper)
+- EDIT same file (new `LogSkippedOutsideMutateScope` + `LogDisableDirectiveValidationSummary` LoggerMessages)
+
+**Tests** (across phases):
+- ConfigBuilderTests.cs: + Mock setup for `inputs.BreakAfterInput` (Phase §C plumbing)
+- CommentParserTests.cs: 5 new Phase §B tests (`Disable_NextLine_ConfigureAwaitAlias_MapsToBoolean` [Fact] + `Disable_NextLine_ClassNameAliases_MapToBoolean` [Theory] × 4 inlines); 3 existing tests updated to use `NakedReceiver` (a real Stryker class name NOT in the Sprint-166 alias table) for the unrecognised-class-name code-path
+
+### Konsequenzen
+
+- (+) Aisess kann `dotnet stryker-netx --break-after build` für 30-s-Config-Verification statt 9-min-Mutation-Run benutzen
+- (+) `// Stryker disable next-line ConfigureAwait` funktioniert silently statt mit ERR-Log
+- (+) `--mutate "fileA.cs"` schließt fileZ.cs vollständig aus orchestration aus — kein ERR-Log-Spam für Out-of-Scope-Files mehr
+- (+) Single Startup-Summary INF-Log fasst Disable-Directive-Validation in einer Zeile zusammen
+- (+) Komplett backwards-compatible: alle Defaults erhalten existing UX (BreakAfterPhase.None, default `**/*` Mutate-Pattern, alias-table extension nicht subtraction)
+- (+) Tag v3.2.18 (patch) statt v3.3.0 (minor) möglich weil alle Änderungen additive
+- (–) `BreakAfterPhase`-Enum + new `BreakAfter`-Property auf IStrykerOptions/StrykerOptions = neue public API surface, theoretisch SemVer-impact für consumers, die das interface implementieren (intern für stryker-netx)
+- (–) `MutatorClassNameAliases` Tabelle ist hardcoded mit 3 entries — wenn Aisess oder andere users weitere Class-Name-Confusion melden, müssen wir es per-Sprint erweitern. Akzeptabel weil low-volume.
+- (–) Phase §A's File-Level Pre-Filter erkennt keine SPAN-restricted Patterns wie `MyService.cs{1..10}` als "scope-narrowing" — Per-Line-Filterung passiert downstream im FilePatternMutantFilter wie bisher. Per-File-Scope ist Superset. Korrekt aber nicht maximal-aggressiv.
+
+### Supersedes / supplements
+
+- **Closes** Aisess `_bug_reporting/STRYKER_NETX_ANOMALIES_AND_BUGS.md` §7 + §8 (UND Wishlist-Items #4, #6, #7, #9).
+- **Verbleibend offen**: NULL Items aus dem Aisess-Anomalies-Report. ADR-039 → ADR-046 schließen die Aisess-Klasse für v3.2.x VOLLSTÄNDIG (8 ADRs / 8 Sprints / 8 Releases).
+- **Out-of-scope (Future v3.3+)**: per-class-filter-table (ToT Branch C from Phase §B Maxential), echtes Mutator-Enum-Extending (ToT Branch A), startup-aggregated ERR-log-replumbing (S2-only standalone).
+
+**Backed by.** Sprint 166 Maxential-Sessions: "sprint-166-meta-planning" (3 Schritte) + "sprint-166-phase-c-break-after" (10 Schritte, 4 ToT-Branches A/B/C/D, Branch D chosen+merged) + "sprint-166-phase-b-configureawait-alias" (7 Schritte, 3 ToT-Branches A/B/C, Branch B chosen+merged) + "sprint-166-phase-a-scoping" (7 Schritte, 3 ToT-Branches S1/S2/S3, S3 Hybrid chosen+merged). Build solution-wide 0/0, 2104 Tests grün (+5 vs Sprint 165 baseline 2099; Stryker.Core.Tests 455 → 460).
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -3239,6 +3345,7 @@ Plus 2 new helpers: `FindFirst<T>(string body)` + `FindInvocationByName(string b
 | 0.19.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Doc bundle (post-Sprint-152): ADR-033 + ADR-035. **ADR-033** — Combined Multi-Project Report Aggregation discovery: ADR-031's "v3.3+ deferred"-Claim für Multi-Project-Report-Aggregation war FALSCH — Aggregation ist seit Sprint 1 implementiert via `StrykerRunner.AddRootFolderIfMultiProject` + single `OnAllMutantsTested(rootComponent)` call. Calculator-Tester Bug-Report-5-Verifikation hatte bereits "kombinierter Report" mit 375 Mutanten Total bestätigt. Backlog-Item 7 closed by discovery. **ADR-035** — TypeSyntax-Engine Refactor + HotSwap inkrementelles MT status-quo confirmation: beide Items bleiben in ihren existierenden ADR-Status (027 Phase 3 Skip-as-Architecture / 022 Proposed-no-commitment). Backlog-Items 3+4 closed-as-status-quo. Beide ADRs sind doc-only, kein Sprint, kein neuer Tag. |
 | 0.20.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 154 v3.2.8: ADR-034 — **JsonReport full AOT-trim**. Schließt ADR-024 v3.0-scope-deferral (Sprint 17). Source-gen-Kontext erweitert von 2 entry-types (`JsonReport`, `IJsonReport`) auf 9 types — die 6 konkreten Typen hinter den polymorphen Interface-Konvertern (`SourceFile`, `JsonMutant`, `Location`, `Position`, `JsonTestFile`, `JsonTest`) plus 3 concrete-dictionary-types (`Dictionary<string, SourceFile>` etc). `TypeInfoResolver` umgestellt von `Combine(SourceGen, DefaultReflection)` auf nur `JsonReportSerializerContext.Default` — Reflection-Fallback gestrichen. Hybrid-Custom-Konverter-Design unverändert (SYSLIB1220 verbietet sie auf source-gen attribute). Maxential 4-Schritte branchless. 13 JsonReport-related Tests grün post-change (11 Dogfood + 2 E2E), Solution-wide 2047 Tests grün, Semgrep clean. Tag **v3.2.8** — Backlog-Item 1 closed. |
 | 0.21.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 155 v3.2.9: ADR-037 — **RoslynSemanticDiagnostics v2** StatementSyntax-Coverage. Schließt Sprint-16-deferred-Item: Sprint-17 hatte Statement+Declaration-level Replacements als Out-of-Scope dokumentiert ("would need TryGetSpeculativeSemanticModel which is bulkier per call"). Sprint 155 implementiert Statement-Path. Maxential 4-Schritte mit 3-Branch ToT (S1=GetDiagnostics-fails-NotSupported, **S2=descendant-walk via GetSymbolInfo chosen**, S3=Compilation.AddSyntaxTrees rejected). `IsEquivalent` switch-pattern dispatched ExpressionSyntax → bestehender Sprint-17-Path, StatementSyntax → neuer `IsEquivalentStatement` (TryGetSpeculativeSemanticModel + descendant-walk via GetSymbolInfo, MemberBindingExpression-Skip von Sprint 137 wiederverwendet), Declaration → false (out-of-scope, v2.1 parser-only Filter handhabt structural validity). 6 Tests grün (1 alter test umbenannt mit Sprint-155-Verhalten + 1 neuer Declaration-out-of-scope-Test). O(1) per descendant beibehalten. Semgrep clean. Tag **v3.2.9** — Backlog-Item 2 closed. |
+| 0.30.0 | 2026-05-20 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 166 v3.2.18: ADR-046 — **Aisess Wishlist Mega-Sprint — `--break-after` + ConfigureAwait Alias + Disable-Directive Scoping**. User-Direktive: "Strikt nach CLAUDE.md, MAX Maxential+ToT Depth". 3 Phasen mit jeweils eigenem Maxential-Session + ToT-Branches: Phase §C `--break-after analysis|build|initial-test-run|mutation-generation` Diagnostic-Flag (4 ToT-Branches A/B/C/D, **D Hybrid mit `options.BreakAfter != None`-Sentinel chosen**, neue BreakAfterPhase enum + BreakAfterInput + 4 inline-ifs in ProjectOrchestrator + 1 short-circuit in StrykerRunner mit `CompleteEarlyForDiagnostic`-Helper + JSON-config `break-after` Round-Trip). Phase §B ConfigureAwait First-Class Mutator-Kind Alias (3 ToT-Branches A/B/C, **B parser-only alias-table chosen** als 100% backwards-compat, neue `MutatorClassNameAliases.TryResolve` mit 3 entries: ConfigureAwait/AsyncAwait/AsyncAwaitResult → Boolean, integriert in CommentParser.ParseMutatorList BEFORE enum-tryparse-+-Sprint-161-hint-fallback). Phase §A Disable-Directive Scoping + Startup-Summary (3 ToT-Branches S1/S2/S3, **S3 Hybrid chosen**, file-level Pre-Filter via neuer `IsFileInMutateScope(CsharpFileLeaf, IStrykerOptions)`-Helper in CsharpMutationProcess.Mutate spiegelt FilePatternMutantFilter-Glob-Logic OHNE Span-Checks + single Startup-Summary INF-Log "scanned N files in --mutate scope (M skipped)"). 5 neue CommentParserTests (1 Fact + 1 Theory × 4) + 3 bestehende Tests updated von ConfigureAwait → NakedReceiver für unrecognised-class-name code-path. Schließt §7 + §8 + Wishlist-Items #4 + #6 + #7 + #9. **ADR-039 → ADR-046 schließen die Aisess-Klasse für v3.2.x VOLLSTÄNDIG** (8 ADRs / 8 Sprints / 8 Releases). Backwards-compatible (alle Defaults erhalten existing UX), Tag v3.2.18 patch. MA0051 trip auf RunMutationTestAsync → Extract `ExecutePipelineAsync`-Helper. CA1873 false-positive auf `options.BreakAfter.ToString()` in Log → IsEnabled-guard + #pragma. McMaster-Template `\|` als Delimiter → comma-separator in argumentHint (matches `--test-runner vstest,mtp` precedent). ConfigBuilderTests-Mock-Setup für neuen BreakAfterInput. Solution-wide 2104 Tests grün (+5 vs Sprint 165 baseline 2099; Stryker.Core.Tests 455→460). |
 | 0.29.0 | 2026-05-20 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 165 v3.2.17: ADR-045 — **Multi-Line Method-Chain `// Stryker disable next-line` Scope Fix**. Aisess `STRYKER_NETX_ANOMALIES_AND_BUGS.md` §5 + dedizierter Bug-Report (Medium severity): `// Stryker disable next-line` zwischen Continuation-Lines eines Multi-Line Method-Chain (z.B. zwischen `.GetAsync(slug)` und `.ConfigureAwait(false)`) wurde silent ignored, weil Roslyn die Comment-Trivia an `.ConfigureAwait` MAE's OperatorToken `.` attached — NICHT auf existing Scan-Path (GetFirstToken-LeadingTrivia gibt LEFTMOST-deep-Token's Leading-Trivia). Aisess-Team verwendete Verbose-Wrap-Style-Workaround (3 Zeilen Disable-Boilerplate pro Mutation). Maxential 5 Schritte 0 Branches → ADR-045 erweitert `CommentParser.ParseNodeLeadingComments` mit `GetIntraChainOperatorTrivia(SyntaxNode)` Helper: für `InvocationExpressionSyntax` mit MAE/MBE-Expression-Child scan `inv.Expression.OperatorToken.LeadingTrivia` (Critical: lift-to-Invocation-Level propagiert Filter zu ArgList-Sibling containing Mutation-Target), für direkte Chain-Link-Nodes (MAE/CAE/Binary/Assignment/MemberBinding) scan eigene OperatorToken-Leading-Trivia. Return-Type `SyntaxTriviaList` not `IEnumerable<SyntaxTrivia>` per CA1859. Out-of-scope: Line-based directive table architectural rewrite (v3.3+ future), `// disable next-line` above-parent-statement subtree-scope-semantic (unchanged). 7 neue CommentParser-Tests: 5 Primary-Cases (ConfigureAwait+Boolean, ConfigureAwait+all, LINQ-chain, ConditionalAccess, Binary) + 2 Regressions (single-line-no-overapply, statement-boundary-still-works). Update `_docs/disable-comment-syntax.md`: remove "multi-line method-chains" Pitfall. Backwards-compatible. Solution-wide 2099 Tests grün (+7 vs Sprint 164, Stryker.Core.Tests 448→455). Tag **v3.2.17** — §5 closed. ADR-039 → ADR-045 schließen die Aisess `// Stryker disable …`-Klasse für v3.2.x final. |
 | 0.28.0 | 2026-05-20 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 164 v3.2.16: ADR-044 — **`--test-case-filter` CLI-Flag + `--test-filter` Alias**. Aisess `STRYKER_NETX_ANOMALIES_AND_BUGS.md` §4 (Medium): Stryker's initial-test-run discovers ALLE 3 840 Tests inkl. 186 `[Trait("Category", "Integration")]`-Tests die Docker-Testcontainers brauchen → "59 tests are failing" verzerrt Mutation-Baseline. Pre-Impl-Recherche zeigt `TestCaseFilter` ist bereits JSON+VsTest end-to-end plumbed (TestCaseFilterInput + IStrykerOptions + StrykerInputs + VsTestRunner TestRunCriteria + VsTestContextInformation runsettings XML); nur CLI-Registration fehlt — strukturell identisch zu Sprint 22 (mutation-profile CLI-Gap). Maxential 5 Schritte 0 Branches. ADR-044: D1 BEIDE Namen accepted (`--test-case-filter` canonical, JSON-aligned + `--test-filter` Alias matched Aisess §10 wishlist + `dotnet test --filter` Microsoft-Konvention) via Sprint-149 RewriteReportersAlias-Pattern; D2 long-only (Sprint-150 Precedent, short-flag-space congested rund um -t/-tp); D3 Category=Misc (matched `--test-runner`); D4 MTP-Runner-Forwarding honest-deferred (MTP-Runner-Code hat null TestCaseFilter-Referenzen, Aisess nutzt xUnit/VsTest); D5 keine Syntax-Validation (Parity mit `dotnet test --filter`). Implementation: 1 AddCliInput + extrahiert in PrepareTestCaseFilterCliOption-Helper (MA0051-60-Zeilen-Cap-Refactor wie Sprint-148), 1 RewriteTestFilterAlias static helper, 10 neue Tests (4 Rewrite-Theory + 4 Non-Rewrite-Theory + 2 End-to-End-Facts), README CLI-Beispiel-Update. Backwards-compatible. Solution-wide 2092 Tests grün (+10 vs Sprint-163 baseline). Tag **v3.2.16** — §4 closed für xUnit/VsTest-User. |
 | 0.27.0 | 2026-05-20 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 163 v3.2.15: ADR-043 — **Solution-Mode Heartbeat-Diagnostics — Silent-Hang UX-Fix**. Aisess Platform Team `STRYKER_NETX_ANOMALIES_AND_BUGS.md` §2 (HIGH severity): `--solution <path>.slnx` lief 50+ Minuten ohne Log-Output zwischen "Analyzing 1 test project(s)" und "Analysis complete" weil per-project Logs (LogAnalyzingProjectFile, LogAnalyzingProjectCount) auf Debug-Level liegen. Maxential-Session 8 Schritte, 1 Branch (A_HeartbeatLogger evaluated). Neuer `HeartbeatLogger` (sealed IDisposable in `src/Stryker.Utilities/Heartbeat/`) mit Timer + Stopwatch + Interlocked-CAS-Guard + `[LoggerMessage]` source-gen partials. Default-Interval 30s (hardcoded, matched bug-reporter §10-Wishlist-#2). Installiert an 2 Phase-Entry-Points: `InitialisationProcess.GetMutableProjectsInfo` (Project Analysis) + `InitialTestProcess.InitialTestAsync` (Initial Test Run). `LogAnalyzingProjectCount` promoted Debug → Information (one-shot Summary). Branch B (inline phase-tracking) verworfen: tickt nicht während SINGLE-Projekt-Hang. Root-Cause-Investigation der 50-min-Outlier honest-deferred (kein Repro ohne Aisess-Sources). 16 neue HeartbeatLogger-Unit-Tests (Dispose-without-tick / periodic / stops / idempotent / arg-validation × 4 / FormatElapsed-Theory × 6 + Negative + InvariantCulture). CA1873 false-positive auf FormatElapsed in LoggerMessage-Args via #pragma + Begründung. xUnit1030 vs MA0004 file-level-pragma per Sprint-32-Konvention. Backwards-compatible, keine API-Änderungen. Tag **v3.2.15** — §2 closed. |

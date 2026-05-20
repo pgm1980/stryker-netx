@@ -74,6 +74,8 @@ public static class FileConfigGenerator
                 IgnoreMethods = inputs.IgnoredMethodsInput.SuppliedInput is null ? [.. inputs.IgnoredMethodsInput.Default] : [.. inputs.IgnoredMethodsInput.SuppliedInput],
                 ReportFileName = inputs.ReportFileNameInput.SuppliedInput ?? inputs.ReportFileNameInput.Default,
                 BreakOnInitialTestFailure = inputs.BreakOnInitialTestFailureInput.SuppliedInput ?? inputs.BreakOnInitialTestFailureInput.Default,
+                // Sprint 166 (ADR-046 §C, Aisess Wishlist #9): diagnostic --break-after flag.
+                BreakAfter = inputs.BreakAfterInput.SuppliedInput ?? inputs.BreakAfterInput.Default,
                 Concurrency = inputs.ConcurrencyInput.SuppliedInput ?? inputs.ConcurrencyInput.Default
             }
         };
