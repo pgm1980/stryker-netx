@@ -65,6 +65,14 @@ public partial class StrykerCli
         // populate the same ReportersInput.
         args = RewriteReportersAlias(args);
 
+        // Sprint 164 (ADR-044, §4 from Aisess STRYKER_NETX_ANOMALIES_AND_BUGS report):
+        // accept --test-filter as an alias for --test-case-filter. The Aisess team's §10
+        // wishlist explicitly asked for --test-filter (matching dotnet test --filter), but
+        // the existing JSON config key + Input class are test-case-filter (matching
+        // vstest.console.exe --testcasefilter). We rewrite the alias BEFORE McMaster sees
+        // the args, so both spellings populate the same TestCaseFilterInput.
+        args = RewriteTestFilterAlias(args);
+
         // Sprint 148 (Bug #4 from Calculator-Tester Bug-Report 4): short-circuit
         // --version / -V before any other parsing. Print the tool version + exit 0.
         if (TryHandleToolVersionFlag(args, out var earlyExitCode))
@@ -142,6 +150,65 @@ public partial class StrykerCli
         if (arg.StartsWith("--reporters:", StringComparison.Ordinal))
         {
             rewritten = string.Concat("--reporter:", arg.AsSpan("--reporters:".Length));
+            return true;
+        }
+        rewritten = arg;
+        return false;
+    }
+
+    /// <summary>
+    /// Sprint 164 (ADR-044, §4 from Aisess STRYKER_NETX_ANOMALIES_AND_BUGS report):
+    /// rewrites the user-friendly <c>--test-filter</c> alias to the canonical
+    /// <c>--test-case-filter</c> form that the CLI registers and the JSON config
+    /// uses. The Aisess team's §10 wishlist asked for <c>--test-filter</c> (matching
+    /// <c>dotnet test --filter</c>); the existing infrastructure uses
+    /// <c>test-case-filter</c> (matching vstest.console.exe's <c>--testcasefilter</c>).
+    /// Handles three argv shapes:
+    /// <list type="bullet">
+    ///   <item><description><c>--test-filter Category!=Integration</c> → <c>--test-case-filter Category!=Integration</c></description></item>
+    ///   <item><description><c>--test-filter=Category!=Integration</c> → <c>--test-case-filter=Category!=Integration</c></description></item>
+    ///   <item><description><c>--test-filter:Category!=Integration</c> → <c>--test-case-filter:Category!=Integration</c></description></item>
+    /// </list>
+    /// Typo-variants like <c>--test-filterx</c> still fall through to McMaster's
+    /// "Did you mean: test-case-filter" hint — we only rewrite the exact prefix.
+    /// </summary>
+    /// <param name="args">Raw argv as passed to <see cref="RunAsync"/>.</param>
+    /// <returns>The same array reference if no rewrite was needed, or a new array
+    /// with the rewritten entries.</returns>
+    internal static string[] RewriteTestFilterAlias(string[] args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        var anyRewrite = false;
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (TryRewriteTestFilterArg(args[i], out var rewritten))
+            {
+                if (!anyRewrite)
+                {
+                    args = (string[])args.Clone();
+                    anyRewrite = true;
+                }
+                args[i] = rewritten;
+            }
+        }
+        return args;
+    }
+
+    private static bool TryRewriteTestFilterArg(string arg, out string rewritten)
+    {
+        if (string.Equals(arg, "--test-filter", StringComparison.Ordinal))
+        {
+            rewritten = "--test-case-filter";
+            return true;
+        }
+        if (arg.StartsWith("--test-filter=", StringComparison.Ordinal))
+        {
+            rewritten = string.Concat("--test-case-filter=", arg.AsSpan("--test-filter=".Length));
+            return true;
+        }
+        if (arg.StartsWith("--test-filter:", StringComparison.Ordinal))
+        {
+            rewritten = string.Concat("--test-case-filter:", arg.AsSpan("--test-filter:".Length));
             return true;
         }
         rewritten = arg;

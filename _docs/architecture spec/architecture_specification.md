@@ -3051,6 +3051,74 @@ Plus: `LogAnalyzingProjectCount` (InputFileResolver.cs) promoted Debug → Infor
 
 ---
 
+## ADR-044: `--test-case-filter` CLI Flag + `--test-filter` Alias (v3.2.16 / Sprint 164)
+
+**Status.** Accepted — Sprint 164 (v3.2.16, 2026-05-20).
+
+**Kontext.** Aisess Platform Team `STRYKER_NETX_ANOMALIES_AND_BUGS.md` §4 (Medium severity): Stryker's initial-test-run discovers ALLE Tests in der Test-Suite (3 840 = 3 654 Unit + 186 `[Trait("Category", "Integration")]`-Tests), während Aisess's normale `dotnet test --filter "Category!=Integration"` Pipeline nur 3 654 Tests sieht. Die 186 Integration-Tests benötigen Testcontainers-Docker-Stack, der im üblichen Dev/CI-Workflow nicht hochgefahren wird → "59 tests are failing" Warning vergiftet die Mutation-Score-Baseline. Aisess §10 Wishlist-Item #1 fordert explizit:
+
+> `--test-filter <expression>` CLI flag matching `dotnet test --filter` semantics, surfaced as a stryker-config-json key as well
+
+**Pre-Implementation-Recherche-Entdeckung**: `TestCaseFilter` ist **bereits end-to-end plumbed** in der Codebase — alles außer dem CLI-Flag:
+
+- ✅ `TestCaseFilterInput.cs` (Input<string>, Default empty, Validate trim-or-empty)
+- ✅ `IStrykerOptions.TestCaseFilter` Interface-Property
+- ✅ `StrykerOptions.TestCaseFilter` Implementation
+- ✅ `StrykerInputs.TestCaseFilterInput` + Validate-Wiring
+- ✅ JSON-Config: `[JsonPropertyName("test-case-filter")]` in `FileBasedInput`
+- ✅ `FileConfigReader` liest JSON `test-case-filter` → `inputs.TestCaseFilterInput.SuppliedInput`
+- ✅ `FileConfigGenerator` schreibt es zurück
+- ✅ `VsTestRunner.cs:282`: `TestRunCriteria.TestCaseFilter = …Options.TestCaseFilter`
+- ✅ `VsTestContextInformation.cs:294-296`: `<TestCaseFilter>{SecurityElement.Escape(...)}</TestCaseFilter>` in runsettings XML
+- ❌ **CLI-Flag-Registration fehlt** in `CommandLineConfigReader.PrepareCliOptions`
+- ❌ MTP-Runner hat null `TestCaseFilter`-Referenzen
+
+Strukturell identisch zu Sprint 22 (`--mutation-profile` war JSON+Engine plumbed aber nicht CLI). Sprint 164 schließt die CLI-Lücke.
+
+**Entscheidung.** Maxential-Session "sprint-164-adr-044-test-filter-cli" (5 Schritte, 0 Branches): die Sub-Decisions waren orthogonale Naming- und Scope-Choices, keine konkurrierenden Architekturen. Fünf Decision-Dimensionen:
+
+**D1 — Long-Flag-Name = Both names accepted** (Variante C statt A oder B): `--test-case-filter` als Canonical (matched JSON-Key + Input-Class + vstest.console.exe `--testcasefilter`) PLUS `--test-filter` als User-friendly Alias (matched Aisess §10-Wishlist + `dotnet test --filter` Microsoft-Konvention). Beide Namen funktionieren via args-rewrite (Sprint-149-Pattern `RewriteReportersAlias`).
+
+**D2 — Short-Flag = none** (long-only, Sprint-150-Precedent für `--all-projects`): Short-Flag-Space ist congested rund um `-t` (test-runner) + `-tp` (test-project); Filter-Expressions sind lang genug dass Short-Flag wenig Tipparbeit spart.
+
+**D3 — Category = `Misc`** (passend zu `--test-runner`-Precedent): Test-Filter ist Execution-Scope, nicht Build-Scope (`--test-project`) und nicht Mutation-Scope.
+
+**D4 — MTP-Runner-Forwarding HONEST-DEFERRED**: MTP-Runner-Code hat null `TestCaseFilter`-Referenzen. Forwarding-Implementation würde MTP-Wire-Protocol-Investigation + `ITestingPlatformClient.RunTestsAsync` Signatur-Erweiterung + JSON-RPC-Request-Construction-Update + ~5 MTP-Tests erfordern (1-2 Tage zusätzliche Arbeit). Aisess nutzt **xUnit 2.9.3** (classic VsTest-Path), NICHT MTP. Sprint 164 schließt §4 für xUnit/VsTest-User; MTP-Forwarding wartet auf eigenen Sprint mit MTP-Repro.
+
+**D5 — Keine Syntax-Validation**: Filter wird verbatim an VsTest weitergereicht (Parity mit `dotnet test --filter`). VsTest escapt via `SecurityElement.Escape` für runsettings-XML. Malformed Filter melden sich durch existing Adapter-Error-Channels.
+
+**Implementation.**
+
+`src/Stryker.CLI/CommandLineConfig/CommandLineConfigReader.cs`: Neuer `AddCliInput(inputs.TestCaseFilterInput, "test-case-filter", null, argumentHint: "filter-expression", category: InputCategory.Misc)` Call in `PrepareCliOptions`. Aus MA0051-60-Zeilen-Cap-Gründen extrahiert in neue private `PrepareTestCaseFilterCliOption(IStrykerInputs)` Helper-Methode (Pattern wie Sprint-148 `BuildCommandLineApplication`-Extraction).
+
+`src/Stryker.CLI/StrykerCli.cs`: Neue `internal static string[] RewriteTestFilterAlias(string[] args)` + `private static bool TryRewriteTestFilterArg(string arg, out string rewritten)` — exakter Spiegel des Sprint-149 `RewriteReportersAlias` + `TryRewriteReporterArg` Pattern. Aufruf in `RunAsync` direkt nach `RewriteReportersAlias(args)`. Handles drei argv-Shapes: spaced (`--test-filter X`), `=`-separated (`--test-filter=X`), `:`-separated (`--test-filter:X`). False-positive-Guard: `--test-filterx` fällt durch zu McMaster's "Did you mean: test-case-filter".
+
+`tests/Stryker.CLI.Tests/StrykerCLITests.cs`: 10 neue Tests (Pattern wie Sprint-149 reporter-alias-tests):
+- `RewriteTestFilterAlias_RewritesTestFilterToTestCaseFilter` [Theory] × 4 (spaced / `=` / `:` / mixed-with-other-flags)
+- `RewriteTestFilterAlias_LeavesNonAliasUnchanged` [Theory] × 4 (canonical-spaced / canonical-`=` / false-positive-prefix-match `--test-filterx` / empty-args)
+- `ShouldAcceptTestFilterAsAliasForTestCaseFilter` [Fact] — end-to-end pipeline test verifies `--test-filter "Category!=Integration"` populiert `_inputs.TestCaseFilterInput.SuppliedInput`
+- `ShouldAcceptTestCaseFilterCanonicalFlag` [Fact] — end-to-end pipeline test verifies `--test-case-filter "Category=Unit"` populiert `_inputs.TestCaseFilterInput.SuppliedInput`
+
+`README.md`: CLI-Beispiel + Hinweis dass `--test-filter` und `--test-case-filter` beide akzeptiert sind.
+
+**Konsequenzen.**
+
+- (+) Aisess-User können `--test-filter "Category!=Integration"` (oder canonical `--test-case-filter`) übergeben und die 186 Integration-Tests aus dem Initial-Test-Run ausschließen. Mutation-Score-Baseline ist sauber.
+- (+) Backwards-compatible: keine API-Änderungen, keine Verhaltens-Änderungen wenn keiner der Flags supplied. JSON-Config-Key `test-case-filter` unverändert.
+- (+) UX: zwei Namen akzeptiert — User-favorit Aisess-Wishlist-`--test-filter` UND JSON-aligned `--test-case-filter`.
+- (+) Symmetrie mit Sprint-149 `--reporters`/`--reporter` Plural-Alias-Pattern; gleicher Test-Stil.
+- (–) MTP-Runner forwarded Test-Filter NOCH NICHT (honest-deferred): MTP-User sehen keinen Effekt von `--test-filter` bis ein future Sprint MTP-Wire-Protocol-Forwarding implementiert. Aisess-Bug-Report ist xUnit/VsTest → kein blocking issue.
+- (–) Tiny CLI-Surface-Duplikation: zwei Namen für gleichen Effekt. Mitigation: `--help` zeigt nur canonical; Alias dokumentiert in README + ADR.
+
+**Supersedes / supplements.**
+
+- **Closes** Aisess `_bug_reporting/STRYKER_NETX_ANOMALIES_AND_BUGS.md` §4 (Initial-Test-Run-Filter via xUnit/VsTest) und §10 Wishlist-Item #1 (`--test-filter` CLI flag).
+- **Out of scope (honest-deferred)**: §4 für MTP-Runner-User. Wartet auf eigenen Sprint mit MTP-Repro.
+
+**Backed by.** Sprint 164 Maxential-Session "sprint-164-adr-044-test-filter-cli" (5 Schritte, 0 Branches — D1 wurde als 3-Way-Eval direkt im Thought erledigt). 10 neue StrykerCLITests + Build/Test 0/0. Solution-wide: 2092 Tests grün (+10 vs Sprint 163 baseline 2082).
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
@@ -3076,6 +3144,7 @@ Plus: `LogAnalyzingProjectCount` (InputFileResolver.cs) promoted Debug → Infor
 | 0.19.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Doc bundle (post-Sprint-152): ADR-033 + ADR-035. **ADR-033** — Combined Multi-Project Report Aggregation discovery: ADR-031's "v3.3+ deferred"-Claim für Multi-Project-Report-Aggregation war FALSCH — Aggregation ist seit Sprint 1 implementiert via `StrykerRunner.AddRootFolderIfMultiProject` + single `OnAllMutantsTested(rootComponent)` call. Calculator-Tester Bug-Report-5-Verifikation hatte bereits "kombinierter Report" mit 375 Mutanten Total bestätigt. Backlog-Item 7 closed by discovery. **ADR-035** — TypeSyntax-Engine Refactor + HotSwap inkrementelles MT status-quo confirmation: beide Items bleiben in ihren existierenden ADR-Status (027 Phase 3 Skip-as-Architecture / 022 Proposed-no-commitment). Backlog-Items 3+4 closed-as-status-quo. Beide ADRs sind doc-only, kein Sprint, kein neuer Tag. |
 | 0.20.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 154 v3.2.8: ADR-034 — **JsonReport full AOT-trim**. Schließt ADR-024 v3.0-scope-deferral (Sprint 17). Source-gen-Kontext erweitert von 2 entry-types (`JsonReport`, `IJsonReport`) auf 9 types — die 6 konkreten Typen hinter den polymorphen Interface-Konvertern (`SourceFile`, `JsonMutant`, `Location`, `Position`, `JsonTestFile`, `JsonTest`) plus 3 concrete-dictionary-types (`Dictionary<string, SourceFile>` etc). `TypeInfoResolver` umgestellt von `Combine(SourceGen, DefaultReflection)` auf nur `JsonReportSerializerContext.Default` — Reflection-Fallback gestrichen. Hybrid-Custom-Konverter-Design unverändert (SYSLIB1220 verbietet sie auf source-gen attribute). Maxential 4-Schritte branchless. 13 JsonReport-related Tests grün post-change (11 Dogfood + 2 E2E), Solution-wide 2047 Tests grün, Semgrep clean. Tag **v3.2.8** — Backlog-Item 1 closed. |
 | 0.21.0 | 2026-05-06 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 155 v3.2.9: ADR-037 — **RoslynSemanticDiagnostics v2** StatementSyntax-Coverage. Schließt Sprint-16-deferred-Item: Sprint-17 hatte Statement+Declaration-level Replacements als Out-of-Scope dokumentiert ("would need TryGetSpeculativeSemanticModel which is bulkier per call"). Sprint 155 implementiert Statement-Path. Maxential 4-Schritte mit 3-Branch ToT (S1=GetDiagnostics-fails-NotSupported, **S2=descendant-walk via GetSymbolInfo chosen**, S3=Compilation.AddSyntaxTrees rejected). `IsEquivalent` switch-pattern dispatched ExpressionSyntax → bestehender Sprint-17-Path, StatementSyntax → neuer `IsEquivalentStatement` (TryGetSpeculativeSemanticModel + descendant-walk via GetSymbolInfo, MemberBindingExpression-Skip von Sprint 137 wiederverwendet), Declaration → false (out-of-scope, v2.1 parser-only Filter handhabt structural validity). 6 Tests grün (1 alter test umbenannt mit Sprint-155-Verhalten + 1 neuer Declaration-out-of-scope-Test). O(1) per descendant beibehalten. Semgrep clean. Tag **v3.2.9** — Backlog-Item 2 closed. |
+| 0.28.0 | 2026-05-20 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 164 v3.2.16: ADR-044 — **`--test-case-filter` CLI-Flag + `--test-filter` Alias**. Aisess `STRYKER_NETX_ANOMALIES_AND_BUGS.md` §4 (Medium): Stryker's initial-test-run discovers ALLE 3 840 Tests inkl. 186 `[Trait("Category", "Integration")]`-Tests die Docker-Testcontainers brauchen → "59 tests are failing" verzerrt Mutation-Baseline. Pre-Impl-Recherche zeigt `TestCaseFilter` ist bereits JSON+VsTest end-to-end plumbed (TestCaseFilterInput + IStrykerOptions + StrykerInputs + VsTestRunner TestRunCriteria + VsTestContextInformation runsettings XML); nur CLI-Registration fehlt — strukturell identisch zu Sprint 22 (mutation-profile CLI-Gap). Maxential 5 Schritte 0 Branches. ADR-044: D1 BEIDE Namen accepted (`--test-case-filter` canonical, JSON-aligned + `--test-filter` Alias matched Aisess §10 wishlist + `dotnet test --filter` Microsoft-Konvention) via Sprint-149 RewriteReportersAlias-Pattern; D2 long-only (Sprint-150 Precedent, short-flag-space congested rund um -t/-tp); D3 Category=Misc (matched `--test-runner`); D4 MTP-Runner-Forwarding honest-deferred (MTP-Runner-Code hat null TestCaseFilter-Referenzen, Aisess nutzt xUnit/VsTest); D5 keine Syntax-Validation (Parity mit `dotnet test --filter`). Implementation: 1 AddCliInput + extrahiert in PrepareTestCaseFilterCliOption-Helper (MA0051-60-Zeilen-Cap-Refactor wie Sprint-148), 1 RewriteTestFilterAlias static helper, 10 neue Tests (4 Rewrite-Theory + 4 Non-Rewrite-Theory + 2 End-to-End-Facts), README CLI-Beispiel-Update. Backwards-compatible. Solution-wide 2092 Tests grün (+10 vs Sprint-163 baseline). Tag **v3.2.16** — §4 closed für xUnit/VsTest-User. |
 | 0.27.0 | 2026-05-20 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 163 v3.2.15: ADR-043 — **Solution-Mode Heartbeat-Diagnostics — Silent-Hang UX-Fix**. Aisess Platform Team `STRYKER_NETX_ANOMALIES_AND_BUGS.md` §2 (HIGH severity): `--solution <path>.slnx` lief 50+ Minuten ohne Log-Output zwischen "Analyzing 1 test project(s)" und "Analysis complete" weil per-project Logs (LogAnalyzingProjectFile, LogAnalyzingProjectCount) auf Debug-Level liegen. Maxential-Session 8 Schritte, 1 Branch (A_HeartbeatLogger evaluated). Neuer `HeartbeatLogger` (sealed IDisposable in `src/Stryker.Utilities/Heartbeat/`) mit Timer + Stopwatch + Interlocked-CAS-Guard + `[LoggerMessage]` source-gen partials. Default-Interval 30s (hardcoded, matched bug-reporter §10-Wishlist-#2). Installiert an 2 Phase-Entry-Points: `InitialisationProcess.GetMutableProjectsInfo` (Project Analysis) + `InitialTestProcess.InitialTestAsync` (Initial Test Run). `LogAnalyzingProjectCount` promoted Debug → Information (one-shot Summary). Branch B (inline phase-tracking) verworfen: tickt nicht während SINGLE-Projekt-Hang. Root-Cause-Investigation der 50-min-Outlier honest-deferred (kein Repro ohne Aisess-Sources). 16 neue HeartbeatLogger-Unit-Tests (Dispose-without-tick / periodic / stops / idempotent / arg-validation × 4 / FormatElapsed-Theory × 6 + Negative + InvariantCulture). CA1873 false-positive auf FormatElapsed in LoggerMessage-Args via #pragma + Begründung. xUnit1030 vs MA0004 file-level-pragma per Sprint-32-Konvention. Backwards-compatible, keine API-Änderungen. Tag **v3.2.15** — §2 closed. |
 | 0.26.0 | 2026-05-19 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 162 v3.2.14: ADR-042 — **Aisess Anomalies Quick-Wins §6 (`all,Boolean` Parser-Regression) + §3 (Short-Name `--project` Resolver)**. Retroactive ADR-Entry (in Sprint 162 nicht zum Spec hinzugefügt). §6 closure: ADR-040's `string.Equals(rawMutators, "all")` whole-string-Vergleich missed comma-list-Inputs wie `all,Boolean` → silent ERR-log "Unknown mutator kind 'all'" trotz user-intended All-Disable. Fix: `labels.Any(l => string.Equals(l, "all", OrdinalIgnoreCase))` Short-Circuit auf ALLEN comma-separated tokens. Plus MA0051-60-Zeilen-Cap-Refactor via Extraktion von `ParseMutatorList` aus `ParseStrykerComment`. §3 closure: `ResolveMultiReferenceCase` akzeptiert jetzt short-name `--project Aisess.Application` via Sprint-159 `MatchesFilter`-Helper (filename-with-or-without-csproj-extension, case-insensitive). Bei 1 Match → success. Bei >1 → improved disambiguation-error ("Project filter 'X' is ambiguous — multiple references match"). Plus 4 neue CommentParser-Tests + Bug-Report-Intake-Files. Tag **v3.2.14** — Aisess-Anomalies-Report §3 + §6 closed. |
 | 0.25.0 | 2026-05-08 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 161 v3.2.13: ADR-041 — **Aisess-Validation-Followup — Hint-URL + Cleartext-Header + Disable-Comment-Doc-Updates**. Aisess Platform Team Hardening-Sprint-2.5 (24 Mutation-Runs) validierte v3.2.12: 3/4 v3.2.11-Anomalien funktional fixed (A diagnostics improved, B fully fixed, D was misreading), 1 unchanged (C cleartext column-header layout), 1 new informational (G ADR-025 auto-mutation-level INFO-log), 3 OFFENE Issues identifiziert. Sprint 161 schließt diese 3 Issues + Lesson #7. Maxential 4 Schritte 0 Branches → ADR-041 mit 3 orthogonalen backwards-compatible Sub-Fixes: D-Hint.3 Hybrid (CommentParser.cs Hint von project-local path → public URL https://github.com/pgm1980/stryker-netx/blob/main/_docs/disable-comment-syntax.md + 2 inline class-to-kind mappings ConfigureAwait→Boolean, AsyncAwait→Boolean — fixt mein Sprint-160-Fehler), D-Reporter.1 mit Legend (ClearTextReporter compact one-letter Spalten-Labels `% K T S NoCov Err` + 1-line Legend unter Table für first-time-readers, no-wrap auf narrow terminals), D-Doc.1 single "Pitfalls & Subtleties" Section in `_docs/disable-comment-syntax.md` (next-line covers ONE statement / cross-scope file-scan / ADR-025 auto-mutation-level). 1 neuer CommentParser-Test (HintIncludesPublicUrl) + ClearTextReporterTests-Header-Assertions updated. Aisess-Validation-Archive committed (`_bug_reporting/stryker_netx_3.2.12_validation.md` + `hardening_sprint_2.5_backlog.md`). Pure UX/doc work + 1 Hint-Bug-Fix — keine API-Änderungen. Tag **v3.2.13**. ADR-039 + ADR-040 + ADR-041 zusammen schließen die Aisess-Bug-Klasse für v3.2.x final. |

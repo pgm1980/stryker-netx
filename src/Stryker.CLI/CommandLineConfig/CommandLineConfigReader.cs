@@ -261,7 +261,30 @@ public class CommandLineConfigReader
         AddCliInput(inputs.BreakOnInitialTestFailureInput, "break-on-initial-test-failure", null, optionType: CommandOptionType.NoValue, category: InputCategory.Misc);
         AddCliInput(inputs.DiagModeInput, "diag", null, optionType: CommandOptionType.NoValue, category: InputCategory.Misc);
         AddCliInput(inputs.TestRunnerInput, "test-runner", "t", argumentHint: "vstest,mtp", category: InputCategory.Misc);
+        // Sprint 164 (ADR-044, §4 Aisess): see PrepareTestCaseFilterCliOption for rationale.
+        PrepareTestCaseFilterCliOption(inputs);
     }
+
+    /// <summary>
+    /// Sprint 164 (ADR-044, §4 from Aisess STRYKER_NETX_ANOMALIES_AND_BUGS report):
+    /// expose <c>--test-case-filter</c> as a CLI flag. The underlying
+    /// <see cref="TestCaseFilterInput"/> is already plumbed end-to-end through JSON
+    /// config (<c>FileBasedInput</c>'s <c>[JsonPropertyName("test-case-filter")]</c>)
+    /// and the VsTest runner (<c>TestRunCriteria.TestCaseFilter</c> +
+    /// <c>&lt;TestCaseFilter&gt;</c> runsettings XML); this method closes the CLI gap.
+    /// The <c>--test-filter</c> alias (matching <c>dotnet test --filter</c> and the
+    /// Aisess team's §10 wishlist wording) is handled via args-rewrite in
+    /// <c>StrykerCli.RewriteTestFilterAlias</c> — same Sprint-149
+    /// <c>RewriteReportersAlias</c> pattern. Long-only: the short-flag space around
+    /// <c>-t</c>/<c>-tp</c> is congested, and filter expressions are long enough that
+    /// a short-flag saves negligible typing.
+    /// </summary>
+    /// <remarks>Extracted from <see cref="PrepareCliOptions"/> to keep the registration
+    /// method under MA0051's 60-line cap (same refactor pattern as Sprint 148's
+    /// <c>BuildCommandLineApplication</c> extraction).</remarks>
+    private void PrepareTestCaseFilterCliOption(IStrykerInputs inputs) =>
+        AddCliInput(inputs.TestCaseFilterInput, "test-case-filter", null,
+            argumentHint: "filter-expression", category: InputCategory.Misc);
 
     private static void RegisterCliInput(CommandLineApplication app, CliInput option)
     {
