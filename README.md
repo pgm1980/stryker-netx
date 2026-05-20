@@ -110,6 +110,29 @@ Or in `stryker-config.json`:
 }
 ```
 
+## Excluding tests from the run (`--test-filter`)
+
+Mixed unit + integration test suites can pass a `dotnet test --filter`-style expression to exclude container-gated or otherwise slow tests from both the initial test run and per-mutation runs:
+
+```bash
+# Both names accepted — the canonical flag matches the JSON config key,
+# the alias matches `dotnet test --filter` and the wider ecosystem.
+dotnet stryker-netx --test-filter      "Category!=Integration"
+dotnet stryker-netx --test-case-filter "Category!=Integration"
+```
+
+Or in `stryker-config.json`:
+
+```json
+{
+  "stryker-config": {
+    "test-case-filter": "Category!=Integration"
+  }
+}
+```
+
+The expression is forwarded verbatim to the underlying VsTest test host (via `TestRunCriteria.TestCaseFilter` and the `<TestCaseFilter>` runsettings element). Syntax matches [Microsoft's selective-unit-tests guide](https://learn.microsoft.com/dotnet/core/testing/selective-unit-tests) — `Category=Unit`, `Priority!=High`, `FullyQualifiedName~Namespace.Sub`, `&`/`|` boolean combinators. Currently supported on the VsTest runner only; MTP-runner forwarding is on the v3.3 roadmap (see ADR-044).
+
 ## Operator catalogue (v2.4.0)
 
 | Family | v1.x mutators (Defaults) | Stronger additions | All-only additions |

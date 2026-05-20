@@ -251,6 +251,81 @@ public class StrykerCLITests
             "--reporters (plural) is the historical / external-doc spelling and Sprint 149 makes it equivalent to --reporter (singular)");
     }
 
+    // ----- Sprint 164 (ADR-044, §4 from Aisess STRYKER_NETX_ANOMALIES_AND_BUGS report) — --test-filter alias rewrite -----
+    // Static-readonly fields (CA1861) for the array-literals used in the TheoryData below.
+    private static readonly string[] s_testFilterCatIn = ["--test-filter", "Category!=Integration"];
+    private static readonly string[] s_testCaseFilterCatOut = ["--test-case-filter", "Category!=Integration"];
+    private static readonly string[] s_testFilterCatEqIn = ["--test-filter=Category!=Integration"];
+    private static readonly string[] s_testCaseFilterCatEqOut = ["--test-case-filter=Category!=Integration"];
+    private static readonly string[] s_testFilterCatColonIn = ["--test-filter:Category!=Integration"];
+    private static readonly string[] s_testCaseFilterCatColonOut = ["--test-case-filter:Category!=Integration"];
+    private static readonly string[] s_testFilterMixedIn = ["--project", "X.csproj", "--test-filter=Priority=High"];
+    private static readonly string[] s_testFilterMixedOut = ["--project", "X.csproj", "--test-case-filter=Priority=High"];
+    private static readonly string[] s_testCaseFilterCanonicalSpaced = ["--test-case-filter", "Category!=Integration"];
+    private static readonly string[] s_testCaseFilterCanonicalEq = ["--test-case-filter=Category!=Integration"];
+    private static readonly string[] s_testFilterFalsePositive = ["--test-filterx"];
+
+    public static TheoryData<string[], string[]> RewriteTestFilterData() => new()
+    {
+        { s_testFilterCatIn,        s_testCaseFilterCatOut },
+        { s_testFilterCatEqIn,      s_testCaseFilterCatEqOut },
+        { s_testFilterCatColonIn,   s_testCaseFilterCatColonOut },
+        { s_testFilterMixedIn,      s_testFilterMixedOut },
+    };
+
+    [Theory]
+    [MemberData(nameof(RewriteTestFilterData))]
+    public void RewriteTestFilterAlias_RewritesTestFilterToTestCaseFilter(string[] input, string[] expected)
+    {
+        var actual = StrykerCli.RewriteTestFilterAlias(input);
+        actual.Should().Equal(expected, "the --test-filter alias must be rewritten to --test-case-filter before McMaster sees it");
+    }
+
+#pragma warning disable IDE0028 // TheoryData<T> single-arg collection-init: the {item} brace-list IS the simplification IDE0028 wants, but the analyzer can't tell with the "params"-shaped TheoryData<T>. Suppression is local to this declaration.
+    public static TheoryData<string[]> NonTestFilterArgsData() => new()
+    {
+        s_testCaseFilterCanonicalSpaced,
+        s_testCaseFilterCanonicalEq,
+        s_testFilterFalsePositive,
+        s_emptyArgs,
+    };
+#pragma warning restore IDE0028
+
+    [Theory]
+    [MemberData(nameof(NonTestFilterArgsData))]
+    public void RewriteTestFilterAlias_LeavesNonAliasUnchanged(string[] input)
+    {
+        var actual = StrykerCli.RewriteTestFilterAlias(input);
+        actual.Should().Equal(input, "non-alias args (canonical form, false-positive prefix-match, empty) must pass through unchanged");
+    }
+
+    [Fact]
+    public async Task ShouldAcceptTestFilterAsAliasForTestCaseFilter()
+    {
+        // --test-filter "Category!=Integration" should populate TestCaseFilterInput identically
+        // to --test-case-filter "Category!=Integration". We exercise the full pipeline so the
+        // rewrite happens BEFORE McMaster, and the rewritten flag flows through CommandLineConfigReader
+        // into inputs.TestCaseFilterInput.SuppliedInput.
+        await _target.RunAsync(["--test-filter", "Category!=Integration"]);
+
+        _strykerRunnerMock.VerifyAll();
+        _inputs.TestCaseFilterInput.SuppliedInput.Should().Be("Category!=Integration",
+            "--test-filter is the Aisess §10-wishlist + dotnet-test-aligned spelling and Sprint 164 makes it equivalent to the canonical --test-case-filter");
+    }
+
+    [Fact]
+    public async Task ShouldAcceptTestCaseFilterCanonicalFlag()
+    {
+        // The canonical --test-case-filter flag must also populate TestCaseFilterInput
+        // (Sprint 164 closes the CLI registration gap; the JSON config and VsTest runner
+        // were already wired in earlier sprints).
+        await _target.RunAsync(["--test-case-filter", "Category=Unit"]);
+
+        _strykerRunnerMock.VerifyAll();
+        _inputs.TestCaseFilterInput.SuppliedInput.Should().Be("Category=Unit",
+            "the canonical --test-case-filter must directly populate TestCaseFilterInput.SuppliedInput");
+    }
+
     [Fact]
     public async Task OnAlreadyNewestVersion_ShouldCallNugetClientForPreview()
     {
