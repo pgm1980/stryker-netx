@@ -3,13 +3,13 @@ current_sprint: "167"
 sprint_goal: "Hotfix Sprint-166 regression: --mutate scope filter crashed CSharpCompilation.Create with ArgumentNullException(trees[N]) because skipped files left CsharpFileLeaf.MutatedSyntaxTree at its null! default. Seed unmutated original tree on out-of-scope files so compilation pipeline stays whole. Drive-by Extract-Method to satisfy MA0051. Single-file fix + regression test in Stryker.Core.Dogfood.Tests. Target tag v3.2.19 (patch — no API change, backwards-compat)."
 branch: "fix/167-mutate-out-of-scope-null-tree"
 started_at: "2026-05-24"
-housekeeping_done: false
-memory_updated: false
-github_issues_closed: false
-sprint_backlog_written: false
+housekeeping_done: true
+memory_updated: true
+github_issues_closed: true
+sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
-documentation_updated: false
+documentation_updated: true
 ---
 # Session State — Sprint 167 (v3.2.19 prep)
 
@@ -67,11 +67,11 @@ Post-fix: 111 ms green.
 ## Status
 
 - [x] Fix committed (`79b2cf1`) on `fix/167-mutate-out-of-scope-null-tree`
-- [x] PR #259 opened: https://github.com/pgm1980/stryker-netx/pull/259
-- [ ] PR merged + branch deleted
-- [ ] Tag v3.2.19 on squash-merge commit + GitHub release + NuGet publish
-- [ ] MEMORY.md `project_sprint167_closed.md` entry + index update
-- [ ] `housekeeping_done: true` after all above
+- [x] PR #259 opened, reviewed, squash-merged → main commit `7e9ea18`, branch deleted
+- [x] Tag `v3.2.19` (annotated) on merge commit, pushed
+- [x] release.yml fired automatically: NuGet pushed (`Created` HTTP 201, 2.7s), GitHub Release published with `dotnet-stryker-netx.3.2.19.nupkg` asset
+- [x] MEMORY.md index entry + `project_sprint167_closed.md` (with 5 lessons)
+- [x] `housekeeping_done: true`
 
 ## Backwards-compatibility
 
