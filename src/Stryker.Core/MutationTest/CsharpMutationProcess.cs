@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
@@ -41,12 +42,30 @@ public partial class CsharpMutationProcess : IMutationProcess
         var compilingProcess = new CsharpCompilingProcess(input, options: _options);
         var semanticModels = compilingProcess.GetSemanticModels(projectInfo.GetAllFiles().Cast<CsharpFileLeaf>().Select(x => x.SyntaxTree));
 
-        // Sprint 166 Phase A (ADR-046 §A, Aisess §8 + Wishlist #4): file-level
-        // --mutate scope filter. Counter for the Wishlist #7 startup-summary log.
+        OrchestratePerFileMutations(projectInfo, orchestrator, semanticModels);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            var count = projectInfo.Mutants.Count();
+            LogMutantsCount(_logger, count);
+        }
+
+        CompileMutations(input, compilingProcess);
+    }
+
+    /// <summary>
+    /// Sprint 167 (v3.2.19): extracted from <see cref="Mutate"/> to satisfy MA0051 (60-line cap)
+    /// after Sprint 166 Phase A added the --mutate scope filter and Wishlist #7 summary log.
+    /// Owns the per-file orchestration loop and the startup-summary emission.
+    /// </summary>
+    private void OrchestratePerFileMutations(
+        IReadOnlyProjectComponent projectInfo,
+        CsharpMutantOrchestrator orchestrator,
+        IEnumerable<SemanticModel> semanticModels)
+    {
         var scannedFiles = 0;
         var skippedFiles = 0;
 
-        // Mutate source files
         foreach (var file in projectInfo.GetAllFiles().Cast<CsharpFileLeaf>())
         {
             // Sprint 166 Phase A: skip files outside the --mutate scope entirely.
@@ -57,39 +76,31 @@ public partial class CsharpMutationProcess : IMutationProcess
             {
                 LogSkippedOutsideMutateScope(_logger, file.FullPath);
                 file.Mutants = [];
+                // Sprint 167 (v3.2.19) bugfix: seed MutatedSyntaxTree with the unmutated original.
+                // CompilationSyntaxTrees returns [MutatedSyntaxTree] per leaf, and a null entry
+                // crashes Roslyn's CSharpCompilation.Create with ArgumentNullException(trees[N]).
+                // The compilation still needs the original source (partial-class siblings, cross-file
+                // type references); only mutation orchestration is skipped.
+                file.MutatedSyntaxTree = file.SyntaxTree;
                 skippedFiles++;
                 continue;
             }
             scannedFiles++;
             LogMutating(_logger, file.FullPath);
-            // Mutate the syntax tree
             var mutatedSyntaxTree = orchestrator.Mutate(file.SyntaxTree, semanticModels.First(x => x.SyntaxTree == file.SyntaxTree));
-            // Add the mutated syntax tree for compilation
             file.MutatedSyntaxTree = mutatedSyntaxTree;
             if (_options.DiagMode && _logger.IsEnabled(LogLevel.Trace))
             {
                 var text = mutatedSyntaxTree.GetText();
                 LogMutatedTree(_logger, file.FullPath, Environment.NewLine, text);
             }
-            // Filter the mutants
             file.Mutants = orchestrator.GetLatestMutantBatch();
         }
 
-        // Sprint 166 Phase A (ADR-046 §A, Wishlist #7): single startup-summary
-        // INF-log after the per-file walk. Lets the user see scope + skip count
-        // at-a-glance without grepping through per-file LogMutating debug-log.
         if (_logger.IsEnabled(LogLevel.Information))
         {
             LogDisableDirectiveValidationSummary(_logger, scannedFiles, skippedFiles);
         }
-
-        if (_logger.IsEnabled(LogLevel.Debug))
-        {
-            var count = projectInfo.Mutants.Count();
-            LogMutantsCount(_logger, count);
-        }
-
-        CompileMutations(input, compilingProcess);
     }
 
     private void CompileMutations(MutationTestInput input, CsharpCompilingProcess compilingProcess)

@@ -4,7 +4,26 @@
 > **Reporter project**: Aisess Platform (multi-tenant maturity-assessment platform, ~3 600 backend tests, 4-layer DDD-Onion + `.slnx` solution)
 > **Reporter**: pgm1980 / Aisess team — for forwarding to stryker-netx maintainers
 > **Compiled**: 2026-05-19 (covers field-observations across Aisess sprints v1.0.1 → v1.45.0; tool versions 3.2.10 → 3.2.13)
+> **Validated against 3.2.17**: 2026-05-20 (Sprint v1.60.5) — see [`_docs/hardening sprint/stryker_netx_3.2.17_validation.md`](_docs/hardening%20sprint/stryker_netx_3.2.17_validation.md)
 > **Format**: Each item is structured as **Symptom → Reproducer → Environment → Workaround → Severity → Status**.
+
+## 🎯 3.2.17 Validation Summary (Sprint v1.60.5, 2026-05-20)
+
+| # | Anomaly | Pre-3.2.17 | 3.2.17 |
+|:-:|---|---|:---:|
+| §1 | `.slnx` 0 mutable projects | Resolved 3.2.11 | ✅ Stable |
+| §2 | `--solution` silent hang | Open | 🎯 **RESOLVED** (Heartbeat-Log eingeführt) |
+| §3 | `--project <short-name>` rejected | Open UX | ⚙️ **PARTIAL** (besseres Error-Messaging via WRN) |
+| §4 | Initial test-run Category-Filter | Open | 🎯 **RESOLVED** (neuer `--test-case-filter` Flag) |
+| §5 | `disable next-line` multi-line chain | Open | 🔄 **DEFERRED v1.60.6+** (focused mutation-run needed) |
+| §6 | `next-line all,Boolean` Error-Log | Open DX | 🎯 **RESOLVED** (kein ERR-Log mehr) |
+| §7 | `ConfigureAwait` als Kind nicht erkannt | Open DX/Docs | 🎯 **RESOLVED** (kein ERR-Log mehr) |
+| §8 | Cross-file disable-comment Errors | Open DX/Perf | 🎯 **RESOLVED** (kein ERR-Log mehr) |
+| §9 | Per-line bei Object-Initializern | Partially resolved 3.2.12 | ✅ Stable |
+
+**Major Wins in 3.2.17:** Heartbeat-Log (Wishlist §10.5) ✅ · `--test-case-filter` (Wishlist §10.1) ✅ · `--diag` Diagnostic-Mode (Wishlist §10.9) ✅ · Project-Filter WRN-Log (§3 Partial) ✅ · Robuste Disable-Directive-Parsing (§6/§7/§8 transitive Fix) ✅
+
+**Volldetail siehe** [`_docs/hardening sprint/stryker_netx_3.2.17_validation.md`](_docs/hardening%20sprint/stryker_netx_3.2.17_validation.md).
 
 ## Table of contents
 

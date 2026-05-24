@@ -122,6 +122,85 @@ public class CSharpMutationTestProcessTests : TestBase
         fileSystem.FileExists(expectedPath).Should().BeTrue($"production CompileMutations should have written {expectedPath}");
     }
 
+    [Fact]
+    public void Mutate_ShouldNotCrash_WhenMutateScopeExcludesSomeFiles()
+    {
+        // Sprint 167 (v3.2.19) regression guard for the Sprint 166 commit 82622e3 issue: a narrow
+        // --mutate filter that skipped any file left its leaf without a mutated tree, and the
+        // compilation pipeline then dereferenced a null entry. The fix seeds the original tree on
+        // skipped leaves so the unmutated source still participates (needed for partial-class
+        // siblings and cross-file type references); only mutation orchestration is skipped.
+        var (input, fileSystem, testAssemblyDir) = BuildTwoFileMutationInput();
+        var options = new StrykerOptions { Mutate = [Stryker.Configuration.FilePattern.Parse("**/Sample.cs")] };
+        var target = new CsharpMutationProcess(fileSystem, TestLoggerFactory.CreateLogger<CsharpMutationProcess>());
+
+        var act = () => target.Mutate(input, options);
+
+        act.Should().NotThrow("the out-of-scope file's original syntax tree must remain in the compilation");
+        var expectedPath = Path.Combine(testAssemblyDir, "ProjectUnderTest.dll");
+        fileSystem.FileExists(expectedPath).Should().BeTrue("compilation must still succeed and write the assembly when --mutate narrows scope");
+    }
+
+    private (MutationTestInput input, MockFileSystem fileSystem, string testAssemblyDir) BuildTwoFileMutationInput()
+    {
+        var inScopeSource = "public class Sample { public int Add(int a, int b) => a + b; }";
+        var outOfScopeSource = "public class Helper { public int Sub(int a, int b) => a - b; }";
+
+        var folder = new CsharpFolderComposite();
+        folder.Add(new CsharpFileLeaf
+        {
+            SourceCode = inScopeSource,
+            SyntaxTree = CSharpSyntaxTree.ParseText(inScopeSource),
+            FullPath = Path.Combine(FilesystemRoot, "Sample.cs"),
+            RelativePath = "Sample.cs",
+        });
+        folder.Add(new CsharpFileLeaf
+        {
+            SourceCode = outOfScopeSource,
+            SyntaxTree = CSharpSyntaxTree.ParseText(outOfScopeSource),
+            FullPath = Path.Combine(FilesystemRoot, "Helper.cs"),
+            RelativePath = "Helper.cs",
+        });
+
+        var fileSystem = new MockFileSystem();
+        var testAssemblyDir = Path.Combine(FilesystemRoot, "TestProject", "bin", "Debug", "net10.0");
+        fileSystem.AddDirectory(testAssemblyDir);
+
+        var input = new MutationTestInput
+        {
+            SourceProjectInfo = new SourceProjectInfo
+            {
+                Analysis = TestHelper.SetupProjectAnalyzerResult(
+                    projectFilePath: Path.Combine(FilesystemRoot, "ProjectUnderTest", "ProjectUnderTest.csproj"),
+                    properties: new Dictionary<string, string>(System.StringComparer.Ordinal)
+                    {
+                        ["TargetDir"] = Path.Combine(FilesystemRoot, "ProjectUnderTest", "bin", "Debug", "net10.0"),
+                        ["TargetFileName"] = "ProjectUnderTest.dll",
+                        ["AssemblyName"] = "ProjectUnderTest",
+                        ["Language"] = "C#",
+                    },
+                    references: [typeof(object).Assembly.Location, typeof(System.Linq.Enumerable).Assembly.Location]).Object,
+                ProjectContents = folder,
+                TestProjectsInfo = new TestProjectsInfo(fileSystem)
+                {
+                    TestProjects = new List<TestProject>
+                    {
+                        new(fileSystem, TestHelper.SetupProjectAnalyzerResult(
+                            properties: new Dictionary<string, string>(System.StringComparer.Ordinal)
+                            {
+                                ["TargetDir"] = testAssemblyDir,
+                                ["TargetFileName"] = "TestProject.dll",
+                                ["Language"] = "C#",
+                            },
+                            references: [typeof(object).Assembly.Location]).Object),
+                    },
+                },
+            },
+        };
+
+        return (input, fileSystem, testAssemblyDir);
+    }
+
 #pragma warning disable S1144, IDE0051 // Sprint 122 unused-private-method retained for documentation; superseded by Sprint 131 inline integration test
     private (MutationTestInput input, MockFileSystem fileSystem) BuildMutationTestInput()
     {

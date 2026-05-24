@@ -1,81 +1,89 @@
 ---
-current_sprint: "166"
-sprint_goal: "Mega-sprint closing ALL remaining Aisess Wishlist items (§7 + §8 + Wishlist #4 + #6 + #7 + #9) in one PR. 3 phases: §A disable-directive scoping + §B ConfigureAwait alias + §C --break-after diagnostic flag. Single ADR-046 with 3 sections. Max Maxential+ToT depth per user mandate. Target tag v3.2.18 (backwards-compat additions only)."
-branch: "feature/166-wishlist-mega-sprint"
-started_at: "2026-05-20"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
-sprint_backlog_written: true
+current_sprint: "167"
+sprint_goal: "Hotfix Sprint-166 regression: --mutate scope filter crashed CSharpCompilation.Create with ArgumentNullException(trees[N]) because skipped files left CsharpFileLeaf.MutatedSyntaxTree at its null! default. Seed unmutated original tree on out-of-scope files so compilation pipeline stays whole. Drive-by Extract-Method to satisfy MA0051. Single-file fix + regression test in Stryker.Core.Dogfood.Tests. Target tag v3.2.19 (patch — no API change, backwards-compat)."
+branch: "fix/167-mutate-out-of-scope-null-tree"
+started_at: "2026-05-24"
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
+sprint_backlog_written: false
 semgrep_passed: true
 tests_passed: true
-documentation_updated: true
+documentation_updated: false
 ---
-# Session State — Sprint 166 closed (v3.2.18 prep)
+# Session State — Sprint 167 (v3.2.19 prep)
 
-## Final summary
+## Trigger
 
-ADR-046 — Aisess Wishlist Mega-Sprint with 3 phases, each with its own Maxential + ToT analysis:
+Bug report from `filesystem-mcp-server` project (Sprint 51, 2026-05-24) filed at
+`_bug_reporting/stryker-netx-3.2.18-mutate-filter-trees-null.md`. Symptom:
+`dotnet stryker-netx --mutate "**/Some/File.cs"` crashes immediately after
+"Disable-directive validation: scanned N files in --mutate scope (M skipped)"
+with `System.ArgumentNullException: trees[N]` from Roslyn's
+`CSharpCompilation.AddSyntaxTrees`. Whole-project scans (no `--mutate`) succeed.
 
-| Phase | Wishlist | ToT decision | Status |
-|-------|----------|--------------|--------|
-| Meta | Cross-phase planning (single ADR, phase-order C→B→A, single PR/tag) | — | ✓ |
-| §C | Wishlist #9 — `--break-after` diagnostic flag | 4 branches (A inline/B exception/C runner-only/D Hybrid) → **D won 0.9** | ✓ |
-| §B | §7 + Wishlist #6 — ConfigureAwait alias | 3 branches (A extend-enum/B parser-only/C class-filter-table) → **B won 0.7** | ✓ |
-| §A | §8 + Wishlist #4 + #7 — disable-directive scoping + startup-summary | 3 branches (S1 skip-orchestration/S2 aggregate-errors/S3 Hybrid) → **S3 won 0.9** | ✓ |
-| — | Cross-phase tests + build + Semgrep | — | ✓ |
-| — | ADR-046 (3-section) + Änderungshistorie + README diagnostic-runs + disable-comment-syntax.md alias-table | — | ✓ |
-| — | .sprint/state.md + MEMORY.md + project_sprint166_closed.md | — | ✓ |
-| — | PR + Merge + Tag v3.2.18 + GitHub Release + NuGet | — | ⏳ pending |
+## Root cause
 
-## Aisess customer impact (after v3.2.18 ships)
+Sprint 166 commit `82622e3` (ADR-046 §A) introduced `IsFileInMutateScope` skip
+branch in `CsharpMutationProcess.Mutate`. The branch cleared `file.Mutants = []`
+but never set `file.MutatedSyntaxTree`. Default is `null!`. Downstream:
+`CsharpFileLeaf.CompilationSyntaxTrees => [MutatedSyntaxTree]` propagated the
+null entries into `CSharpCompilation.Create`, which threw on the first null.
 
-```bash
-# PRE v3.2.18 — § 8 spurious ERR-logs for out-of-scope files:
-$ dotnet stryker-netx --project Aisess.Application --mutate "src/Aisess.Application/Tenancy/PurgeApprovalUIService.cs"
-[INF] Mutating src/Aisess.Application/Pulse/ManifestService.cs
-[ERR] ConfigureAwait not recognized as a mutator at ... (in a file NOT in --mutate!)
-[INF] Mutating src/Aisess.Application/Tenancy/PurgeApprovalUIService.cs
-... (50+ ERR-logs from out-of-scope files)
+The bug report hypothesised partial-class-specificity (LoggerMessage source
+generators in Aisess Infrastructure project). Verified incorrect: triggers for
+any --mutate that excludes ≥1 file. Partial-class projects just amplify
+visibility because skipped sibling halves leave types incomplete in IL.
 
-# POST v3.2.18 — file-level scoping + ConfigureAwait alias + single summary log:
-$ dotnet stryker-netx --project Aisess.Application --mutate "src/Aisess.Application/Tenancy/PurgeApprovalUIService.cs"
-[INF] Mutating src/Aisess.Application/Tenancy/PurgeApprovalUIService.cs
-[INF] Disable-directive validation: scanned 1 files in --mutate scope (23 skipped).
+## Fix (1-line semantic + Extract-Method drive-by)
 
-# PRE v3.2.18 — § 7 ConfigureAwait class-name still produced hint ERR:
-# Stryker disable next-line ConfigureAwait : equivalent
-   → [ERR] ConfigureAwait not recognized as a mutator at ...
-
-# POST v3.2.18 — ConfigureAwait silently resolves to Boolean:
-# Stryker disable next-line ConfigureAwait : equivalent
-   → (silent, the Boolean mutation on the next line is ignored)
-
-# Wishlist #9 — 30-second diagnostic runs instead of 9-minute waits:
-$ dotnet stryker-netx --project Aisess.Application --break-after build  # ≈ 30 s
-$ dotnet stryker-netx --project Aisess.Application --break-after initial-test-run  # ≈ 1 min
-$ dotnet stryker-netx --project Aisess.Application --break-after mutation-generation  # mutants flushed to HTML, no per-mutant test loop
+`src/Stryker.Core/MutationTest/CsharpMutationProcess.cs`:
+```csharp
+// In the skip-branch:
+file.MutatedSyntaxTree = file.SyntaxTree;  // unmutated original participates in compilation
 ```
 
-**ADR-039 → ADR-046 schließen die Aisess `_bug_reporting/STRYKER_NETX_ANOMALIES_AND_BUGS.md` VOLLSTÄNDIG für v3.2.x** (8 ADRs / 8 Sprints / 8 Releases).
+Drive-by: extracted `OrchestratePerFileMutations` from `Mutate` because the
+added comment + assignment pushed Mutate over MA0051 60-line cap (same pattern
+as Sprint 13 `ApplyMutationInputs` and Sprint 22 `ConfigureCli`).
 
-## Out-of-scope (honest-deferred to v3.3+ if user demand grows)
+## Regression test
 
-- Branch C from Phase §B Maxential: per-class-filter table on Mutation (would enable `--ignore-mutations ConfigureAwait` to EXCLUSIVELY skip ConfigureAwaitMutator emissions, leaving other Boolean mutations active). Architectural addition; deferred.
-- Branch A from Phase §B Maxential: extend Mutator enum with ConfigureAwait value (changes ConfigureAwaitMutator.Type from Boolean → ConfigureAwait, breaking back-compat for `--ignore-mutations Boolean`). Deferred indefinitely.
-- Branch B from Phase §C Maxential: clean-shutdown via exception (Sonar S3877 anti-pattern). Rejected, not deferred.
-- Span-aware file-level pre-filter in Phase §A (would honor `--mutate "MyService.cs{1..10}"` line-range constraints at file-level orchestration cost). Currently file-level pre-filter is span-agnostic; per-line filter happens downstream in FilePatternMutantFilter as before.
+`tests/Stryker.Core.Dogfood.Tests/MutationTest/CSharpMutationTestProcessTests.cs`:
+`Mutate_ShouldNotCrash_WhenMutateScopeExcludesSomeFiles` — two-file project
+(Sample.cs + Helper.cs), `--mutate "**/Sample.cs"`, asserts no throw + assembly
+written. Setup extracted to `BuildTwoFileMutationInput` for MA0051.
+
+Pre-fix: throws ArgumentNullException(trees[1]) from CSharpCompilation.AddSyntaxTrees.
+Post-fix: 111 ms green.
 
 ## Build/test summary
 
 - Solution-wide build: 0 warnings, 0 errors
-- Solution-wide tests: 2104 passing / 2131 total (0 failures, 27 pre-existing skips)
-- Stryker.Core.Tests: 455 → 460 (+5 Phase §B alias tests)
-- Stryker.CLI.Tests: 103 → 103 (no new tests, but updated mock setup for Phase §C plumbing)
-- 3 existing CommentParserTests updated: changed ConfigureAwait test-input → NakedReceiver (a Stryker class name NOT in the Sprint-166 alias table) for the unrecognised-label code-path
+- Solution-wide tests: 2105 passing (+1 vs Sprint 166), 0 failures, 20 pre-existing skips
+- Stryker.Core.Dogfood.Tests: 1190 → 1191 (+1 regression test)
+- Semgrep auto-config on changed production file: 0 findings
 
-## Next steps
+## Status
 
-1. Commit + Push + PR + Merge + Tag v3.2.18 + GitHub Release
-2. NuGet publish (user-manual via local NUGET_API_KEY)
-3. Possibly Sprint 167 for v3.3.0 minor — would bundle Phase §B Branch A (extend Mutator enum), Phase §B Branch C (per-class filter table), MTP-runner test-filter forwarding (deferred from Sprint 164), line-based directive table (deferred from Sprint 165) — but only if Aisess or new users surface concrete need.
+- [x] Fix committed (`79b2cf1`) on `fix/167-mutate-out-of-scope-null-tree`
+- [x] PR #259 opened: https://github.com/pgm1980/stryker-netx/pull/259
+- [ ] PR merged + branch deleted
+- [ ] Tag v3.2.19 on squash-merge commit + GitHub release + NuGet publish
+- [ ] MEMORY.md `project_sprint167_closed.md` entry + index update
+- [ ] `housekeeping_done: true` after all above
+
+## Backwards-compatibility
+
+100% — default `--mutate=**/*` matches every file so the skip branch never
+executes. Only narrow-scope users (the feature this PR repairs) see a behavior
+change, and that change is "no longer crashes." No API change, no enum change,
+no CLI change. Patch-level v3.2.19 appropriate.
+
+## Out-of-scope (NOT included in v3.2.19)
+
+- `_bug_reporting/STRYKER_NETX_ANOMALIES_AND_BUGS_v2.md` review — separate
+  triage sprint; v2 supersedes the v1 report closed in Sprint 166.
+- Bug report §10 "Related Stryker-netx Behaviors" (`--coverage-analysis` removed,
+  PascalCase-only reporter names) — intentional Sprint-1 modernizations, not
+  regressions. CHANGELOG note worth adding when next minor release ships.
