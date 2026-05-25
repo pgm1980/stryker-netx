@@ -3320,10 +3320,109 @@ CLI flag `--break-after analysis,build,initial-test-run,mutation-generation` (co
 
 ---
 
+## ADR-047: InlineConstantsMutator Type-Aware Literal Emission (v3.3.0 / Sprint 168)
+
+**Status.** Accepted — Sprint 168 (v3.3.0, 2026-05-25).
+
+**Kontext.** Bug Report #9 (filesystem-mcp-server Sprint 56, 2026-05-25) Anomaly #4: real-world Infrastructure-layer runs emitted ~70 `Safe Mode! Stryker will remove all mutations in <Method>` warnings per full-project run, all with the same family of compile errors:
+
+```
+warning CS0266: 'double' cannot implicitly convert to 'int'      (~50 occurrences)
+warning CS1503: argument 1: cannot convert from 'double' to 'long' (~15 occurrences)
+warning CS0029: cannot implicitly convert type 'double' to 'int'  (~5 occurrences)
+```
+
+70+ methods triggered Safe Mode in a single run; ~9476 / 24392 mutants = **39 % CompileError** on the reporter's codebase, far above the typical 5-10 %. Investigation traced every CS-error to a single helper: `InlineConstantsMutator.MakeNumericMutation` always emitted via `SyntaxFactory.Literal(string, double)`. This Roslyn overload sets `Token.Value : double` *unconditionally*, regardless of the source-literal's type. The outer `ApplyMutations` switch correctly identified `token.Value is int / long / float / double`, but discarded the type at emit time. Roslyn then refused `int x = 6.0;` etc. → cascade.
+
+### Optionen (Maxential 14 Schritte, 3 ToT-Branches)
+
+| Branch | Approach | Score |
+|---|---|---|
+| A | Per-type private helper methods (7 typed `Make()` overloads, C# overload resolution dispatches) | 0.65 |
+| **B** | **Single `Make(object newValue)` with `switch`-expression dispatching to Roslyn typed `Literal(T)` overloads** | **0.875** |
+| C | Generic `Make<T>` with `where T : struct, INumber<T>` constraint | 0.76 |
+
+Branch B chosen. Rationale:
+- Clarity 0.8 (idiomatic modern C# switch-expression with type patterns), DRY 0.95 (single emit path + single DisplayName template), Extensibility 0.9 (one switch arm + one outer-switch case for new types).
+- Branch A penalized for ~28 lines of near-identical helpers + Sonar S4144 duplicate-method risk + dual-maintenance burden (switch arm + helper overload).
+- Branch C penalized for over-engineering: the generic constraint doesn't help because `SyntaxFactory.Literal` has no `Literal<T>` overload — the runtime switch is unavoidable, so the generic abstraction is pure noise. Boxing cost in Branch B is negligible (~10 µs per 200-file project; AST-walk time, not the per-mutant test-execution hot path).
+
+### Entscheidung
+
+1. Replace the `Convert.ToDouble` emit path with a typed `switch`-expression on `object newValue`, dispatching to `SyntaxFactory.Literal(int|uint|long|ulong|float|double|decimal)`.
+2. Extend coverage from `{int, long, float, double}` to `{int, uint, long, ulong, float, double, decimal}` — the seven numeric types Roslyn supports as literal tokens.
+3. Handle `decimal` overflow (`decimal.MaxValue + 1m` throws) via a `try/catch (OverflowException) → null` wrapper; the overflowing variant is silently skipped while the non-overflowing one still ships.
+4. Switch's `default` throws `InvalidOperationException` for defensive future-safety — unreachable in practice because `IsKind(SyntaxKind.NumericLiteralExpression)` guarantees `token.Value` is one of the seven.
+
+### Files
+
+- EDIT `src/Stryker.Core/Mutators/InlineConstantsMutator.cs` — replace `MakeNumericMutation(IConvertible)` with `Make(object)` + `MakeDecimalPair` + `TryMakeDecimal`. Outer switch extended to 7 cases.
+
+### Tests
+
+- EDIT `tests/Stryker.Core.Tests/Mutators/InlineConstantsMutatorTests.cs` — 4 existing tests preserved + **12 new tests**:
+  - `[Theory]` 7 inlines × `EmittedTokenValueMatchesInputType` — assert `Token.Value.GetType()` per numeric type
+  - `[Theory]` 7 inlines × `EmittedReplacement_CompilesInTypedSlot` — splice mutated literal back into a typed C# slot (`int x = ...; uint x = ...;` etc.), run `CSharpCompilation.GetDiagnostics`, assert no errors. **This is the test that would have caught the v3.2.18 bug.**
+  - `[Fact] OnDecimalMaxValue_PlusOneOverflow_EmitsOnlyMinusOneMutation` — decimal overflow edge case
+  - `[Fact] OnDecimalMaxMinusOne_BothMutationsEmitted_NoOverflow` — guards against over-aggressive try/catch
+
+### Konsequenzen
+
+- (+) Schließt Bug Report #9 Anomaly #4. Expected impact: 70+ methods × ~10 mutants each = ~700 false-CompileError mutants no longer triggered on partial codebases like the reporter's. Solution-wide expected CompileError rate drops from ~39 % toward the typical 5-10 %.
+- (+) Catalogue-extension von 4 → 7 numeric types: uint/ulong/decimal literals are now mutable (previously silently ignored).
+- (+) Decimal-MaxValue / MinValue Edges sind sauber abgefangen (try/catch + silent skip), keine Mutator-Runtime-Exception bubbles up.
+- (–) Boxing-overhead durch `object`-parameter: ~50 ns per Mutation. AST-walk-time, kein hot-path — vernachlässigbar in der Realität.
+- (–) Loss of caller-side compile-time type safety on `Make(object)`. Mitigated: only the `InlineConstantsMutator` class itself calls `Make` (private static); the 12-test type-matrix locks down the contract.
+
+### Supersedes / supplements
+
+- Erstes Mal dass ein systematic-emit-bug in InlineConstantsMutator (originally introduced in Sprint 10 / v2.0.0) korrigiert wird. Existing unit tests (4 [Theory] inlines from Sprint 18) were blind to typed-emission — count-only assertions.
+- **Closes** Bug Report #9 Anomaly #4 (filesystem-mcp-server Sprint 56).
+- **Honest-deferred (Sprint 168 out-of-scope)**: other mutators with similar emit-type-discipline issues mentioned in Bug Report #9 (`byte[].AsSpan → MemoryExtensions.AsSpan(string?, int)` overload mismatch in `AsSpanAsMemoryMutator`; `char → string` overload mismatch in char-literal mutators; `^(-1:0:2:1)` ternary from `CodeInjection` MutantPlacer). Each is a separate code-path requiring its own analysis. Tracked as Sprint 169+ candidates if the reporter raises a re-test issue.
+
+**Backed by.** Sprint 168 Maxential-Session "sprint-168-typed-literal-emission" (14 Schritte, 3 ToT-Branches A/B/C, **Branch B chosen 0.875 + merged with full_integration**). Solution-wide build 0/0, 2121 Tests grün (+16 vs Sprint 167 baseline 2105; Stryker.Core.Tests 460 → 476). Semgrep clean (0 findings on `InlineConstantsMutator.cs`).
+
+---
+
+## ADR-048: Coverage-Matrix Class-Fixture Attribution Limit (v3.3.0 / Sprint 168, informational)
+
+**Status.** Accepted-informational — Sprint 168 (v3.3.0, 2026-05-25). Documents existing behavior + recommended workaround pattern; no code change in v3.3.0.
+
+**Kontext.** Bug Report #9 Anomaly #7 (filesystem-mcp-server Sprint 56): test pattern that constructs a fresh SUT instance inside the test method body (typically to inject a per-test `Mock<ILogger<T>>` for log-emission assertions) sometimes fails to kill the statement-deletion mutation on the logger call, despite the test exercising the right method. Investigation traced the behavior to `CoverageAnalyser.cs:49-141`: per-mutant coverage matrix is keyed on `TestId` string, not on SUT instance / method context. When the test constructs a separate SUT (with a non-default logger mock) inside its body, the coverage trace from the **initial-test-run** (which uses the class-fixture's SUT instance) doesn't attribute mutations on the inlined-SUT's methods to that test ID.
+
+The reporter discovered this empirically — class-fixture `Mock<ILogger>` wired at the test-class constructor reliably kills the mutation; per-test inlined `Mock<ILogger>` does not.
+
+### Entscheidung
+
+1. **Document the limitation** in `README.md → Known limitations` + this ADR. Recommend class-fixture `Mock<ILogger>` as the canonical pattern for log-emission assertion tests under coverage-based mutation testing.
+2. **Do not** change coverage capture in v3.3.0. SUT-instance-aware coverage requires a refactor of the test-trace handshake (the runtime instrumentation currently captures `MutantControl.IsActive(id)` hits keyed only by mutant ID, with no notion of "which SUT instance executed the hit"). This is a v3.4+ scope-change candidate; v3.3.0 is the doc-only acknowledgment.
+
+### Konsequenzen
+
+- (+) External users have a documented workaround and a clear expectation.
+- (+) Sets a Sprint-roadmap anchor for proper SUT-instance-aware coverage as v3.4+ work.
+- (–) The class-fixture workaround is **intrusive** for projects with established `NullLogger` test patterns — the entire test class must be refactored to share a `Mock<ILogger>` field instead of constructing a new SUT per test.
+- (–) Tests that legitimately need per-test SUT isolation (e.g., for testing log-emission ordering across multiple SUT instances in one test class) have no clean workaround under the current coverage model.
+
+### Files
+
+- EDIT `README.md` — "Known limitations (v2.4.0)" section: new bullet pointing at this ADR.
+- No code changes.
+
+### Supersedes / supplements
+
+- **Documents** Bug Report #9 Anomaly #7 as a known limitation, not a bug.
+- **Honest-deferred (v3.4+ candidate)**: SUT-instance-aware coverage. Requires augmenting `MutantControl.IsActive` instrumentation with a runtime hook that captures the receiver-`this` of the call site, plus a coverage-matrix schema change to key on `(TestId, SutInstanceHash)` instead of `TestId`. Non-trivial. Defer until external pressure builds.
+
+**Backed by.** Subagent code-recherche on `Stryker.Core/CoverageAnalysis/CoverageAnalyser.cs` confirming `TestId`-only matching. No Maxential needed — informational ADR, no decision-tree.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
 |---------|-------|-------|----------|
+| 0.31.0 | 2026-05-25 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 168 v3.3.0: **ADR-047** + **ADR-048**. P0 ADR-047 — InlineConstantsMutator Type-Aware Literal Emission (Bug Report #9 Anomaly #4, filesystem-mcp-server Sprint 56). `InlineConstantsMutator.MakeNumericMutation` emittierte via `SyntaxFactory.Literal(string, double)` → `Token.Value : double` unabhängig vom source-literal-type → CS0266/CS1503/CS0029 cascade auf int/long/uint/ulong/decimal slots → ~70 Safe Mode! warnings, ~39 % CompileError rate auf reporter-codebase. Maxential 14 Schritte, 3 ToT-Branches A (per-type helpers 0.65) / **B (single Make(object) + switch-expression 0.875)** / C (generic INumber<T> 0.76), Branch B chosen+merged. 12 new Tests (7 Token.Value-type-Theory + 7 compile-roundtrip-Theory + 2 decimal-overflow [Fact] — die existierenden 4 [Theory]-Tests aus Sprint 18 waren blind to typed-emission). Catalogue-extension {int, long, float, double} → {int, uint, long, ulong, float, double, decimal}. Decimal overflow via try/catch silent-skip. P2 ADR-048 — Coverage-Matrix Class-Fixture Attribution Limit (informational, no code change, Bug Report #9 Anomaly #7). `CoverageAnalyser` matched test→mutant via `TestId` string, nicht SUT-instance-aware → fresh-SUT-per-test pattern mit Mock<ILogger> misses statement-deletion mutations on logger calls. Documents class-fixture Mock<ILogger> als recommended pattern + roadmaps SUT-instance-aware coverage als v3.4+. README "Known limitations" mit 4 neuen Bullets (testhost lock workaround, cold-run JIT-warmup, coverage instance-limit, dotnet-tools.json rollForward pitfall). Solution-wide build 0/0, **2121 Tests grün (+16 vs Sprint 167 baseline 2105; Stryker.Core.Tests 460 → 476)**. Semgrep clean (0 findings on InlineConstantsMutator.cs). Tag **v3.3.0** (minor — additive type-coverage in Mutator-Catalogue). Honest-deferred: other emit-type-discipline bugs aus Bug Report #9 (AsSpan overload mismatch, char-literal overload, MutantPlacer ternary) als Sprint 169+ Kandidaten. |
 | 0.1.0 | 2026-04-30 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Initiale Sprint-0-Version mit 12 ADRs |
 | 0.2.0 | 2026-04-30 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 5 (v2.0.0 Architecture Foundation): ADRs 013–018 hinzugefügt — AST/IL Hybrid, Operator-Hierarchie, SemanticModel-Driven, Hot-Swap (Trampoline), Equivalent-Mutant Filtering, Mutation Profiles |
 | 0.3.0 | 2026-05-01 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 14 (v2.1.0): ADR-019 — HotSwap-Engine als eigene v2.2.0-Release statt Sprint-14-Quetschung |
