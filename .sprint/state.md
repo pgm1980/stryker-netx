@@ -1,89 +1,103 @@
 ---
-current_sprint: "167"
-sprint_goal: "Hotfix Sprint-166 regression: --mutate scope filter crashed CSharpCompilation.Create with ArgumentNullException(trees[N]) because skipped files left CsharpFileLeaf.MutatedSyntaxTree at its null! default. Seed unmutated original tree on out-of-scope files so compilation pipeline stays whole. Drive-by Extract-Method to satisfy MA0051. Single-file fix + regression test in Stryker.Core.Dogfood.Tests. Target tag v3.2.19 (patch — no API change, backwards-compat)."
-branch: "fix/167-mutate-out-of-scope-null-tree"
-started_at: "2026-05-24"
-housekeeping_done: true
-memory_updated: true
+current_sprint: "168"
+sprint_goal: "P0 InlineConstantsMutator type-aware literal emission (closes Bug Report #9 Anomaly #4 — 70+ Safe Mode! warnings, ~39% CompileError rate on real codebases). P1 Doku-Update (README + CLAUDE.md): testhost lock workaround, cold-run wall-clock, dotnet-tools.json rollForward pitfall. P2 ADR-047 documenting Anomaly #7 coverage-instance limitation. Target tag v3.3.0 (minor — additive type-system extension in mutator; no API break)."
+branch: "feature/168-mutator-type-awareness-and-doc-improvements"
+started_at: "2026-05-25"
+housekeeping_done: false
+memory_updated: false
 github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 167 (v3.2.19 prep)
+# Session State — Sprint 168 (v3.3.0 prep)
 
 ## Trigger
 
-Bug report from `filesystem-mcp-server` project (Sprint 51, 2026-05-24) filed at
-`_bug_reporting/stryker-netx-3.2.18-mutate-filter-trees-null.md`. Symptom:
-`dotnet stryker-netx --mutate "**/Some/File.cs"` crashes immediately after
-"Disable-directive validation: scanned N files in --mutate scope (M skipped)"
-with `System.ArgumentNullException: trees[N]` from Roslyn's
-`CSharpCompilation.AddSyntaxTrees`. Whole-project scans (no `--mutate`) succeed.
+Bug Report #9 from filesystem-mcp-server Sprint 56 (2026-05-25), filed at
+`_bug_reporting/BUG_REPORT_FOR_STRYKERNETX.md`. 7 items total; triage
+result:
 
-## Root cause
+| # | Item | Resolution |
+|---|---|---|
+| Bug #1 | `--mutate` trees[N] | ✅ Already fixed in v3.2.19 (Sprint 167 PR #259); reporter's `rollForward=false` tool-manifest pinned them on v3.2.18 |
+| Bug #2 | testhost.exe DLL file-lock | ❌ Not stryker-netx (vstest-internal); P1 doc-update |
+| Anomaly #3 | 157 false-fail tests cold-run | ❓ Not Stryker code bug (concurrency default is already `ProcessorCount/2`); P1 doc-update |
+| **Anomaly #4** | **Safe Mode! `double` cascade (70+ methods)** | **P0 — confirmed bug in `InlineConstantsMutator.MakeNumericMutation`** |
+| Anomaly #5 | `--reporters` plural rejected | ✅ Already supported (`RewriteReportersAlias` in `StrykerCli.cs:66+119`) |
+| Anomaly #6 | 5× cold-run variance | ❌ JIT warm-up (universal); P1 doc-update |
+| **Anomaly #7** | **Mock<ILogger> coverage matrix miss** | **P2 — confirmed design limit; ADR-047 documenting workaround pattern** |
 
-Sprint 166 commit `82622e3` (ADR-046 §A) introduced `IsFileInMutateScope` skip
-branch in `CsharpMutationProcess.Mutate`. The branch cleared `file.Mutants = []`
-but never set `file.MutatedSyntaxTree`. Default is `null!`. Downstream:
-`CsharpFileLeaf.CompilationSyntaxTrees => [MutatedSyntaxTree]` propagated the
-null entries into `CSharpCompilation.Create`, which threw on the first null.
+## P0 — InlineConstantsMutator type-awareness
 
-The bug report hypothesised partial-class-specificity (LoggerMessage source
-generators in Aisess Infrastructure project). Verified incorrect: triggers for
-any --mutate that excludes ≥1 file. Partial-class projects just amplify
-visibility because skipped sibling halves leave types incomplete in IL.
+### Root cause
 
-## Fix (1-line semantic + Extract-Method drive-by)
+`InlineConstantsMutator.MakeNumericMutation` at `src/Stryker.Core/Mutators/InlineConstantsMutator.cs:63-68`
+calls:
 
-`src/Stryker.Core/MutationTest/CsharpMutationProcess.cs`:
 ```csharp
-// In the skip-branch:
-file.MutatedSyntaxTree = file.SyntaxTree;  // unmutated original participates in compilation
+SyntaxFactory.Literal(Convert.ToString(newValue, ...)!,
+                      Convert.ToDouble(newValue, ...))     // double overload
 ```
 
-Drive-by: extracted `OrchestratePerFileMutations` from `Mutate` because the
-added comment + assignment pushed Mutate over MA0051 60-line cap (same pattern
-as Sprint 13 `ApplyMutationInputs` and Sprint 22 `ConfigureCli`).
+Roslyn's `SyntaxFactory.Literal(string, double)` overload **always** emits a
+`NumericLiteralToken` with `Token.Value` of type `double`. Even though the
+outer `ApplyMutations` switch correctly recognises the original `token.Value` is
+`int`/`long`/`float`, the emitted mutation discards that type and re-encodes
+as double.
 
-## Regression test
+Roslyn then refuses `int x = 6.0;` with CS0266 → Stryker enters Safe Mode and
+drops **all** mutants in that method (cascading effect: 70+ methods × ~10
+mutants each = ~700 false-CompileError mutants on the reporter's codebase).
 
-`tests/Stryker.Core.Dogfood.Tests/MutationTest/CSharpMutationTestProcessTests.cs`:
-`Mutate_ShouldNotCrash_WhenMutateScopeExcludesSomeFiles` — two-file project
-(Sample.cs + Helper.cs), `--mutate "**/Sample.cs"`, asserts no throw + assembly
-written. Setup extracted to `BuildTwoFileMutationInput` for MA0051.
+### Planned fix
 
-Pre-fix: throws ArgumentNullException(trees[1]) from CSharpCompilation.AddSyntaxTrees.
-Post-fix: 111 ms green.
+Replace the generic `MakeNumericMutation(IConvertible)` helper with typed
+helpers / `switch` on the original `token.Value`:
 
-## Build/test summary
+```csharp
+// int → Literal(int)
+// long → Literal(long)
+// double → Literal(double)
+// float → Literal(float)
+// decimal → Literal(decimal)
+```
 
-- Solution-wide build: 0 warnings, 0 errors
-- Solution-wide tests: 2105 passing (+1 vs Sprint 166), 0 failures, 20 pre-existing skips
-- Stryker.Core.Dogfood.Tests: 1190 → 1191 (+1 regression test)
-- Semgrep auto-config on changed production file: 0 findings
+Roslyn has dedicated overloads per type that emit the correct `Token.Value`
+type and the matching literal suffix (`L`, `f`, `m`).
+
+Also extend coverage to `decimal` literals (currently the switch only handles
+4 types). The current outer switch already discriminates correctly — we just
+need to fix the emit-side.
+
+### Out of scope
+
+- Other "Safe Mode!" patterns mentioned in the bug report (`byte[].AsSpan`
+  overload mismatch, `char → string` mutations, `^(-1:0:2:1)` ternary
+  emission) — these are *different* mutators with separate code-paths.
+  Filed as follow-up items in MEMORY.md `sprint168_closed.md`.
+
+## P1 — Doc-updates
+
+- `README.md`: testhost-lock workaround (`--output <separate-path>`),
+  cold-run wall-clock note, `dotnet-tools.json` rollForward pitfall.
+- No CLAUDE.md changes planned (project-internal; the doc-updates are
+  user-facing).
+
+## P2 — ADR-047 (informational, no code change)
+
+Documents the coverage-matrix instance-attribution limitation observed in
+Anomaly #7. Recommends class-fixture `Mock<ILogger>` pattern as the
+workaround. Marks proper SUT-instance-aware coverage as v3.4.x+ candidate.
 
 ## Status
 
-- [x] Fix committed (`79b2cf1`) on `fix/167-mutate-out-of-scope-null-tree`
-- [x] PR #259 opened, reviewed, squash-merged → main commit `7e9ea18`, branch deleted
-- [x] Tag `v3.2.19` (annotated) on merge commit, pushed
-- [x] release.yml fired automatically: NuGet pushed (`Created` HTTP 201, 2.7s), GitHub Release published with `dotnet-stryker-netx.3.2.19.nupkg` asset
-- [x] MEMORY.md index entry + `project_sprint167_closed.md` (with 5 lessons)
-- [x] `housekeeping_done: true`
-
-## Backwards-compatibility
-
-100% — default `--mutate=**/*` matches every file so the skip branch never
-executes. Only narrow-scope users (the feature this PR repairs) see a behavior
-change, and that change is "no longer crashes." No API change, no enum change,
-no CLI change. Patch-level v3.2.19 appropriate.
-
-## Out-of-scope (NOT included in v3.2.19)
-
-- `_bug_reporting/STRYKER_NETX_ANOMALIES_AND_BUGS_v2.md` review — separate
-  triage sprint; v2 supersedes the v1 report closed in Sprint 166.
-- Bug report §10 "Related Stryker-netx Behaviors" (`--coverage-analysis` removed,
-  PascalCase-only reporter names) — intentional Sprint-1 modernizations, not
-  regressions. CHANGELOG note worth adding when next minor release ships.
+- [ ] Branch `feature/168-mutator-type-awareness-and-doc-improvements` opened
+- [ ] Maxential ≥10 thoughts + ToT branches for P0 architecture
+- [ ] P0 implementation + regression tests
+- [ ] P1 doc-updates
+- [ ] P2 ADR-047
+- [ ] Build/test/semgrep green
+- [ ] PR + merge + tag v3.3.0 + release + NuGet
+- [ ] MEMORY.md `project_sprint168_closed.md` + index entry
