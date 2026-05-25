@@ -3,8 +3,8 @@ current_sprint: "168"
 sprint_goal: "P0 InlineConstantsMutator type-aware literal emission (closes Bug Report #9 Anomaly #4 — 70+ Safe Mode! warnings, ~39% CompileError rate on real codebases). P1 Doku-Update (README + CLAUDE.md): testhost lock workaround, cold-run wall-clock, dotnet-tools.json rollForward pitfall. P2 ADR-047 documenting Anomaly #7 coverage-instance limitation. Target tag v3.3.0 (minor — additive type-system extension in mutator; no API break)."
 branch: "feature/168-mutator-type-awareness-and-doc-improvements"
 started_at: "2026-05-25"
-housekeeping_done: false
-memory_updated: false
+housekeeping_done: true
+memory_updated: true
 github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
@@ -93,11 +93,12 @@ workaround. Marks proper SUT-instance-aware coverage as v3.4.x+ candidate.
 
 ## Status
 
-- [ ] Branch `feature/168-mutator-type-awareness-and-doc-improvements` opened
-- [ ] Maxential ≥10 thoughts + ToT branches for P0 architecture
-- [ ] P0 implementation + regression tests
-- [ ] P1 doc-updates
-- [ ] P2 ADR-047
-- [ ] Build/test/semgrep green
-- [ ] PR + merge + tag v3.3.0 + release + NuGet
-- [ ] MEMORY.md `project_sprint168_closed.md` + index entry
+- [x] Branch `feature/168-mutator-type-awareness-and-doc-improvements` opened
+- [x] Maxential 14 thoughts + 3 ToT branches A/B/C → B chosen 0.875 + merged
+- [x] P0 implementation (InlineConstantsMutator type-aware) + 12 regression tests TDD-first
+- [x] P1 doc-updates (README known-limitations 4 new bullets)
+- [x] P2 ADR-047 + ADR-048 written to architecture_specification.md + Änderungshistorie entry 0.31.0
+- [x] Build 0/0, tests 2121 green (+16), semgrep clean
+- [x] PR #261 squash-merged (`f5b537e` on main); Tag `v3.3.0` pushed; release.yml fired: NuGet HTTP 201 Created (1.5s), GitHub Release with `dotnet-stryker-netx.3.3.0.nupkg` asset
+- [x] MEMORY.md `project_sprint168_closed.md` (5 lessons) + index entry
+- [x] `housekeeping_done: true`
