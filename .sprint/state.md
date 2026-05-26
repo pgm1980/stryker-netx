@@ -1,104 +1,88 @@
 ---
-current_sprint: "168"
-sprint_goal: "P0 InlineConstantsMutator type-aware literal emission (closes Bug Report #9 Anomaly #4 — 70+ Safe Mode! warnings, ~39% CompileError rate on real codebases). P1 Doku-Update (README + CLAUDE.md): testhost lock workaround, cold-run wall-clock, dotnet-tools.json rollForward pitfall. P2 ADR-047 documenting Anomaly #7 coverage-instance limitation. Target tag v3.3.0 (minor — additive type-system extension in mutator; no API break)."
-branch: "feature/168-mutator-type-awareness-and-doc-improvements"
+current_sprint: "169"
+sprint_goal: "P0 ConstantReplacementMutator type-aware emission — extends ADR-047 to the SECOND constant-emitting mutator (Sprint 14 / v2.1.0). Reporter's BUG_REPORT_9_FOLLOWUP_2 categorised 196 residual Safe Mode! warnings on v3.3.0: 184 A.1 (nested-ternary double) + 3 A.2 + 1 A.3, all rooted in ConstantReplacementMutator.MakeNumericMutation calling Convert.ToDouble + Literal(string, double). Same fix shape as ADR-047 Branch B: switch-expression on object newValue → typed SyntaxFactory.Literal(T). Target tag v3.3.1 (patch — same surface as v3.3.0, no API break)."
+branch: "feature/169-ternary-emit-typed-mutation-placer"
 started_at: "2026-05-25"
-housekeeping_done: true
-memory_updated: true
+housekeeping_done: false
+memory_updated: false
 github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 168 (v3.3.0 prep)
+# Session State — Sprint 169 (v3.3.1 prep)
 
 ## Trigger
 
-Bug Report #9 from filesystem-mcp-server Sprint 56 (2026-05-25), filed at
-`_bug_reporting/BUG_REPORT_FOR_STRYKERNETX.md`. 7 items total; triage
-result:
+Reporter follow-up: BUG_REPORT_9_FOLLOWUP_2 (filesystem-mcp-server, 2026-05-25)
+archived at `_bug_reporting/BUG_REPORT_9_FOLLOWUP_2_extract.md`. Their v3.3.0
+validation: 196 residual Safe Mode! warnings + 31.14 % CompileError rate
+(vs 39 % pre-v3.3.0 baseline, vs single-digit target). Pass criteria for
+v3.3.1: < 20 Safe Mode warnings + < 15 % CompileError rate.
 
-| # | Item | Resolution |
-|---|---|---|
-| Bug #1 | `--mutate` trees[N] | ✅ Already fixed in v3.2.19 (Sprint 167 PR #259); reporter's `rollForward=false` tool-manifest pinned them on v3.2.18 |
-| Bug #2 | testhost.exe DLL file-lock | ❌ Not stryker-netx (vstest-internal); P1 doc-update |
-| Anomaly #3 | 157 false-fail tests cold-run | ❓ Not Stryker code bug (concurrency default is already `ProcessorCount/2`); P1 doc-update |
-| **Anomaly #4** | **Safe Mode! `double` cascade (70+ methods)** | **P0 — confirmed bug in `InlineConstantsMutator.MakeNumericMutation`** |
-| Anomaly #5 | `--reporters` plural rejected | ✅ Already supported (`RewriteReportersAlias` in `StrykerCli.cs:66+119`) |
-| Anomaly #6 | 5× cold-run variance | ❌ JIT warm-up (universal); P1 doc-update |
-| **Anomaly #7** | **Mock<ILogger> coverage matrix miss** | **P2 — confirmed design limit; ADR-047 documenting workaround pattern** |
+## Reporter's diagnosis vs actual root cause
 
-## P0 — InlineConstantsMutator type-awareness
+**Reporter's hypothesis (educated guess from outside):** the nested ternary
+wrapper `^(IsActive(?-1:?0:?2:1)` needs a target-type cast outer the whole
+expression. Suggested fix shape would have added a `CastExpression` around
+the `ConditionalInstrumentationEngine`'s emitted wrapper.
 
-### Root cause
+**Actual root cause (verified from inside the codebase):** the issue is
+NOT in the wrapper — it's in the SECOND constant-emitting mutator,
+`ConstantReplacementMutator` (Sprint 14 / v2.1.0, PIT CRCR). That mutator
+still calls `Convert.ToDouble + Literal(string, double)` at
+`src/Stryker.Core/Mutators/ConstantReplacementMutator.cs:104-118` — exactly
+the anti-pattern ADR-047 fixed in `InlineConstantsMutator`. Only one of
+the two mutators was fixed in Sprint 168.
 
-`InlineConstantsMutator.MakeNumericMutation` at `src/Stryker.Core/Mutators/InlineConstantsMutator.cs:63-68`
-calls:
+Concrete trace of reporter's exemplar `?-1:?0:?2:1` with source-literal `1`:
 
-```csharp
-SyntaxFactory.Literal(Convert.ToString(newValue, ...)!,
-                      Convert.ToDouble(newValue, ...))     // double overload
-```
+| Leaf | Source | Emitter | Type after Sprint 168 |
+|------|--------|---------|----------------------|
+| `2` | `1` | `InlineConstantsMutator` (c+1) | ✅ int (typed Literal(int)) |
+| `0` | `1` | `InlineConstantsMutator` (c-1) | ✅ int (typed Literal(int)) |
+| `-1` | `1` | `ConstantReplacementMutator` (→-1 axis) | ❌ **double** (still Convert.ToDouble) |
+| `1` | `1` | (original, user-written) | ✅ int |
 
-Roslyn's `SyntaxFactory.Literal(string, double)` overload **always** emits a
-`NumericLiteralToken` with `Token.Value` of type `double`. Even though the
-outer `ApplyMutations` switch correctly recognises the original `token.Value` is
-`int`/`long`/`float`, the emitted mutation discards that type and re-encodes
-as double.
+The ConditionalExpression's common-type inference picks `double` because
+one branch is double → entire ternary typed `double` → CS0029 on the
+int slot. The wrapper is correct; the leaf is wrong.
 
-Roslyn then refuses `int x = 6.0;` with CS0266 → Stryker enters Safe Mode and
-drops **all** mutants in that method (cascading effect: 70+ methods × ~10
-mutants each = ~700 false-CompileError mutants on the reporter's codebase).
+## Fix scope
 
-### Planned fix
+Apply the ADR-047 Branch B pattern to `ConstantReplacementMutator`:
+- Replace `MakeNumericMutation(IConvertible)` with `Make(object)` +
+  `switch`-expression dispatching to typed `SyntaxFactory.Literal(T)`.
+- Extend coverage from {int, long, float, double} → {int, uint, long,
+  ulong, float, double, decimal} for parity with the InlineConstants
+  catalogue.
+- Handle `decimal.MaxValue + 1m` / `decimal.MinValue - 1m` overflow with
+  try/catch silent-skip (same as ADR-047).
 
-Replace the generic `MakeNumericMutation(IConvertible)` helper with typed
-helpers / `switch` on the original `token.Value`:
+**Expected impact on reporter's codebase:**
+- A.1 (184) + A.2 (3) + A.3 (1) all close = **188 of 196 = 95.9 %**
+- CompileError rate drops from 31.14 % toward typical 5-10 %.
 
-```csharp
-// int → Literal(int)
-// long → Literal(long)
-// double → Literal(double)
-// float → Literal(float)
-// decimal → Literal(decimal)
-```
+## Out of scope (B.1/B.2/D in reporter's table — honest-deferred)
 
-Roslyn has dedicated overloads per type that emit the correct `Token.Value`
-type and the matching literal suffix (`L`, `f`, `m`).
+- B.1 (3 sites): `byte[].AsSpan` overload mismatch in `AsSpanAsMemoryMutator`
+- B.2 (1 site): `byte[].AsMemory` overload mismatch in same mutator
+- D (4 sites): `PluginManager` CS0165/CS0161 — likely separate codegen
+  issue in a block-removal mutator (CS0165 = unassigned local, CS0161 = no
+  return value from method-with-non-void-return). Different code-path from
+  numeric-literal emission.
 
-Also extend coverage to `decimal` literals (currently the switch only handles
-4 types). The current outer switch already discriminates correctly — we just
-need to fix the emit-side.
-
-### Out of scope
-
-- Other "Safe Mode!" patterns mentioned in the bug report (`byte[].AsSpan`
-  overload mismatch, `char → string` mutations, `^(-1:0:2:1)` ternary
-  emission) — these are *different* mutators with separate code-paths.
-  Filed as follow-up items in MEMORY.md `sprint168_closed.md`.
-
-## P1 — Doc-updates
-
-- `README.md`: testhost-lock workaround (`--output <separate-path>`),
-  cold-run wall-clock note, `dotnet-tools.json` rollForward pitfall.
-- No CLAUDE.md changes planned (project-internal; the doc-updates are
-  user-facing).
-
-## P2 — ADR-047 (informational, no code change)
-
-Documents the coverage-matrix instance-attribution limitation observed in
-Anomaly #7. Recommends class-fixture `Mock<ILogger>` pattern as the
-workaround. Marks proper SUT-instance-aware coverage as v3.4.x+ candidate.
+These are the remaining 8 of 196 = 4.1 %. Reporter explicitly said the
+ternary fix alone "closes our pain point for incremental TDD on this
+codebase" — defer until they raise a re-test follow-up.
 
 ## Status
 
-- [x] Branch `feature/168-mutator-type-awareness-and-doc-improvements` opened
-- [x] Maxential 14 thoughts + 3 ToT branches A/B/C → B chosen 0.875 + merged
-- [x] P0 implementation (InlineConstantsMutator type-aware) + 12 regression tests TDD-first
-- [x] P1 doc-updates (README known-limitations 4 new bullets)
-- [x] P2 ADR-047 + ADR-048 written to architecture_specification.md + Änderungshistorie entry 0.31.0
-- [x] Build 0/0, tests 2121 green (+16), semgrep clean
-- [x] PR #261 squash-merged (`f5b537e` on main); Tag `v3.3.0` pushed; release.yml fired: NuGet HTTP 201 Created (1.5s), GitHub Release with `dotnet-stryker-netx.3.3.0.nupkg` asset
-- [x] MEMORY.md `project_sprint168_closed.md` (5 lessons) + index entry
-- [x] `housekeeping_done: true`
+- [ ] Branch `feature/169-ternary-emit-typed-mutation-placer` opened
+- [ ] Maxential confirmation of root-cause + Branch-B-mirror plan
+- [ ] P0 implementation (ConstantReplacementMutator type-aware) + TDD-first regression tests
+- [ ] ADR-049 (extends ADR-047 to ConstantReplacementMutator)
+- [ ] Build/test/semgrep green
+- [ ] PR + merge + tag v3.3.1 + release + NuGet
+- [ ] MEMORY.md `project_sprint169_closed.md` + index entry
