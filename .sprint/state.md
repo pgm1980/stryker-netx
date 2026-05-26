@@ -3,8 +3,8 @@ current_sprint: "169"
 sprint_goal: "P0 ConstantReplacementMutator type-aware emission — extends ADR-047 to the SECOND constant-emitting mutator (Sprint 14 / v2.1.0). Reporter's BUG_REPORT_9_FOLLOWUP_2 categorised 196 residual Safe Mode! warnings on v3.3.0: 184 A.1 (nested-ternary double) + 3 A.2 + 1 A.3, all rooted in ConstantReplacementMutator.MakeNumericMutation calling Convert.ToDouble + Literal(string, double). Same fix shape as ADR-047 Branch B: switch-expression on object newValue → typed SyntaxFactory.Literal(T). Target tag v3.3.1 (patch — same surface as v3.3.0, no API break)."
 branch: "feature/169-ternary-emit-typed-mutation-placer"
 started_at: "2026-05-25"
-housekeeping_done: false
-memory_updated: false
+housekeeping_done: true
+memory_updated: true
 github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
@@ -79,10 +79,11 @@ codebase" — defer until they raise a re-test follow-up.
 
 ## Status
 
-- [ ] Branch `feature/169-ternary-emit-typed-mutation-placer` opened
-- [ ] Maxential confirmation of root-cause + Branch-B-mirror plan
-- [ ] P0 implementation (ConstantReplacementMutator type-aware) + TDD-first regression tests
-- [ ] ADR-049 (extends ADR-047 to ConstantReplacementMutator)
-- [ ] Build/test/semgrep green
-- [ ] PR + merge + tag v3.3.1 + release + NuGet
-- [ ] MEMORY.md `project_sprint169_closed.md` + index entry
+- [x] Branch `feature/169-ternary-emit-typed-mutation-placer` opened
+- [x] Maxential 11 thoughts + 3 ToT branches A/B/C, **B chosen 0.875** + merged
+- [x] P0 implementation (ConstantReplacementMutator type-aware) + 14 TDD-first regression tests (TDD-red 11 failures → TDD-green 22/22)
+- [x] ADR-049 (extends ADR-047 to ConstantReplacementMutator) + Änderungshistorie 0.32.0
+- [x] Build 0/0, tests 2137 green (+16), Semgrep clean
+- [x] PR #263 squash-merged (`b062636` on main); Tag `v3.3.1` pushed; release.yml fired: NuGet pushed, GitHub Release with `dotnet-stryker-netx.3.3.1.nupkg` asset
+- [x] MEMORY.md `project_sprint169_closed.md` (5 lessons) + index entry
+- [x] `housekeeping_done: true`
