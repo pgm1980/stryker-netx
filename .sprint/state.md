@@ -1,30 +1,36 @@
 ---
-current_sprint: "178"
-sprint_goal: "360°-Analyse F — Synthese & priorisierter Fix-Backlog (Programm-Abschluss). ABGESCHLOSSEN: Synthese-Dokument _docs/analysis/sprint_178_synthesis.md (Programm-Bilanz ~430 Dateien/139 Findings/12 Proben, 5 Befund-Cluster, Quick-Win-Liste, Fix-Fahrplan 179–184, Positiv-Bilanz), P3-Sammel-Issue #302, Abschlussbilanz auf #276. Kein Tag (Findings-only)."
-branch: "feature/178-synthesis-f-fix-backlog"
+current_sprint: "179"
+sprint_goal: "Fix-Sprint 1/6 (Fahrplan sprint_178_synthesis.md): Quick-Wins + P1. TDD je Fix (Red-Test aus Register-Befund): #282 P1 (out-Lambda-NRE → default-Literal), #295 (&=~ → |=), #294 (Contains is false → is true), #283 (DoNotMutate CaseSwitchLabel + goto case), G-01/#279-Teil (AddEndingReturn in Mutations-Pfad), #292 (Enrichment-Guards), #274 (Config-Key raus), H-05/J-11 (#302-Einzeiler), #273 (Test-Toleranz). Verifikation: Build 0/0, Tests grün, Semgrep, Probe P-4 grün + Probe-1-CE-Rate sinkt (lokale CLI). Ship: PR → Squash → Tag v3.3.4 auf Merge-Commit → Release → Nightly-Dispatch (Ziel 11/11) → Closing-PR."
+branch: "feature/179-quick-wins-p1"
 started_at: "2026-06-11"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: true
-tests_passed: true
-documentation_updated: true
+semgrep_passed: false
+tests_passed: false
+documentation_updated: false
 ---
-# Session State — Sprint 178 (360°-Analyse F: Synthese) — ABGESCHLOSSEN
+# Session State — Sprint 179 (Quick-Wins + P1)
 
-## Ergebnis — PROGRAMM KOMPLETT (173–178)
+## Fix-Liste (aus sprint_178_synthesis.md §3/§4)
 
-- **Synthese:** `_docs/analysis/sprint_178_synthesis.md` — 5 Cluster (CE-Noise-Default,
-  Crash/Hang, Races, Config-Reichweite, Score-Integrität), priorisierter Backlog über
-  23 offene Issues, 8 Quick-Win-Einzeiler, Fix-Fahrplan Sprints 179–184 mit Erfolgsmaßen
-- **#302** P3-Sammelliste (kuratierte Checkliste, ~20 Einträge)
-- **#276** trägt die finale Programm-Bilanz (Issue war als 173er-Träger bereits geschlossen;
-  Kommentar-Log vollständig)
-- Semgrep 0 Findings (docs-only); kein Tag
+| Fix | Issue | Ort | Status |
+|-----|-------|-----|--------|
+| 1 | #294 | TestRunner/Tests/TestIdentifierList.cs:44 `is false`→`is true` | ☐ |
+| 2 | #295 | TestRunner.VsTest/VsTestContextInformation.cs:279 `&= ~`→`\|=` | ☐ |
+| 3 | #282 P1 | Instrumentation/DefaultInitializationEngine.cs:57 default-Literal bei Type==null | ☐ |
+| 4 | G-01 | CsharpNodeOrchestrators/BaseFunctionOrchestrator.cs:140 AddEndingReturn | ☐ |
+| 5 | #283 | CsharpMutantOrchestrator-Liste: DoNotMutate CaseSwitchLabel + goto-case | ☐ |
+| 6 | #292 | Initialisation/ProjectMutator.cs:46–48 Guards | ☐ |
+| 7 | H-05 | InputFileResolver.FindProjectFile:847 Extension-Check | ☐ |
+| 8 | J-11 | CLI/ConfigBuilder.cs:53 fullPath | ☐ |
+| 9 | #273 | Core.Tests InitialTestProcess-Toleranz | ☐ |
+| 10 | #274 | MTP-Modul stryker-config.json Key raus | ☐ |
 
-## Nächster Schritt (auf User-Zuruf)
+## Erfolgsmaße
 
-**Sprint 179 (Quick-Wins + P1):** #282, #295, #294, #274-Config, #292, #283, G-01-Einzeiler,
-H-05/J-11, #273-Testfix — TDD, Probe-Validierung (P-4 erwartet grün), Nightly-Ziel 11/11.
-Ende Findings-only: Ab 179 wird gefixt.
+- Build 0/0, alle Tests grün, Semgrep 0
+- P-4-Probe (out-Lambda) gegen LOKALE CLI: Exit 0 statt 127
+- Probe-1-Re-Run: case-Label-Mutanten nicht mehr CE; Block-CS0161-CEs weg (G-01)
+- Nach Merge: Nightly-Dispatch → MTP-Modul grün (11/11)
