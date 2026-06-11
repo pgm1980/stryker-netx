@@ -1,12 +1,12 @@
 {
   "stryker-config": {
     "project-info": {
-      "name": "github.com/stryker-mutator/stryker-net",
+      "name": "github.com/pgm1980/stryker-netx",
       "module": "configuration"
     },
     "project": "Stryker.Configuration",
     "test-projects": [
-      "../Stryker.Core/Stryker.Core.UnitTest/Stryker.Core.UnitTest.csproj"
+      "../../tests/Stryker.Core.Dogfood.Tests/Stryker.Core.Dogfood.Tests.csproj"
     ]
   }
 }

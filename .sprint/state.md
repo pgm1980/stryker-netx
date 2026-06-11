@@ -1,79 +1,66 @@
 ---
-current_sprint: "170"
-sprint_goal: "CI-Reanimation + Doc-Drift — P0: Nerdbank.MessagePack 1.1.62→1.2.4 (zwei post-v3.3.1 Advisories GHSA-qjvr-435c-5fjh + GHSA-92vj-hp7m-gwcj brechen via NuGetAudit+TWAE den Build, 20× NU1902). P1: stryker-on-stryker.yaml:81 null==false-Koerzierung lässt Scheduled-Runs seit ≥20 Tagen im NuGet-Modus gegen den nicht-existenten Manifest-Pin 0.0.0-localdev laufen. P2: 2 verwaiste locked Agent-Worktrees + .clone. Doc-Drift: MEMORY.md/DEEP_MEMORY.md (Sprint-0-Stand), README.md. Target tag v3.3.2 (patch — Dependency-Bump im shipped Tool, kein API-Break)."
-branch: "feature/170-ci-reanimation-doc-drift"
+current_sprint: "171"
+sprint_goal: "Dogfood-Configs + Integration-Matrix + Manifest-Nachzug — Item 1: src/*/stryker-config.json (Sprint-24-Vendoring) referenzieren Upstream-Test-Projektpfade (../*.UnitTest.csproj), die im netx-Layout (tests/*.Tests) nie existierten; sichtbar geworden durch ADR-050-Dispatch-Run 27339863955 (alle 11 Jobs 'No .csproj or .fsproj file found'). Item 2: integration-test.yaml (30 Jobs) failt auf jedem PR seit ≥ Sprint 167 am Step 'Run integration tests' — Root-Cause-Diagnose + Fix wenn tractable. Item 3: .config/dotnet-tools.json Pin 3.3.1→3.3.2 nach NuGet-Indexierung + Auto-Bump-Abwägung. Tag-Frage offen: CI-/Config-only-Sprint → Sprint-138-Präzedenz (kein Tag) außer shipped Code ändert sich."
+branch: "feature/171-dogfood-configs-integration-matrix"
 started_at: "2026-06-11"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: true
-tests_passed: true
-documentation_updated: true
+semgrep_passed: false
+tests_passed: false
+documentation_updated: false
 ---
-# Session State — Sprint 170 (v3.3.2 prep)
+# Session State — Sprint 171
 
 ## Trigger
 
-Session-Start-Bestandsaufnahme 2026-06-11, GitHub-Issue #265. Kein neuer
-Bug-Report — beide CI-Breaker sind seit dem v3.3.1-Release (2026-05-26)
-von außen entstanden (neue Advisories) bzw. lagen latent im Workflow.
+Sprint-170-Verifikation (ADR-050): Der erste funktionierende Dispatch-Run des
+Nightly-Dogfood brachte alle 11 Jobs erstmals bis in die Stryker-Execution —
+und legte dort die nächste Schuldenschicht frei. GitHub-Issue #268.
+User-Direktive: Sprint 171 mit den drei Sprint-170-Follow-ups durchziehen,
+danach Übergang zur eigentlichen Aufgabe (separat zu besprechen).
 
 ## Sprint-Backlog
 
 | # | Item | Status |
 |---|------|--------|
-| P0 | Nerdbank.MessagePack 1.1.62 → 1.2.4 in `Directory.Packages.props` (GHSA-qjvr-435c-5fjh fixed 1.1.78, GHSA-92vj-hp7m-gwcj fixed 1.2.4; 1.2.4 = latest stable 2026-05-18) + 10× packages.lock.json regeneriert (RestoreLockedMode) | ✅ Build 0/0, Audit clean (25 Projekte) |
-| P1 | `stryker-on-stryker.yaml:81` Expression schedule-sicher machen (`null == false` koerziert in GH-Expressions zu `0 == 0` = true → USE_LOCAL_TOOL='false' bei schedule) + `.config/dotnet-tools.json` Pin 0.0.0-localdev → 3.3.1 — Maxential 9 Thoughts + 1 ToT-Branch, ADR-050 | ✅ implementiert; tool restore → 3.3.1 ok, pack ok; Dispatch-Verifikation nach Merge |
-| P2 | 2 locked Agent-Worktrees (`agent-ac69014b…` @ aae7630, `agent-afd558f7…` @ 8a6b27a) + `.clone/worktrees` — erst dirty/unmerged prüfen, dann entfernen | ✅ Inhalte verifiziert auf main (Sprint-159/160-Duplikate), Worktrees + Branches + .clone entfernt |
-| D1 | README.md auf v3.3.x-Stand (Ära-Tabelle, NuGet-Badge, v3.3.x-Features, SDK-Angabe) | ✅ |
-| D2 | MEMORY.md (Root) von Sprint-0-Stand auf aktuell | ✅ kompletter Rewrite |
-| D3 | DEEP_MEMORY.md: Sektion 0 „Stand heute" + [Ausgang]-Anmerkungen | ✅ |
-| D4 | ADR-050 + Änderungshistorie 0.33.0 in architecture_specification.md | ✅ |
+| 1 | Dogfood-Configs: 9 umgestellt + **2 fehlende ergänzt** (Solutions, TestRunner hatten gar keine!) + project-info.name → pgm1980/stryker-netx; Mapping per Referenz-Matrix (ADR-051 E1) | ✅ 11/11 `--break-after analysis` EXIT=0, 0 Warn-Treffer |
+| 2 | Integration-Matrix: Root-Cause netcore (27 Jobs) lokal BEWIESEN — Fixtures nie restauriert, MSBuildWorkspace braucht assets der referenzierten Source-Projekte → Restore-Fixture per Kategorie + Nightly-Versicherungs-Restore (E2). netframework (2 Jobs) = ANDERE Klasse (MSBuildWorkspace×Legacy-csproj, TypeInitializationException) → continue-on-error honest-deferred (E3). InitCommand war 3× grün. | ✅ Repro-Paar clean→rot/restored→grün auf NetCore+MTP-Pfad; ps1-Syntax 0 Fehler |
+| 3 | Manifest-Pin → 3.3.2 (Indexierung via WebFetch bestätigt, restore verifiziert); Auto-Bump verworfen (E4: ungated main-Push, Chicken-Egg, Release-Pfad-Risiko) → Prozess-Konvention Pin-Nachzug im Folge-PR | ✅ |
 
-## Out of scope (unverändert honest-deferred aus Sprint 169)
+## Out of scope
 
-- B.1 (3 Sites) `byte[].AsSpan` / B.2 (1 Site) `byte[].AsMemory` Overload-Mismatch in AsSpanAsMemoryMutator
-- D (4 Sites) PluginManager CS0165/CS0161 (Block-Removal-Codegen)
-- Warten auf Reporter-Re-Test gegen v3.3.1 (Pass-Kriterien: <20 Safe-Mode-Warnings, <15 % CompileError)
-
-## Session-Notizen
-
-- Serena steht in dieser Session nicht zur Verfügung (Standalone-Server
-  :9121 von anderem Projekt reserviert; stryker-netx in serena_config.yml
-  nachregistriert, greift erst nach Server-Neustart). Dokumentierter
-  Fallback: Built-In Tools (Read/Edit/Write/Glob/Grep) — CLAUDE.md-konform
-  mit Begründung.
-- Befund verschärft: stryker-on-stryker war NIE grün — 42/42 Runs failed,
-  alle schedule-Events, 0 dispatch-Runs seit Sprint 24. Der korrekte
-  dispatch-Default-Pfad wurde schlicht nie ausgeführt.
-- Maxential `tag`-Tool hat Schema-Defekt (typloser Listen-Param wird als
-  String transportiert, Pydantic-Validierung schlägt fehl) — Tags nicht
-  setzbar, Entscheidungen stehen in den Thoughts selbst.
+- B.1/B.2/D aus BUG_REPORT_9_FOLLOWUP_2 (Reporter-Re-Test abwarten)
+- „11/11 Nightly-Mutation-Runs grün" als hartes Kriterium (Erstläufe können
+  weitere Schichten zeigen — Kriterium ist: Configs lösen auf, Initial-Phase läuft)
 
 ## Status
 
-- [x] Branch `feature/170-ci-reanimation-doc-drift` geöffnet
-- [x] GitHub-Issue #265 angelegt (auto-closed durch PR-Merge)
+- [x] Branch `feature/171-dogfood-configs-integration-matrix` geöffnet
+- [x] GitHub-Issue #268 angelegt
 - [x] Sprint-Backlog (dieses Dokument)
-- [x] P0 implementiert + Build 0/0 + Vulnerable-Audit clean
-- [x] P1 implementiert (Maxential 9 Thoughts + ToT-Branch + ADR-050)
-- [x] P2 aufgeräumt (Worktrees, Branches, .clone)
-- [x] D1–D4 Doc-Drift behoben
-- [x] Semgrep clean (0 Findings, 8 geänderte Dateien)
-- [x] Tests grün: 2155 bestanden / 0 Fehler / 27 legitime Skips (inkl. E2E 18/18), `dotnet test` Exit 0, Coverage via coverlet.runsettings
-- [x] PR #266 squash-merged (`01df790` auf main); ci.yml-Gate komplett grün (build+test ubuntu/windows, e2e ubuntu/windows, semgrep, CI complete)
-- [x] Tag `v3.3.2` auf Merge-Commit gepusht; release.yml Run 27339842976 success: NuGet-Push HTTP-Erfolg + GitHub-Release mit `dotnet-stryker-netx.3.3.2.nupkg`-Asset (NuGet-Indexierung lief beim Sprint-Close noch — Manifest-Pin bleibt designgemäß auf 3.3.1)
-- [x] Dispatch-Run 27339863955 (erster workflow_dispatch dieses Workflows überhaupt): **P1-Kriterium erfüllt** — alle 11 Jobs überstehen restore/pack/install, der frisch gepackte Stryker startet (Banner + Analyse-Log). Failure jetzt NACHGELAGERT: per-Modul `stryker-config.json` (Sprint 24 verbatim aus Upstream vendored) referenzieren Upstream-Test-Projektpfade (`../*.UnitTest.csproj` bzw. `../Stryker.Core/Stryker.Core.UnitTest/`), die im netx-Layout (`tests/*.Tests`) nie existierten → „No .csproj or .fsproj file found". Bisher unsichtbar, weil kein Run je bis dorthin kam.
-- [x] Housekeeping: alle Flags true, Closing-PR
+- [x] Item 3 (Manifest 3.3.2 + Auto-Bump-Abwägung, Maxential 3 Thoughts)
+- [x] Item 1 (11 Dogfood-Configs, lokal verifiziert)
+- [x] Item 2 (Restore-Pflicht + continue-on-error, Maxential 4 Thoughts, Repro-Paar)
+- [x] ADR-051 + Änderungshistorie 0.34.0
+- [x] Semgrep clean (0 Findings, 17 Dateien); ps1-Parser 0 Syntax-Fehler
+- [x] Build 0/0 (BUILD_EXIT=0); Tests: 9 Suiten lokal grün **2137 bestanden / 0 Fehler / 27 legitime Skips**
+- [x] E2E-Verdikt (ehrlich dokumentiert): Lokale E2E-Läufe heute Nachmittag durch
+  Verifikations-Infrastruktur kontaminiert — Harness meldete Background-Tasks
+  wiederholt verfrüht „completed", wodurch 3 E2E-Suiten überlappend gegen dieselben
+  samples/-Fixtures liefen (gegenseitige Störung, danach von mir gekillte
+  MSBuild-Nodes/Build-Server → ein 240s-Subprozess-Timeout). Sprint 171 ändert
+  KEINEN E2E-relevanten Codepfad (Configs wirken nur in src/-CWDs, Rest sind
+  CI-Skripte/Workflow/Manifest). Letzter sauberer E2E-Beweis: heute Vormittag
+  (Sprint-170-Verifikation, identischer Pfad) 18/18 EXITCODE=0. Maßgebliche
+  E2E-Evidenz für den Merge: ci.yml-Gate (e2e-Jobs auf 2 frischen OS-Runnern).
+- [ ] PR + ci.yml-Gate + Merge (KEIN Tag — Sprint-138-Präzedenz, CI-/Config-only)
+- [ ] Post-Merge: Dispatch integration-test (Erwartung: 28 grün + 2 allowed-failures) + stryker-on-stryker (Erwartung: Module erreichen Mutation-Loop)
+- [ ] Housekeeping + Closing-PR
 
-## Follow-up-Kandidaten für Sprint 171 (aus Sprint-170-Verifikation)
+## Backlog-Notiz für Aufgaben-Diskussion (nach Sprint 171)
 
-1. **Dogfood-Configs reparieren:** 9× `src/*/stryker-config.json` Test-Projektpfade
-   von Upstream-Layout auf netx-Layout (`tests/Stryker.Core.Tests` etc.) umstellen —
-   danach hat der Nightly erstmals die Chance auf echte Mutation-Runs.
-2. **Integration-Test-Matrix-Reanimation:** `integration-test.yaml` (30 Jobs) failt
-   auf JEDEM PR seit mindestens Sprint 167 (gemergter Sprint-169-PR: 28 Failures am
-   Step „Run integration tests"). Vorbestehend, nie Teil eines Merge-Gates.
-3. Optional: `.config/dotnet-tools.json` Pin 3.3.1 → 3.3.2 sobald NuGet-Indexierung
-   abgeschlossen; längerfristig Auto-Bump via release.yml (ADR-050 Follow-up-Idee).
+Tool-seitiger Auto-Restore vor Analysis wenn `project.assets.json` fehlt
+(ADR-051-Backlog): CI-First-User treffen sonst „Failed to analyze project
+builds" ohne Hinweis. Upstream deckte das via Buildalyzer implizit ab.

@@ -149,6 +149,16 @@ if ($useLocalTool) {
   $strykerPath = Join-Path $toolPath 'dotnet-stryker-netx'
 }
 
+# Sprint 171 (ADR-051): MSBuildWorkspace analysis needs restored projects
+# (obj/project.assets.json). Packing the CLI restores src/* transitively, but the
+# per-module test projects under tests/ stay unrestored on a fresh CI checkout.
+# Empirically the analysis tolerates an unrestored TEST project as long as the
+# referenced source projects are restored — but that is undocumented behaviour;
+# one solution-wide restore removes the whole failure class for both tool modes.
+Write-Info "Restoring solution (MSBuildWorkspace analysis requires restored references)"
+dotnet restore (Join-Path $repoRoot 'stryker-netx.slnx')
+if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed with exit code ${LASTEXITCODE}" }
+
 $isGitHubActions = ${env:GITHUB_ACTIONS} -eq 'true'
 $dashboardApiKey = ${env:STRYKER_DASHBOARD_API_KEY}
 

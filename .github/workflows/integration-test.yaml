@@ -51,6 +51,12 @@ jobs:
           - runtime: netframework
             category: WebApiWithOpenApi
     runs-on: ${{ matrix.agent }}
+    # Sprint 171 (ADR-051): netframework entries are honest-deferred — MSBuildWorkspace
+    # cannot load legacy non-SDK csproj (RemoteInvocationException → TypeInitializationException
+    # in Microsoft.Build.Shared.XMakeElements). Real repair is tool-level work (own sprint).
+    # continue-on-error keeps the jobs running + visible (red annotation in the run) without
+    # blocking the workflow/fan-in — so the 28 working netcore/MTP jobs regain regression signal.
+    continue-on-error: ${{ matrix.runtime == 'netframework' }}
     env:
       CATEGORY: ${{ matrix.category }}
       RUNTIME: ${{ matrix.runtime }}

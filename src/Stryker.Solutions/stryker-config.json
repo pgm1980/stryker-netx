@@ -1,0 +1,12 @@
+{
+  "stryker-config": {
+    "project-info": {
+      "name": "github.com/pgm1980/stryker-netx",
+      "module": "solutions"
+    },
+    "project": "Stryker.Solutions",
+    "test-projects": [
+      "../../tests/Stryker.Solutions.Tests/Stryker.Solutions.Tests.csproj"
+    ]
+  }
+}
