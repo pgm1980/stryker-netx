@@ -1,4 +1,7 @@
+using System.Linq;
 using FluentAssertions;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Mutants;
@@ -213,4 +216,48 @@ public class CsharpMutantOrchestratorTests : MutantOrchestratorTestsBase
         var count = CountMutations(source);
         count.Should().BeGreaterThan(0, "default interface method body with arithmetic should produce ≥1 mutation");
     }
+
+    // Sprint 179 (issue #279, Mechanik-Korrektur zu Befund G-01): der needReturn-Pfad von
+    // MutationStore.Inject stellt auf dem Mutations-Pfad bereits ein terminales Return her
+    // (der separate EndingReturnEngine-Aufruf ist dort by design entbehrlich). Dieser Test
+    // pinnt die Garantie, damit eine kuenftige Refaktorierung sie nicht verliert.
+    [Fact]
+    public void ShouldAddEndingReturnOnMutatedValueReturningMethods()
+    {
+        var source = "int M(bool c){ if(c) {return 1;} return 2; }";
+
+        var mutated = MutateSourceInClass(source);
+
+        var method = CSharpSyntaxTree.ParseText(mutated).GetRoot()
+            .DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(m => string.Equals(m.Identifier.ValueText, "M", System.StringComparison.Ordinal));
+        method.Body!.Statements.Last().Should().BeOfType<ReturnStatementSyntax>(
+            "the mutation path must restore a terminal return so block mutants stay compilable");
+    }
+
+    // Sprint 179 (issue #283, 360-Grad-Analyse G-14): case-Labels verlangen Konstanten.
+    // Ein Mutations-Wrap im Label ist garantiert CS0150, daher darf dort gar nicht erst
+    // mutiert werden (Probe Sprint 174: 2/2 CompileError, Kontrollgruppe Killed).
+    [Fact]
+    public void ShouldNotMutateCaseLabelConstants()
+    {
+        var source = """
+            int M(string s)
+            {
+                switch (s)
+                {
+                    case "a": return 1;
+                    case "b": goto case "a";
+                    default: return 0;
+                }
+            }
+            """;
+
+        _ = MutateSourceInClass(source);
+
+        Target.Mutants.Should().NotContain(
+            m => m.Mutation.OriginalNode.ToString() == "\"a\"" || m.Mutation.OriginalNode.ToString() == "\"b\"",
+            "string constants in case labels and goto-case targets must not be mutated");
+    }
+
 }

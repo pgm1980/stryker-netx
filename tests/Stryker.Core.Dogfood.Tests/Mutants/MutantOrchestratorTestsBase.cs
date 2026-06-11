@@ -89,6 +89,24 @@ public class MutantOrchestratorTestsBase : TestBase
     /// and (optionally) that specific mutator types fired.</summary>
     protected int CountMutations(string source)
     {
+        var actualString = MutateSourceInClass(source);
+        // Count IsActive(N) markers — each represents a mutation
+        var isActiveMarker = $"{Injector.HelperNamespace}.MutantControl.IsActive(";
+        var count = 0;
+        var idx = 0;
+        while ((idx = actualString.IndexOf(isActiveMarker, idx, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            idx += isActiveMarker.Length;
+        }
+        return count;
+    }
+
+    /// <summary>Sprint 179: raw-output companion to <see cref="CountMutations"/> — wraps the
+    /// source in a test class, runs the full orchestration and returns the mutated source text
+    /// for structural assertions (used by the issue-#279/#283 regression pins).</summary>
+    protected string MutateSourceInClass(string source)
+    {
         var sourceWithClass = $$"""
             using System;
             using System.Linq;
@@ -107,16 +125,6 @@ public class MutantOrchestratorTestsBase : TestBase
             .WithNullableContextOptions(NullableContextOptions.Enable))
                         .AddSyntaxTrees(syntaxTree).WithReferences(references);
         var actualNode = Target.Mutate(syntaxTree, compilation.GetSemanticModel(syntaxTree));
-        var actualString = actualNode.GetRoot().ToFullString();
-        // Count IsActive(N) markers — each represents a mutation
-        var isActiveMarker = $"{Injector.HelperNamespace}.MutantControl.IsActive(";
-        var count = 0;
-        var idx = 0;
-        while ((idx = actualString.IndexOf(isActiveMarker, idx, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            idx += isActiveMarker.Length;
-        }
-        return count;
+        return actualNode.GetRoot().ToFullString();
     }
 }
