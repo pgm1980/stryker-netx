@@ -416,18 +416,25 @@ public partial class InputFileResolver : IInputFileResolver
     /// <c>"Domain"</c> matched both <c>Aisess.Domain.csproj</c> and a hypothetical
     /// <c>Aisess.Domain.Tests.csproj</c>) and silently excluded all source projects
     /// when the user passed a test-project name as filter.
+    /// <para>
+    /// Sprint 172 (ADR-052, issue #270): the filter side is compared RAW and is never
+    /// run through <see cref="Path.GetFileNameWithoutExtension(string)"/> — for dotted
+    /// project names without an extension that API treats the last name segment as an
+    /// extension (<c>"Stryker.Configuration"</c> → <c>"Stryker"</c>), which made every
+    /// dotted module filter miss (and allowed accidental cross-matches such as
+    /// <c>"Foo.Bar"</c> matching <c>Foo.csproj</c>). Instead the PATH side is offered
+    /// both with and without its real file extension.
+    /// </para>
     /// </summary>
-    private static bool MatchesFilter(string projectFilePath, string filter)
+    internal static bool MatchesFilter(string projectFilePath, string filter)
     {
         if (string.IsNullOrEmpty(projectFilePath) || string.IsNullOrEmpty(filter))
         {
             return false;
         }
-        return string.Equals(Path.GetFileName(projectFilePath), filter, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(
-                Path.GetFileNameWithoutExtension(projectFilePath),
-                Path.GetFileNameWithoutExtension(filter),
-                StringComparison.OrdinalIgnoreCase);
+        var fileName = Path.GetFileName(projectFilePath);
+        return string.Equals(fileName, filter, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Path.GetFileNameWithoutExtension(fileName), filter, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

@@ -3663,10 +3663,60 @@ Test project contains more than one project reference. Please set the project
 
 ---
 
+## ADR-052: MatchesFilter — Filter-Seite roh vergleichen (Fix Issue #270) (v3.3.3 / Sprint 172)
+
+**Status.** Accepted — Sprint 172 (v3.3.3, 2026-06-11). Vorgezogen vor das 360°-Analyse-Programm (Sprints 173+), damit der Nightly-Dogfood während der Analyse-Phase als 11/11-Sicherheitsnetz läuft (User-Entscheidung).
+
+**Kontext.** Issue #270 (Sprint-171-Dispatch): 8/11 Nightly-Module starben mit `WRN Project filter '<Modul>' produced no source projects` → Fallback → „Test project contains more than one project reference". Die im Issue dokumentierte Erst-Diagnose (TargetFileName leer in Design-Time-Analyse) war eine **Zwischenhypothese und ist falsch**.
+
+**Diagnose-Kette (alle Schritte lokal reproduziert):**
+1. `--verbosity trace --diag` zeigt: ALLE 12 Analysen `Succeeded: True` (= `OutputFilePath` gesetzt = `BuildsAnAssembly` true) — **TargetFileName-Hypothese falsifiziert** (gebaut wie ungebaut identisch).
+2. IsTestProject-Fehlklassifikations-Hypothese (Core/VsTest als Test geflaggt, erklärt den 12-Projekte-Scan) **falsifiziert**: `IsTestingPlatformApplication`/`IsTestProject`-Properties leer, References-Closure ohne KnownTestPackages-Treffer (block-genauer Diag-Log-Abgleich), Name-Suffixe negativ. Der 12-Projekte-Scan erklärt sich stattdessen durch **MSBuildWorkspace-transitive `Project.ProjectReferences`** (SDK-Projekte: transitive Projekt-Outputs fließen in die Compile-References) — Timing-Beweis: 11 Folge-„Analyzing"-Zeilen im 130-ms-Burst (Workspace-Cache-Hits) nach Dogfoods 4,5-s-Initial-Load; nur Dogfood wurde gescannt.
+3. **Root Cause:** `InputFileResolver.MatchesFilter` (Sprint 159, ADR-039) wendete `Path.GetFileNameWithoutExtension` auch auf den **Filter** an. Für gepunktete Projektnamen ohne Endung interpretiert die BCL das letzte Namens-Segment als Extension: `'Stryker.Configuration'` → `'Stryker'`. Verglichen wurde Pfad-Stamm `'Stryker.Configuration'` mit `'Stryker'` → nie ein Match. **Beweis-Experiment:** `--project Stryker.Configuration.csproj` (mit Endung, Branch 1) → sofortiger Match, 1 Projekt, sauberer Lauf.
+4. Latenter Zweitschaden derselben Zeile: beidseitige Verstümmelung erzeugte **Falsch-Positive** — Filter `'Foo.Bar'` (→'Foo') matchte `Foo.csproj` (→'Foo'): das FALSCHE Projekt konnte selektiert werden. Ebenso Cross-Extension (`'X.fsproj'` matchte `X.csproj`).
+
+**Warum 3 Module trotzdem liefen:** Single-Source-Referenz-Graphen (RegexMutators, Solutions) überleben den Fallback per Ein-Kandidat-Heuristik; TestRunner.VsTest analog über seinen Graphen. Zufalls-Überleben, kein Filter-Match.
+
+**Warum die Sprint-159-E2E-Tests das nie sahen:** `AisessLikeSlnxFoldersTests` verwendet durchgehend Filter MIT `.csproj`-Endung (Branch-1-Match). Unit-Tests für `MatchesFilter` existierten nicht (Regression-Lücke aus #270 Punkt 6).
+
+### Entscheidung
+
+`MatchesFilter`: Filter-Seite wird **roh** verglichen und nie durch `GetFileNameWithoutExtension` geschickt; die **Pfad-Seite** wird mit UND ohne ihre echte Endung angeboten:
+
+```csharp
+var fileName = Path.GetFileName(projectFilePath);
+return string.Equals(fileName, filter, OrdinalIgnoreCase)
+    || string.Equals(Path.GetFileNameWithoutExtension(fileName), filter, OrdinalIgnoreCase);
+```
+
+Semantik unverändert für alle legitimen Formen (Name mit Endung, Name ohne Endung, case-insensitive); strikt korrekter für die Verstümmelungs-Klassen (dotted-ohne-Endung jetzt Match; Cross-Match/Cross-Extension jetzt Reject). Sichtbarkeit `private` → `internal` (IVT auf Stryker.Core.Tests vorhanden) für die Unit-Test-Pinning-Schicht. Heilt alle drei ADR-039-Layer gleichzeitig (Layer 1 `ValidateFilterMatchesAnyProject`, Layer 2 Test-Projekt-Check, Layer 3 sourceCount-Gate nutzen dieselbe Primitive).
+
+### Tests (TDD)
+
+NEU `tests/Stryker.Core.Tests/Initialisation/ProjectFilterMatchingTests.cs` — 13 Fälle in 2 Theories (Match-Matrix: #270-Klasse, Endungs-Klasse, Linux-Pfade, Case; Reject-Matrix: Foo.Bar-Cross-Match, Cross-Extension, Partial-Name-Verbote, Degenerate). **TDD-Red 6/13** auf alter Implementierung dokumentiert → **Green 13/13**. Real-Szenario-Probe: `src/Stryker.Configuration` Volllauf `--break-after initial-test-run` — 0× WRN (Ganz-Output-Grep, Sprint-171-Lehre), genau 1 Projekt, 1.196 Tests, Initial-Run 24 s.
+
+### Konsequenzen
+
+- (+) Der `project`-Config-Key der Dogfood-Configs greift erstmals — Erwartung Dispatch: deutlich >3/11 Module in der Mutation-Loop, 0× Filter-WRN.
+- (+) Falsch-Positiv-Klasse (falsches Projekt selektierbar) geschlossen — betrifft auch End-User mit gepunkteten Projektnamen (praktisch jede reale .NET-Solution).
+- (+) Unit-Test-Pinning für die Filter-Primitive existiert erstmals.
+- (–) Verhaltens-Änderung für exotische Filter, die sich auf die Verstümmelung VERLIESSEN (z.B. Filter 'Foo.Bar' um Foo.csproj zu treffen) — absichtlich gebrochen, dokumentiert.
+
+### Supersedes / supplements
+
+- **Korrigiert** die Erst-Diagnose in Issue #270 (TargetFileName-Hypothese) — Korrektur-Kommentar im Issue.
+- **Ergänzt** ADR-039 (Sprint 159) um die fehlende Unit-Test-Schicht und die Filter-Roh-Vergleichs-Regel.
+- **Honest-deferred unverändert:** NetFramework-Matrix (ADR-051 E3), Tool-Auto-Restore (ADR-051-Backlog), B.1/B.2/D (Reporter).
+
+**Backed by.** Diagnose-Kette mit 2 dokumentierten Falsifikationen + Beweis-Experiment; TDD Red 6/13 → Green 13/13; Real-Szenario-Probe über die alte Blindfleck-Grenze hinaus.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
 |---------|-------|-------|----------|
+| 0.35.0 | 2026-06-11 | Claude Fable 5 (Co-Authored mit pgm1980) | Sprint 172 v3.3.3: **ADR-052** — MatchesFilter-Fix (Issue #270). Finale Root-Cause ERSETZT die Issue-Erst-Diagnose: `Path.GetFileNameWithoutExtension` auf der FILTER-Seite verstümmelte gepunktete Namen ohne Endung ('Stryker.Configuration'→'Stryker'; letztes Segment als Extension) ⇒ ADR-039-Layer-3-Fallback feuerte immer ⇒ 8/11 Nightly-Module starben an Disambiguierung. Zwei Zwischenhypothesen dokumentiert falsifiziert (TargetFileName-Leere: --diag zeigt 12× Succeeded=True; IsTestProject-Fehlklassifikation: Properties/References/Suffixe clean — 12-Projekte-Scan erklärt sich durch MSBuildWorkspace-TRANSITIVE ProjectReferences, Timing-Beweis 130-ms-Burst). Beweis-Experiment: Filter MIT Endung matcht sofort. Latenten Falsch-Positiv-Cross-Match ('Foo.Bar'⇒Foo.csproj — falsches Projekt selektierbar!) mit geschlossen. Fix: Filter roh, Pfad-Seite mit+ohne echte Endung; private→internal (IVT). TDD: NEU ProjectFilterMatchingTests 13 Fälle, Red 6/13 → Green 13/13; Real-Probe Stryker.Configuration bis initial-test-run (0 WRN, 1 Projekt, 1196 Tests). Sprint 159-Lücke geschlossen: erste Unit-Tests der Filter-Primitive (E2E nutzte nur .csproj-Endungen). Vorgezogen vor 360°-Analyse-Programm (User-Approval: Findings-only, src/ tief, 6 Sprints ab 173). |
 | 0.34.1 | 2026-06-11 | Claude Fable 5 (Co-Authored mit pgm1980) | Sprint-171-Closing: **ADR-051-Nachtrag** — Dispatch-Run 27345502390 brachte 3 Module erstmals durch vollständige Mutation-Runs (RegexMutators, Solutions, TestRunner.VsTest) und legte einen Tool-Bug frei: ADR-039-Layer-3-Gate verwirft den korrekt matchenden `project`-Filter IMMER im Test-Projekt-Modus (`sourceCount` zählt `BuildsAnAssembly()`; `TargetFileName` in Design-Time-Analyse generell leer — Build-Zustand-Hypothese FALSIFIZIERT via Repro nach clean+restore UND nach vollem Build). Multi-Referenz-Module sterben an „more than one project reference"-Disambiguierung. → Issue #270 (Sprint-172-Kandidat: Gate-Logik + TargetFileName-Population + WRN-Text + Regression-Test-Lücke Test-Projekt-Modus×Filter×Multi-Referenz). Verifikations-Lehre: `--break-after analysis` exitet vor der Disambiguierung — als Filter-Probe unzureichend; tail-N-Capture verbarg die frühe WRN (Blindfleck der 11/11-Prüfung). Integration-Matrix-Fan-in derweil erstmals grün (PR #269: 30 Passes + 2 erwartete netframework allowed-failures). |
 | 0.34.0 | 2026-06-11 | Claude Fable 5 (Co-Authored mit pgm1980) | Sprint 171 (kein Tag — CI-/Config-only, Sprint-138-Präzedenz): **ADR-051** — Dogfood-Configs netx-Layout + Fixture-Restore-Pflicht + NetFramework honest-deferred. E1: 9× `src/*/stryker-config.json` von Upstream-Pfaden (`../*.UnitTest.csproj`) auf netx `tests/*.Tests` (Mapping per Referenz-Matrix; Core → Dogfood+Core.Tests doppelt) + 2 FEHLENDE Configs ergänzt (Solutions, TestRunner) + project-info.name → pgm1980/stryker-netx; verifiziert 11/11 `--break-after analysis` EXIT=0. E2: Root-Cause der 27 netcore-Integration-Failures lokal bewiesen (Repro-Paar): MSBuildWorkspace braucht `project.assets.json` der REFERENZIERTEN Source-Projekte; integration-tests.ps1 restaurierte Fixtures nie → `Restore-Fixture`-Helper + per-Kategorie-Restore (IntegrationTestApp.sln / MicrosoftTestPlatform.slnx); stryker-on-stryker.ps1 bekommt Solution-Restore als Versicherung (unrestauriertes Test-Projekt wird nur UNDOKUMENTIERT toleriert). E3: 2 netframework-Jobs sind ANDERE Fehlerklasse (TypeInitializationException XMakeElements — MSBuildWorkspace×Legacy-csproj, Tool-Level) → `continue-on-error` statt dauerrot/entfernen; 28 Jobs gewinnen Regressions-Signal zurück. E4: Manifest-Pin → 3.3.2 (Indexierung bestätigt); release.yml-Auto-Bump verworfen (ungated main-Push, automatisiertes Chicken-Egg, Failure-Modes im kritischsten Workflow) → Prozess-Konvention Pin-Nachzug im Folge-PR. Backlog-Notiz: tool-seitiger Auto-Restore vor Analysis (CI-First-UX; Buildalyzer deckte das upstream implizit ab). InitCommand war entgegen erster Annahme 3× grün. |
 | 0.33.0 | 2026-06-11 | Claude Fable 5 (Co-Authored mit pgm1980) | Sprint 170 v3.3.2: **ADR-050** — Nightly-Dogfood Scheduled-Mode Repair. Zwei unabhängige CI-Breaker aus Session-Start-Bestandsaufnahme (Issue #265): (1) Nerdbank.MessagePack 1.1.62 → 1.2.4 (zwei post-v3.3.1 Advisories GHSA-qjvr-435c-5fjh fixed 1.1.78 + GHSA-92vj-hp7m-gwcj fixed 1.2.4; NuGetAudit+TWAE ⇒ 20× NU1902 ohne Code-Änderung; 10 packages.lock.json regeneriert wegen RestoreLockedMode; Audit danach clean über 25 Projekte). (2) „Stryker on Stryker" 42/42 Runs rot seit Sprint 24 — `inputs.useLocalTool == false` koerziert bei schedule (inputs=null) zu `0 == 0` = true ⇒ USE_LOCAL_TOOL='false' ⇒ tool restore gegen nicht-existenten Manifest-Pin `0.0.0-localdev`. Maxential 9 Thoughts + ToT-Branch „schedule-published-tool" (verworfen, full-integration-merged): D1 event_name-Guard-Expression, D2 Manifest-Pin → 3.3.1 (reale Version, restore erstmals funktionsfähig), D3 schedule bleibt local-pack (Dogfood = Pre-Release-Detektor + einziger HEAD-Wächter zwischen Sprints — hätte den NU1902-Breaker am Tag 1 gezeigt). Scope-Grenze: Erfolg = intendierter Pfad bis in Stryker-Execution, NICHT 11/11 Mutation-Runs grün (Pfad lief auf CI noch nie). Dazu Sprint-170-Doc-Drift: README (Ära-Tabelle statt Sprint-0–19-Liste, NuGet-Badge, v3.3.x-Features, SDK-Angabe an global.json angeglichen), MEMORY.md komplett neu (Sprint-0-Stand → Sprint 170), DEEP_MEMORY.md Sektion 0 „Stand heute" + [Ausgang]-Anmerkungen, Worktree-/Clone-Leftovers entfernt (2 locked Agent-Worktrees, Inhalte verifiziert auf main gelandet). **Lesson:** Workflow mit nur einem Trigger-Typ testet seine anderen Pfade nie (42 schedule, 0 dispatch); bei `inputs.*`-Conditionals den null-Fall explizit durchrechnen; dauerrotes Nightly ist unbezahltes Frühwarnsystem. |
