@@ -18,6 +18,25 @@
 > 7. **CLI:** Program/MSBuildLocator (H-17-Areal), Exit-Code-Pfade, Config-Parsing-Robustheit,
 >    NugetFeedClient-Netzwerkverhalten.
 
+## Executive Summary (Sprint-Abschluss 2026-06-11)
+
+**Scope: 157 Dateien (+2 Clients-Nachtrag); ~95 logik-tragende voll gelesen, ≈62 vertragsfreie
+Trivia klassifiziert.** **15 Findings (J-01…J-15), 2 neue Issues (#299, #300).**
+
+**Alle 7 Pflicht-Schwerpunkte aufgelöst:**
+- **I-02-Watch → J-01 (entlastend):** Kein Reporter ruft das invertierte `Contains` — #294 bleibt ruhend ✓
+- **G-37-Kette → J-07/J-14:** Provider-Deserialisierung schema-tolerant; `.Wait()`-Muster kartiert; Broadcast-Lock entschärft die DashboardClient-Batch-Race (Invariante!)
+- **H-27 → J-04 (#299, verschärft):** Substring-Branch-Matching → stiller falscher Diff-Base; master-Default-Fehlpfad mit Jargon-Meldung
+- **RoslynHelper → J-02:** ScanChildStatements blind für Catch/Finally (G-01-Nebenecke); ContainsNodeThatVerifies vorbildlich scope-korrekt
+- **SyntaxSlotValidator → J-03:** Force-Traverse fängt typed-list-Casts (Bug-9 ✓), Property-Access-Shapes = dokumentiertes Rest-Fenster
+- **G-15-Reporter-Anschluss → J-01:** „Pending" erreicht den Final-Report als schema-fremder Status; CE/Ignored sauber dargestellt
+- **CLI → J-10/J-11/J-15:** NoTestProjects→Exit 0 (CI-grün-Illusion), selbst-neutralisierter Config-Check, -V-Dualsemantik
+
+**Top-Funde:**
+- **J-04/P2 (#299):** `--since-target main` kann „maintenance" treffen — stille falsche Mutantenselektion
+- **J-06/P2 (#300):** Realtime-HTML-Races (Writer-Liste/Queue) + AggregateException bricht Reporter-Kette → Json/Baseline-Report-Verlust
+- **Positiv-Bilanz:** 3 Cross-Layer-Rettungen verifiziert (Broadcast-Lock, Provider-Robustheit, FileConfigReader-Guards); MsBuildHelper/ProcessUtil/NugetFeedClient solide
+
 ## Abdeckungs-Protokoll
 
 | Batch | Dateien | Status |
@@ -28,6 +47,8 @@
 | 4 | Azure-/S3-/Dashboard-Provider + Factory, BaselineMutantHelper, BaselineReporter, BroadcastReporter, ReporterFactory, FilteredMutantsLogger, ProgressBarReporter, SseServer, RealTimeMutantHandler | ✅ |
 | 5 | CLI-Kern: Program, StrykerCli (komplett), StrykerNugetFeedClient, ConfigBuilder, FileConfigReader, LoggingInitializer; Core-Infrastructure/ServiceCollectionExtensions | ✅ |
 | 6 | Reporter-Rest: MarkdownSummary, ClearTextTree, ClearText, ConsoleDot, Progress-Quartett, CrossPlatformBrowserOpener, SourceFile+Converter-Cluster, Location/Position | ✅ |
+| 7 | CLI-Rest: CommandLineConfigReader (komplett), FileConfigGenerator, FileBasedInput, SseEvent, JsonTestFile; Azure-/S3-Tails, DiffResult; Abstractions-Verträge: ITestIdentifiers, Mutation, MutantStatus, MutationTestingRequirements, OptimizationModes, MutationProfile, ITestRunner, TestDescription | ✅ |
+| — | **Abdeckungs-Ehrlichkeit:** ~95 logik-tragende Dateien voll gelesen; Residuum ≈62 vertragsfreie Trivia (Ein-Zeilen-Interfaces, Enum-Listen, DTO-Records, Converter-Klone des gelesenen Musters, generierte SerializerContexts) — klassifiziert, nicht zeilenweise gelesen. Bugs leben in Logik; Trivia-Restposten ggf. Stichprobe in 178 | ◐ klassifiziert |
 
 ## Findings
 
@@ -47,5 +68,6 @@
 | J-12 | NOTIZ | P3 | Helpers/ProcessUtil/ProcessExecutor.cs + MsBuildHelper.cs | ProcessExecutor: `WaitForExit(timeout)`-Overload wartet nicht auf Async-Output-Drain (Klassiker → Tail der Build-Ausgabe kann fehlen); `Process.Start` null/Fehlstart → irreführende „long runtime"-OCE-Meldung. MsBuildHelper: ADR-010-Kommandobau für beide Pfade korrekt (`dotnet msbuild` vs. exe; `-c` vs. `/property:`); QuotesIfNeeded-len<3-Mikro (Duplikat zu InitialBuildProcess) |
 | J-13 | NOTIZ | P3 | BroadcastReporter.cs:57 + Diverse | `Thread.Sleep(1s)` als Console-Flush-Heuristik vor Final-Reports (Upstream-Erbe). Formatting-Reporter (ClearText/Tree/Markdown/Dots/Progress) sauber (ADR-041-Kompaktspalten ✓); CrossPlatformBrowserOpener: WSL-Pfad ungequotet + ReadToEnd-Newline in PowerShell-Arg (Mikro); SourceFile-Duplikat-Detektion mit WARN ✓ |
 | J-14 | NOTIZ | P3 | Baseline-Provider-Quartett + FileConfigReader/LoggingInitializer | Provider robust (S3 NotFound→null, Azure Auth-Fail geloggt, Disk sauber); G-37-Kette: Fremd-JSON-Deserialisierung provider-seitig schema-tolerant (init-Defaults), das Enum.Parse-Risiko bleibt im Filter (bereits registriert). FileConfigReader: Key-Präsenz-Guards korrekt (leere Strings überschreiben nicht); LoggingInitializer: Output-Default + .gitignore-Anlage ✓; NugetFeedClient netzwerk-gehärtet (Catch-all → 0.0.0) ✓ |
+| J-15 | NOTIZ | P3 | AzureFileShareBaselineProvider.UploadFileContent:170–178 + CommandLineConfigReader:218 | (a) Azure-Chunk-Upload: Chunk-Fehler wird geloggt, Schleife läuft WEITER → Remote-Baseline mit Loch (korrupte Datei statt Abbruch+Cleanup); (b) `-V`-Doppelbelegung: bare `-V` = Tool-Version (Sprint-148-Konvention), `-V <wert>` = Verbosity-Kurzflag — funktional, aber verwirrende Dualsemantik; (c) `--with-baseline <committish>` schreibt in SinceTarget (Upstream-Design, dokumentationswürdig) |
 
 ## Detail-Einträge
