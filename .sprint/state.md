@@ -38,3 +38,32 @@ als 10/11-Sicherheitsnetz.
 - [x] Branch + state.md + Register angelegt
 - [ ] Batch-Lektüre (Pflicht-Schwerpunkte zuerst: BaseFunctionOrchestrator-Umfeld)
 - [ ] Verifikations-/Issue-Phase, Register-PR, Close
+
+## Sprint Context (auto-saved before compaction at 2026-06-11T17:23:54Z)
+
+### Current Branch
+feature/174-analysis-b-mutation-pipeline
+
+### Last 10 Commits
+```
+a4079ed analysis(sprint-174): G-03/G-04 — F-10 resolved (declaration-level mutations have no hosting path; null-forgiven expression! lands in ADR-028 guard as 'orchestrator bug' CE)
+f6d5eb4 analysis(sprint-174): setup + G-01 — F-14 mechanics resolved (EndingReturnEngine never invoked on mutation path)
+c0ab231 analysis(sprint-173): 360°-Analyse A — Mutatoren-Katalog komplett, 41 Findings (kein Tag) (#281)
+5919ace chore(sprint-172): close Sprint 172 — all housekeeping items done (v3.3.3 shipped) (#275)
+aef20e0 fix(sprint-172): ADR-052 MatchesFilter — Filter-Seite via GetFileName, nie GetFileNameWithoutExtension (closes #270, v3.3.3 prep) (#272)
+1115be7 chore(sprint-171): close Sprint 171 — all housekeeping items done (no tag) (#271)
+d1669a6 feat(sprint-171): ADR-051 Dogfood-Configs netx-Layout + Fixture-Restore-Pflicht + NetFramework honest-deferred (kein Tag) (#269)
+26e36c1 chore(sprint-170): close Sprint 170 — all housekeeping items done (v3.3.2 shipped) (#267)
+01df790 feat(sprint-170): ADR-050 CI-Reanimation — NuGet-Audit-Bump + Nightly-Dogfood Scheduled-Mode-Repair + Doc-Drift (v3.3.2 prep) (#266)
+f67b989 chore(sprint-169): close Sprint 169 — all housekeeping items done (v3.3.1 shipped) (#264)
+```
+
+### Recently Changed Files
+```
+.sprint/state.md
+_docs/analysis/sprint_173_findings.md
+_docs/analysis/sprint_174_findings.md
+_docs/architecture spec/architecture_specification.md
+src/Stryker.Core/Initialisation/InputFileResolver.cs
+tests/Stryker.Core.Tests/Initialisation/ProjectFilterMatchingTests.cs
+```
