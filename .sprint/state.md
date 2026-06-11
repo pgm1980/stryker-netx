@@ -1,30 +1,35 @@
 ---
-current_sprint: "175"
-sprint_goal: "360°-Analyse C — Initialisation/Utilities/Solutions/Configuration (Findings-only). ABGESCHLOSSEN: 98/98 Dateien gelesen, 28 Findings (H-01…H-28), 3 Proben (P-5/P-6 bestätigt, P-7 entkräftet), Issues #290–#292. Alle 6 Pflicht-Schwerpunkte aufgelöst. Register _docs/analysis/sprint_175_findings.md. Teil des Programms 173–178 (Issue #276). Kein Tag (Findings-only)."
-branch: "feature/175-analysis-c-initialisation-config"
+current_sprint: "176"
+sprint_goal: "360°-Analyse D — Test-Runner-Kette (Findings-only). 62 Dateien: Stryker.TestRunner (5, inkl. TestIdentifierList = tragende Mengen-Semantik), Stryker.TestRunner.VsTest (15), Stryker.TestRunner.MicrosoftTestPlatform (39), Stryker.DataCollector (3). Pflicht-Schwerpunkte: #274 Root-Cause (MTP-Server-Start vs. Dogfood-Config-Fehler), G-23 (MTP-Mutant-File Timestamp-Staleness — Runner-Schreibseite), CoverageAnalyser-Mehrfach-Enumeration (CaptureCoverage lazy?), H-13b (stale MTP-Warnung), #273-Rest (Duration-Aggregation), G-15-Anschluss (sessionTimedOut-/forceSingle-Pfade). Register _docs/analysis/sprint_176_findings.md (Präfix I-NN) batch-weise committet. Teil des Programms 173–178 (Issue #276). Kein Tag (Findings-only)."
+branch: "feature/176-analysis-d-test-runner-chain"
 started_at: "2026-06-11"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: true
-tests_passed: true
-documentation_updated: true
+semgrep_passed: false
+tests_passed: false
+documentation_updated: false
 ---
-# Session State — Sprint 175 (360°-Analyse C) — ABGESCHLOSSEN
+# Session State — Sprint 176 (360°-Analyse D: Test-Runner-Kette)
 
-## Ergebnis
+## Kontext
 
-- 98/98 Dateien gelesen (Initialisation 20, Utilities 15, Solutions 3, Configuration 60)
-- 28 Findings H-01…H-28; 3 Mess-Proben: **P-5/H-17 bestätigt** (Release→Debug-Injektion),
-  **P-6/H-18 bestätigt** (Multi-TFM-Crash), **P-7/H-21 entkräftet** (Ressourcen überleben Re-Emits)
-- Issues: **#290** (Workspace-Properties), **#291** (Multi-TFM-Fallback), **#292** (VsTest-Daten-Crash)
-- Kommentare: #273 (H-01-Wurzelbestätigung), #285 (H-28-Präzisierung: MustInjectCoverageLogic default-TRUE)
-- Semgrep 0 Findings (docs-only); Tests unberührt (Findings-only); kein Tag
+Sprint 175 (Analyse C) geschlossen: `f48545b` auf main, 28 Findings, Issues #290–#292.
+Programm-Issue #276 trägt weiter. Methode unverändert: Volltext-Lektüre, Verdacht→Probe→Issue.
 
-## Nächster Schritt
+## Scope Sprint 176 (62 Dateien)
 
-Sprint 176 (Analyse D): Test-Runner-Kette (Stryker.TestRunner, .VsTest, .MicrosoftTestPlatform,
-Stryker.DataCollector) + #274 (MTP-Modul rot) + #273-Restfragen. Vormerkungen aus 174/175:
-G-23 (MTP-Mutant-File Timestamp-Staleness), CoverageAnalyser-Mehrfach-Enumeration vs. Runner,
-H-13b (stale „MTP not supported"-Warnung vs. --test-runner mtp).
+| Block | Dateien | Schwerpunkte |
+|-------|---------|--------------|
+| Stryker.TestRunner | 5 | TestIdentifierList (Merge/Excluding/IsIncludedIn — tragend für AnalyzeTestRun + CoverageAnalyser), TestRunResult.Duration (#273-Rest), CoverageRunResult |
+| Stryker.DataCollector | 3 | CoverageCollector (VSTest-In-Proc-Collector, ENV-Steuerseite zu MutantControl) |
+| Stryker.TestRunner.VsTest | 15 | VsTestRunnerPool (CaptureCoverage-Materialisierung!), VsTestRunner (Timeout-/Bail-Semantik), RunEventHandler, VsTestHelper |
+| Stryker.TestRunner.MicrosoftTestPlatform | 39 | AssemblyTestServer/#274-Startstrecke, FileRpcListener + Mutant-File-Schreibseite (G-23!), TestingPlatformClient, 23 Models |
+
+## Status
+
+- [x] Branch + state.md + Register angelegt
+- [ ] #274-Schnellcheck (Dogfood-Config + .Tests-csproj) — entscheidet Config-vs-Code-Hypothese
+- [ ] Batch-Lektüre
+- [ ] Verifikations-/Issue-Phase, Register-PR, Close (kein Tag)
