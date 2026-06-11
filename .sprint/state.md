@@ -1,7 +1,7 @@
 ---
-current_sprint: "175"
-sprint_goal: "360°-Analyse C — Initialisation/Utilities/Solutions/Configuration (Findings-only). ABGESCHLOSSEN: 98/98 Dateien gelesen, 28 Findings (H-01…H-28), 3 Proben (P-5/P-6 bestätigt, P-7 entkräftet), Issues #290–#292. Alle 6 Pflicht-Schwerpunkte aufgelöst. Register _docs/analysis/sprint_175_findings.md. Teil des Programms 173–178 (Issue #276). Kein Tag (Findings-only)."
-branch: "feature/175-analysis-c-initialisation-config"
+current_sprint: "176"
+sprint_goal: "360°-Analyse D — Test-Runner-Kette (Findings-only). ABGESCHLOSSEN: 62/62 Dateien gelesen, 16 Findings (I-01…I-16, 2 entkräftet), #274-Root-Cause bestätigt (Config-Fehler), Issues #294–#297. Alle 6 Pflicht-Schwerpunkte aufgelöst. Register _docs/analysis/sprint_176_findings.md. Teil des Programms 173–178 (Issue #276). Kein Tag (Findings-only)."
+branch: "feature/176-analysis-d-test-runner-chain"
 started_at: "2026-06-11"
 housekeeping_done: true
 memory_updated: true
@@ -11,20 +11,22 @@ semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 175 (360°-Analyse C) — ABGESCHLOSSEN
+# Session State — Sprint 176 (360°-Analyse D) — ABGESCHLOSSEN
 
 ## Ergebnis
 
-- 98/98 Dateien gelesen (Initialisation 20, Utilities 15, Solutions 3, Configuration 60)
-- 28 Findings H-01…H-28; 3 Mess-Proben: **P-5/H-17 bestätigt** (Release→Debug-Injektion),
-  **P-6/H-18 bestätigt** (Multi-TFM-Crash), **P-7/H-21 entkräftet** (Ressourcen überleben Re-Emits)
-- Issues: **#290** (Workspace-Properties), **#291** (Multi-TFM-Fallback), **#292** (VsTest-Daten-Crash)
-- Kommentare: #273 (H-01-Wurzelbestätigung), #285 (H-28-Präzisierung: MustInjectCoverageLogic default-TRUE)
+- 62/62 Dateien gelesen (TestRunner 5, DataCollector 3, VsTest 15, MTP 39)
+- 16 Findings I-01…I-16 (I-12/I-13 entkräftet — Cross-Layer-Guards verifiziert)
+- **#274 Root-Cause bestätigt:** vendored `test-runner: mtp`-Key auf xunit-Projekt ohne MTP-Fähigkeit;
+  Hypothese b (Exe-vs-DLL) widerlegt; Sekundär I-14 (stderr-Blackout, Debug-Level-Fails) kommentiert
+- Issues: **#294** (Contains invertiert), **#295** (MsTest-Flag-Tippfehler), **#296** (Multi-Projekt-Init-Races),
+  **#297** (Hang-Klassen-Epic I-07+I-15)
 - Semgrep 0 Findings (docs-only); Tests unberührt (Findings-only); kein Tag
 
 ## Nächster Schritt
 
-Sprint 176 (Analyse D): Test-Runner-Kette (Stryker.TestRunner, .VsTest, .MicrosoftTestPlatform,
-Stryker.DataCollector) + #274 (MTP-Modul rot) + #273-Restfragen. Vormerkungen aus 174/175:
-G-23 (MTP-Mutant-File Timestamp-Staleness), CoverageAnalyser-Mehrfach-Enumeration vs. Runner,
-H-13b (stale „MTP not supported"-Warnung vs. --test-runner mtp).
+Sprint 177 (Analyse E): Reporters/, Baseline/ (+Providers/Utils), DiffProviders/, Stryker.CLI,
+Stryker.Abstractions, Helpers-Rest (RoslynHelper komplett, MsBuildHelper, ProcessUtil).
+Vormerkungen: I-02-Aufrufer-Watch (Reporter-Ports!), G-37-Baseline-Kette (Enum.Parse auf Fremd-JSON),
+SinceTarget-„master"-Default (H-27), DisplayName-„get get" (G-30).
+Danach 178 (Synthese + priorisierter Fix-Backlog).

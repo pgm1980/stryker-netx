@@ -1,0 +1,75 @@
+# 360°-Analyse — Sprint 176: Test-Runner-Kette (Findings-Register)
+
+> **Programm:** Sprints 173–178, Findings-only (Issue #276). Status-Schema und Severity
+> wie Vorsprints: `VERDACHT` / `BESTÄTIGT` / `ENTKRÄFTET` / `NOTIZ`; P0–P3.
+> Finding-Präfix dieses Sprints: **I-NN**.
+>
+> **Pflicht-Schwerpunkte (Carry-over + offene Issues):**
+> 1. **#274 Root-Cause:** „Failed to start test server" für das MTP-Dogfood-Modul (ubuntu).
+>    Hypothesen-Hierarchie aus dem Issue: (a) Config-Fehler — xunit-Testprojekt OHNE
+>    `<UseMicrosoftTestingPlatformRunner>` + vendored `test-runner: mtp`-Key; (b) Exe-vs-DLL-Start
+>    (`dotnet exec` nötig?); (c) IPC-Handshake. Schnellcheck Config+csproj VOR der Tiefenlektüre.
+> 2. **G-23 (174-Vormerkung):** MTP-File-Control-Staleness — MutantControl re-readet nur bei
+>    `LastWriteTimeUtc.Ticks`-Änderung; jetzt die SCHREIB-Seite: wie/wie oft schreibt der
+>    MTP-Runner das Mutant-File? Tick-Granularitäts-Kollision real?
+> 3. **CoverageAnalyser-Enumeration (G-32-Vormerkung):** `runner.CaptureCoverage` — lazy
+>    IEnumerable? CoverageAnalyser enumeriert 3× (Sum/Aggregate/Any).
+> 4. **H-13b:** stale „MTP not supported"-Warnung in InitialisationProcess trotz
+>    `--test-runner mtp` — Einordnung + Fix-Richtung.
+> 5. **#273-Rest:** TestRunResult.Duration-Aggregation (Summe vs. Wall) runner-seitig.
+> 6. **G-15-Anschluss:** sessionTimedOut-/forceSingle-Pfade, VsTest-Timeout-Discard-Semantik.
+
+## Executive Summary (Sprint-Abschluss 2026-06-11)
+
+**Scope komplett: 62/62 Dateien gelesen** (TestRunner 5, DataCollector 3, VsTest 15, MTP 39).
+**16 Findings (I-01…I-16, davon 2 ENTKRÄFTET), 4 neue Issues (#294–#297), #274-Root-Cause + Nachtrag.**
+
+**Alle 6 Pflicht-Schwerpunkte aufgelöst:**
+- **#274 → I-01/I-14:** Config-Fehler bestätigt (vendored `test-runner: mtp` auf xunit-Projekt ohne MTP-Fähigkeit; Hypothese b widerlegt — Start nutzt korrekt `dotnet <dll> --server`); Sekundär: Diagnose-Blackout (stderr verworfen, Debug-Level-Fails). Shovel-ready Einzeiler dokumentiert
+- **G-23 → eingegrenzt:** Write-per-Lauf, Läufe trennen Writes um Sekunden → Tick-Kollision nur auf Sekunden-granularen FS + Sub-Sekunden-Läufen (Edge); dafür I-11-Landmine dokumentiert (Multi-Mutant ⇒ −1 ⇒ False-Survivors — heute durch Singleton-Gruppen-Invariante tot)
+- **CaptureCoverage-Enumeration → ENTKRÄFTET beidseitig:** VsTest materialisiert (Dictionary), MTP = pure Projektion über eager-Daten
+- **H-13b → bestätigt:** `--test-runner mtp` existiert; die „not yet supported"-Warnung ist stale
+- **#273-Rest → geklärt:** `Duration` = Σ Initial-Laufzeiten by design (Initial-Pfad korrekt, Mutations-Pfad ungenutzt-irreführend)
+- **G-15-Anschluss → Cross-Layer-Guard verifiziert:** MTP-Catch-all-Pfad (FailingTests=EveryTest) wird vom Executor-Pending-Guard aufgefangen (I-13 ENTKRÄFTET) — das 174er-Sicherheitsnetz rettet aktiv
+
+**Top-Funde:**
+- **I-08/P2 (#295):** `&= ~` statt `|=` — MsTest nie erkannt, kein DisableParallelization (still falsche Coverage/Zuordnung bei [Parallelize]; trifft auch TUnit via Fallback)
+- **I-02/P2 (#294):** `TestIdentifierList.Contains` invertiert (`is false`) — ruhende Landmine, ungetestet
+- **I-09/P2 (#296):** Multi-Projekt-Init raced auf plain Dictionaries + Instanz-Ersetzung + Cross-Clear (verstärkt H-13)
+- **I-07+I-15/P2 (#297):** Zwei Hang-Klassen (VsTest-Pool-Warm-up unobserved, MTP-Disconnect komplettiert Listener nicht) — MTP-Pool zeigt intern das richtige Muster
+- **Positiv-Bilanz:** DataCollector solide, StrykerVsTestHostLauncher vorbildlich, MtpTestDescription-First-only-Timing sauber (I-12 entkräftet)
+
+## Abdeckungs-Protokoll
+
+| Batch | Dateien | Status |
+|-------|---------|--------|
+| 0 | #274-Schnellcheck: stryker-config.json (MTP-Modul) + Stryker.TestRunner.MicrosoftTestPlatform.Tests.csproj | ✅ Root-Cause bestätigt |
+| 1 | Stryker.TestRunner komplett (5/5): TestIdentifierList.cs, TestSet.cs, WrappedIdentifierEnumeration.cs, TestRunResult.cs, CoverageRunResult.cs (+ Aufrufer-Kartierung via Grep src/tests) | ✅ gelesen |
+| 2 | Stryker.DataCollector komplett (3/3): CoverageCollector.cs, Helpers.cs, ThrowingListener.cs | ✅ gelesen |
+| 3 | VsTest-Kern: VsTestRunnerPool.cs, VsTestRunner.cs, VsTestContextInformation.cs, RunEventHandler.cs | ✅ gelesen |
+| 4 | VsTest-Rest (11/15→15/15): TestRun.cs, VsTestDescription.cs, VsTestCase.cs, VsTestResult.cs, SimpleRunResults.cs, DiscoveryEventHandler.cs, IRunResults.cs, StrykerVstestHostLauncher.cs, IStrykerTestHostLauncher.cs, VsTestHelper-Interfaces (Helpers-Paar via Sichtprüfung der Aufrufe) | ✅ gelesen |
+| 5 | MTP-Kern: AssemblyTestServer.cs, MicrosoftTestPlatformRunnerPool.cs, SingleMicrosoftTestPlatformRunner.cs, DefaultTestServerConnectionFactory.cs, ProcessHandle.cs, DefaultRunnerFactory.cs, TestingPlatformClient.cs, ResponseListener.cs, TestNodeUpdatesResponseListener.cs, FileRpcListener.cs, RpcJsonSerializerOptions.cs | ✅ gelesen |
+| 6 | MTP-Models + Interfaces komplett (23 Models + 5 Interfaces — Protokoll-DTOs befundfrei bis auf MtpTestCase-Leerfelder) — **Scope KOMPLETT: 62/62** | ✅ gelesen |
+
+## Findings
+
+| # | Status | Sev | Datei | Kurzbefund |
+|---|--------|-----|-------|------------|
+| **I-01** | **BESTÄTIGT (Schwerpunkt 1 / #274 Root-Cause)** | **P2** | src/Stryker.TestRunner.MicrosoftTestPlatform/stryker-config.json + tests/….Tests.csproj | **#274 ist ein Config-Fehler, kein Code-Bug:** Dogfood-Config setzt `"test-runner": "mtp"`, aber das Test-Projekt ist klassisches xunit (Microsoft.NET.Test.Sdk + xunit.runner.visualstudio, CLAUDE.md-Stack) — KEIN Microsoft.Testing.Platform-Paket, kein MTP-Entry-Point → DLL kann nicht als MTP-Server starten → „Failed to start test server" ist die korrekte Folge. Key stammt aus Upstream-Vendoring (dort war das Testprojekt MTP-basiert). Shovel-ready Einzeiler (Key entfernen → VSTest-Default → Nightly 11/11); auf #274 kommentiert. Sekundär: Startstrecke sollte „Ziel ist kein MTP-Projekt" sprechend diagnostizieren (wird bei AssemblyTestServer-Lektüre präzisiert) |
+| **I-02** | **BESTÄTIGT (Code-Lektüre; ruhend)** | **P2** | TestRunner/Tests/TestIdentifierList.cs:44 | **`Contains` ist INVERTIERT:** `IsEveryTest \|\| _identifiers?.Contains(testId) is false` — liefert true ⟺ Id NICHT in der Menge (korrekt wäre `is true`; Upstream-Pendant prüft positiv → Port-Regression). Blast-Radius HEUTE null: kein produktiver Aufrufer in src (AnalyzeTestRun/Analyser nutzen ContainsAny/Intersect/IsIncludedIn, die intern set-basiert arbeiten), keine Test-Abdeckung — aber WrappedIdentifierEnumeration.ContainsAny/IsIncludedIn delegieren auf `other.Contains` (ebenfalls ohne Live-Receiver-Pfad) und JEDER künftige Aufrufer (Reporter-Ports!) erbt invertierte Semantik. Schlafende Landmine auf öffentlicher API |
+| I-03 | NOTIZ | P3 | TestRunner/Tests/WrappedIdentifierEnumeration.cs | Cluster: (a) `MergeList` behandelt `GetIdentifiers() is null` als Every-Marker — TestIdentifierList liefert aber NIE null (EveryTest → `[]`) → `Merge(wrapped, EveryTest-TIL)` kollabierte Every zu dessen leerer Id-Liste (kein Live-Pfad: Wrapped-Receiver-Merge wird nur runner-intern mit konkreten Sets genutzt); (b) `_identifiers` unvalidiert (null → NRE in Count/Contains) und potenziell lazy (Mehrfach-Enumeration je Count/Contains-Aufruf); (c) `Excluding` wirft NotSupported (ehrlich) |
+| I-04 | VERDACHT (VsTest-Batch verifizieren) | P3 | TestRunner/Results/TestRunResult.cs:31 | Rich-Ctor filtert `TestDescriptions` via `executedTests.GetIdentifiers().Contains(...)` — für EveryTest liefert GetIdentifiers `[]` → Descriptions LEER trotz „alle ausgeführt". Konsumenten: ProjectMutator.EnrichTestProjectsWithTestInfo (Initial-Run!). Prüfen, ob der VsTest-Runner dem Initial-Result je EveryTest übergibt |
+| I-05 | NOTIZ | P3 | TestRunner/Results/CoverageRunResult.cs:28–35 | Leaked-Zuweisung ÜBERSCHREIBT (=, nicht \|=) einen ggf. zuvor gesetzten Static-Flag — statisch+geleakt mit Exact-Confidence wird zu NeedEarlyActivation OHNE Static. Gemildert: generierungszeitliches `IsStaticValue` (G-32-Notiz) hält die Static-Behandlung; `Merge` nutzt korrekt \|= |
+| I-06 | NOTIZ | P3 | TestIdentifierList.Excluding:85 + CoverageAnalyser:52–54/133 | `Excluding` wirft auf EveryTest — CoverageAnalyser ist nur BY CONSTRUCTION sicher (EveryTest entsteht exakt dann, wenn failedTests leer ist → Excluding nimmt den IsEmpty-Frühausstieg). Fragiles Invarianten-Paar über Dateigrenzen; Kommentar-würdig |
+| **I-07** | **BESTÄTIGT (Code-Lektüre)** | **P2 (Hang-Klasse)** | VsTestRunnerPool.Initialize:84–89 + DiscoveryEventHandler.WaitEnd:76–85 | **VsTest-Pool-Warm-up ist fire-and-forget mit verschluckten Exceptions:** `_ = Task.Run(Parallel.For(...))` — scheitert die Runner-Konstruktion (VsTest-Deployment kaputt, vstest.console fehlt), bleibt der Pool leer, die Exception ist unobserved, und `RunThis` wartet EWIG auf `_runnerAvailableHandler` → Hang statt sauberem Fehler. Dazu: `DiscoveryEventHandler.WaitEnd()` wartet ohne Timeout (Discovery-Crash vor Complete-Event → Endlos-Wait). **Kontrast: Der MTP-Pool macht beides richtig** (synchrones Parallel.For im Ctor + 5-Min-Timeout mit Wartelogs in RunThisAsync) — Muster dorthin spiegeln |
+| **I-08** | **BESTÄTIGT (Einzeiler-Tippfehler)** | **P2** | VsTestContextInformation.DetectTestFrameworks:279 | **`_testFramework &= ~TestFrameworks.MsTest` LÖSCHT das Flag statt es zu setzen** (`\|=`-Slip; Upstream setzt korrekt). MsTest wird NIE als Framework erkannt → `GenerateRunSettings` emittiert für MsTest-Projekte kein `<DisableParallelization>` → bei `[Parallelize]`-MsTest-Suiten laufen Tests parallel WÄHREND Multi-Mutant-/Coverage-Sessions → Coverage-Attribution und Mutant-Zuordnung unzuverlässig (still!). Verstärker: `VsTestDescription.Framework` macht MsTest zum FALLBACK für unbekannte Adapter (TUnit!) → auch die bekommen keine Parallelisierungs-Sperre |
+| **I-09** | **BESTÄTIGT (Code-Lektüre; Multi-Projekt-only)** | **P2** | VsTestContextInformation.cs:38/43/224–226 + VsTestRunner.InitialTest:59–77 + InitialisationProcess (H-13) | **Multi-Projekt-Init-Races auf geteiltem Zustand:** `VsTests`/`TestsPerSource` sind PLAIN Dictionaries, geteilt über alle Pool-Runner; `GetMutationTestInputsAsync` fährt Initial-Tests KONKURRENT (Task.WhenAll, H-13) → (a) konkurrente Discovery/Registrierung = Dictionary-Korruptionsrisiko; (b) `if (VsTests.Count == 0) VsTests = new(...)` ERSETZT die Instanz → Lost-Update zwischen zwei gleichzeitig entdeckenden Projekten; (c) `InitialTest` cleart `ClearInitialResult()` über ALLE Keys → Projekt A wischt die soeben registrierten Timings von Projekt B → falsche Timeout-Basis. Single-Projekt (Standardfall) strikt sequenziell ✓ unbetroffen. Fix-Richtung: ConcurrentDictionary + projektscharfe Clear-Semantik ODER Initial-Tests sequenzialisieren |
+| I-10 | NOTIZ | P3 | VsTest/TestRun.cs:41–69 | `Result()` MUTIERT das erste TestResult beim Aggregieren (Outcome/Duration/Messages auf `results[0]` akkumuliert) — dieselben Instanzen liegen in `_rawResults` → Raw-Sicht nachträglich verfälscht; Re-Aggregation (Timeout-Pfad ruft `Result()` auf unvollständigen Runs, DiscardCurrentRun analysiert Raw erneut) doppelt Durationen auf bereits mutierten Basen. Theorie-lastige Suiten + Retry/Timeout = verfälschte Timing-/Outcome-Details (Upstream-Erbe, NFluent-Header) |
+| I-11 | NOTIZ (Invariante dokumentieren) | P3 (P2-Potenzial) | SingleMicrosoftTestPlatformRunner.TestMultipleMutantsAsync:88 | `mutants.Count == 1 ? Id : -1` — **Multi-Mutant-Gruppen liefen mit AKTIVER MUTATION −1** (= keine) → alle Tests grün → komplette Gruppe als Survived (stille Score-Inflation). HEUTE defensiv tot: kumulative MTP-Coverage (jeder Test deckt alles) erzwingt im Block-Builder Singleton-Gruppen (usedTests=alle ⇒ kein zweiter Mutant passt). Die Invariante „MTP ⇒ Gruppengröße 1" ist NIRGENDS kodifiziert — Guard/Exception statt stillem −1 einbauen |
+| I-12 | ENTKRÄFTET | — | Models/MtpTestDescription.cs:31–37 | Verdacht „Timeout-Inflation durch Re-Registrierung pro Mutanten-Lauf" entkräftet: `RegisterInitialTestResult` behält nur das ERSTE Ergebnis (`if Count == 0`) → InitialRunTime stabil. Sauber gelöst |
+| I-13 | ENTKRÄFTET (Cross-Layer-Guard) | — | SingleMicrosoftTestPlatformRunner.RunAllTestsAsync:425–429 + MutationTestExecutor:47–56 | Verdacht „Catch-all → TestRunResult(false) → FailingTests=EveryTest → False-Kill": Der Update-Handler wird im Fehlerpfad NIE invoked → Mutanten bleiben Pending → Executor erkennt all-Pending ohne SessionTimeout → ERROR-Log + Pending-Stehenlassen (ehrlich). Der 174er-Pending-Sicherheitsnetz-Befund (G-09-Auflösung) rettet hier aktiv |
+| **I-14** | **BESTÄTIGT (#274-Sekundärbefund)** | **P3** | DefaultTestServerConnectionFactory.StartProcess:52–57 + AssemblyTestServer (Debug-Logs) | **Diagnose-Blackout im MTP-Server-Fehlerpfad:** ohne `--log-to-file` gehen stdout/stderr des Server-Prozesses in `PipeTarget.Null` — die echte Fehlermeldung der Nicht-MTP-DLL wird VERWORFEN; alle Fail-Logs der Startstrecke (Timeout/Premature-Exit) sind DEBUG-Level → bei Default-Verbosity bleibt nur die generische InvalidOperationException. Hypothese (b) aus #274 (Exe-vs-DLL) damit WIDERLEGT: Start nutzt korrekt `dotnet <dll> --server --client-port N`. Fix: Stderr-Ringpuffer immer mitschneiden + in Exception/Log aufnehmen; Fail-Logs auf Warning/Error heben |
+| **I-15** | **BESTÄTIGT (Code-Lektüre)** | **P2 (Hang-Klasse)** | TestingPlatformClient.JsonRpcClient_Disconnected:48–54 + ResponseListener.WaitCompletionAsync:29 | **Server-Crash mitten im Lauf → Endlos-Hang:** `Disconnected` sammelt nur Text in `_disconnectionReason`, komplettiert aber KEINE registrierten ResponseListener → `WaitCompletionAsync()` (timeout-loser Pfad: Discovery + Initial-Runs!) wartet ewig auf das nie kommende null-Changes-Signal. Die 3-Min-CTS im Client begrenzt nur den Invoke, nicht das Stream-Completion-Warten. Fix: Disconnected → alle Listener mit Failure komplettieren (TrySetException) |
+| I-16 | NOTIZ | P3 | TestingPlatformClient/TargetHandler + ResponseListener + CoverageCollector | Kleinkram-Cluster: Listener werden nur beim null-Changes-Complete aus `_listeners` entfernt (Timeout-Pfad leakt Einträge bis Server-Restart); `Complete()` nutzt `SetResult` (Doppel-Signal-Race → InvalidOperationException; TrySetResult); `Enum.Parse<LogLevel>` auf server-gelieferten Strings ungeguardet; `CheckedInvokeAsync(@checked:false)` returnt `default!` (heute toter Pfad). CoverageCollector/DataCollector insgesamt solide (ThrowingListener-Swap, Late-Binding via AssemblyLoad, Ein-Mutant-pro-Test by construction); StrykerVsTestHostLauncher vorbildlich (unconditional BeginOutputReadLine verhindert Pipe-Hang, DiffEngine/Verify-Guards) |
+
+## Detail-Einträge
