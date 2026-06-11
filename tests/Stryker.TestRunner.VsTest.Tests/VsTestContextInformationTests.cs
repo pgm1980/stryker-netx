@@ -205,4 +205,20 @@ public class VsTestContextInformationTests : TestBase
         runner.AddTestSource(_testAssemblyPath);
         _consoleParameters.TraceLevel.Should().Be(expectedLevel);
     }
+
+    // Sprint 179 (issue #295, 360°-Analyse I-08): DetectTestFrameworks CLEARED the
+    // MsTest flag ('&= ~' instead of '|='), so a pure-MsTest suite never received
+    // <DisableParallelization> in its run settings — [Parallelize]-suites could run
+    // tests concurrently during mutation runs and corrupt coverage attribution.
+    [Fact]
+    public void DetectMsTestFrameworkAndDisableParallelization()
+    {
+        using var runner = BuildVsTextContext(new StrykerOptions(), out _);
+        TestCases = [BuildCaseMsTest("MT0"), BuildCaseMsTest("MT1")];
+        runner.AddTestSource(_testAssemblyPath);
+
+        var runSettings = runner.GenerateRunSettings(null, false, null, null);
+
+        runSettings.Should().Contain("<DisableParallelization>true</DisableParallelization>");
+    }
 }
