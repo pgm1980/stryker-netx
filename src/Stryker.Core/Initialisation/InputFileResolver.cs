@@ -416,18 +416,30 @@ public partial class InputFileResolver : IInputFileResolver
     /// <c>"Domain"</c> matched both <c>Aisess.Domain.csproj</c> and a hypothetical
     /// <c>Aisess.Domain.Tests.csproj</c>) and silently excluded all source projects
     /// when the user passed a test-project name as filter.
+    /// <para>
+    /// Sprint 172 (ADR-052, issue #270): the filter side gets its DIRECTORY stripped
+    /// (<see cref="Path.GetFileName(string)"/> — filters can be full paths, e.g. the
+    /// <c>targetProjectMode</c> branch passes <c>NormalizePath(FindProjectFile(wd))</c>)
+    /// but is never run through <see cref="Path.GetFileNameWithoutExtension(string)"/>:
+    /// for dotted project names without an extension that API treats the last name
+    /// segment as an extension (<c>"Stryker.Configuration"</c> → <c>"Stryker"</c>),
+    /// which made every dotted module filter miss (and allowed accidental
+    /// cross-matches such as <c>"Foo.Bar"</c> matching <c>Foo.csproj</c>). The PATH
+    /// side is offered both with and without its real file extension. Filters are
+    /// pre-normalized to forward slashes by the callers (<c>NormalizePath</c>), so
+    /// <see cref="Path.GetFileName(string)"/> splits correctly on every OS.
+    /// </para>
     /// </summary>
-    private static bool MatchesFilter(string projectFilePath, string filter)
+    internal static bool MatchesFilter(string projectFilePath, string filter)
     {
         if (string.IsNullOrEmpty(projectFilePath) || string.IsNullOrEmpty(filter))
         {
             return false;
         }
-        return string.Equals(Path.GetFileName(projectFilePath), filter, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(
-                Path.GetFileNameWithoutExtension(projectFilePath),
-                Path.GetFileNameWithoutExtension(filter),
-                StringComparison.OrdinalIgnoreCase);
+        var fileName = Path.GetFileName(projectFilePath);
+        var filterName = Path.GetFileName(filter);
+        return string.Equals(fileName, filterName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Path.GetFileNameWithoutExtension(fileName), filterName, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
