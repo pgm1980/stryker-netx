@@ -3679,21 +3679,24 @@ Test project contains more than one project reference. Please set the project
 
 **Warum die Sprint-159-E2E-Tests das nie sahen:** `AisessLikeSlnxFoldersTests` verwendet durchgehend Filter MIT `.csproj`-Endung (Branch-1-Match). Unit-Tests für `MatchesFilter` existierten nicht (Regression-Lücke aus #270 Punkt 6).
 
-### Entscheidung
+### Entscheidung (2 Iterationen — beide dokumentiert)
 
-`MatchesFilter`: Filter-Seite wird **roh** verglichen und nie durch `GetFileNameWithoutExtension` geschickt; die **Pfad-Seite** wird mit UND ohne ihre echte Endung angeboten:
+**Iteration 1 (verworfen durch PR-Gate):** Filter-Seite komplett roh vergleichen. Brach die `MultipleTestProjects`-Integration auf allen 3 OS: Im `targetProjectMode` (Test-Projekte konfiguriert, kein `project`-Key) setzt `SourceProjectInfos` den Filter auf `NormalizePath(FindProjectFile(WorkingDirectory))` — einen **vollen Pfad**. Das alte `GetFileNameWithoutExtension(filter)` strippte neben der Endung auch das **Verzeichnis** (load-bearing!); „roh" verlor diese Fähigkeit. Lehre: Die Primitive hat ZWEI legitime Filter-Formen (Name und Pfad) — die Erst-Analyse sah nur die Name-Form.
+
+**Iteration 2 (final):** Filter-Seite bekommt `Path.GetFileName` (strippt Verzeichnisse, lässt gepunktete Namen intakt), nie `GetFileNameWithoutExtension`; die **Pfad-Seite** wird mit UND ohne ihre echte Endung angeboten:
 
 ```csharp
 var fileName = Path.GetFileName(projectFilePath);
-return string.Equals(fileName, filter, OrdinalIgnoreCase)
-    || string.Equals(Path.GetFileNameWithoutExtension(fileName), filter, OrdinalIgnoreCase);
+var filterName = Path.GetFileName(filter);
+return string.Equals(fileName, filterName, OrdinalIgnoreCase)
+    || string.Equals(Path.GetFileNameWithoutExtension(fileName), filterName, OrdinalIgnoreCase);
 ```
 
-Semantik unverändert für alle legitimen Formen (Name mit Endung, Name ohne Endung, case-insensitive); strikt korrekter für die Verstümmelungs-Klassen (dotted-ohne-Endung jetzt Match; Cross-Match/Cross-Extension jetzt Reject). Sichtbarkeit `private` → `internal` (IVT auf Stryker.Core.Tests vorhanden) für die Unit-Test-Pinning-Schicht. Heilt alle drei ADR-039-Layer gleichzeitig (Layer 1 `ValidateFilterMatchesAnyProject`, Layer 2 Test-Projekt-Check, Layer 3 sourceCount-Gate nutzen dieselbe Primitive).
+OS-Portabilität: Caller normalisieren Filter via `NormalizePath` auf Forward-Slashes; `Path.GetFileName` splittet `'/'` auf jedem OS. Semantik unverändert für alle legitimen Formen (Name mit/ohne Endung, voller/relativer Pfad, case-insensitive); strikt korrekter für die Verstümmelungs-Klassen (dotted-ohne-Endung jetzt Match; Cross-Match/Cross-Extension/Fremd-Pfad jetzt Reject). Sichtbarkeit `private` → `internal` (IVT auf Stryker.Core.Tests vorhanden). Heilt alle drei ADR-039-Layer gleichzeitig (gemeinsame Primitive).
 
 ### Tests (TDD)
 
-NEU `tests/Stryker.Core.Tests/Initialisation/ProjectFilterMatchingTests.cs` — 13 Fälle in 2 Theories (Match-Matrix: #270-Klasse, Endungs-Klasse, Linux-Pfade, Case; Reject-Matrix: Foo.Bar-Cross-Match, Cross-Extension, Partial-Name-Verbote, Degenerate). **TDD-Red 6/13** auf alter Implementierung dokumentiert → **Green 13/13**. Real-Szenario-Probe: `src/Stryker.Configuration` Volllauf `--break-after initial-test-run` — 0× WRN (Ganz-Output-Grep, Sprint-171-Lehre), genau 1 Projekt, 1.196 Tests, Initial-Run 24 s.
+NEU `tests/Stryker.Core.Tests/Initialisation/ProjectFilterMatchingTests.cs` — final **18 Fälle** (Match-Matrix: #270-Klasse, Endungs-Klasse, **Full-Path-/Relativ-Pfad-Filter** [targetProjectMode], Case; Reject-Matrix: Foo.Bar-Cross-Match, Cross-Extension, **Fremd-Full-Path**, Partial-Name-Verbote, Degenerate; plus nativer `Path.Combine`-Fact). **TDD-Red 6/13** auf alter Implementierung dokumentiert → Green; Iteration 2 nach Gate-Befund → **Green 18/18**. Inline-Pfade bewusst Forward-Slash (Iteration-1-Tests nutzten Backslash-Literale → ubuntu-rot: `Path.GetFileName` splittet `'\'` nur auf Windows — Test-Portabilitäts-Lehre). Real-Szenario-Proben: `src/Stryker.Configuration` bis `initial-test-run` (0× WRN, 1 Projekt, 1.196 Tests, 24 s) UND `integrationtest/.../TargetProject` (MultipleTestProjects-Szenario, der Gate-Bruch) bis `analysis` — beide grün.
 
 ### Konsequenzen
 
