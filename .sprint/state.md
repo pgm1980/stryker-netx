@@ -61,7 +61,7 @@ von außen entstanden (neue Advisories) bzw. lagen latent im Workflow.
 - [x] P2 aufgeräumt (Worktrees, Branches, .clone)
 - [x] D1–D4 Doc-Drift behoben
 - [x] Semgrep clean (0 Findings, 8 geänderte Dateien)
-- [x] Tests grün: 2160 bestanden / 0 Fehler / 27 legitime Skips (inkl. E2E 23/23), `dotnet test` Exit 0, Coverage via coverlet.runsettings
+- [x] Tests grün: 2155 bestanden / 0 Fehler / 27 legitime Skips (inkl. E2E 18/18), `dotnet test` Exit 0, Coverage via coverlet.runsettings
 - [ ] PR squash-merged, Tag v3.3.2, release.yml verifiziert
 - [ ] Dispatch-Run stryker-on-stryker zur P1-Pfad-Verifikation
 - [ ] Housekeeping: alle Flags true, Closing-PR
