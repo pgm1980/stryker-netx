@@ -1,36 +1,30 @@
 ---
 current_sprint: "175"
-sprint_goal: "360°-Analyse C — Initialisation/Utilities/Solutions/Configuration (Findings-only). 98 Dateien: Initialisation (20, inkl. InputFileResolver/ADR-052-Areal, TimeoutValueCalculator/#273), Utilities (15, inkl. TypeBasedStrategy, TextSpanHelper, MSBuild-Schicht), Solutions (3), Configuration (60, inkl. StrykerOptions + 46 Options/Inputs). Pflicht-Schwerpunkte: #273-Flaky-Wurzel (TimeoutValueCalculator/InitialTestProcess), TypeBasedStrategy-Bucket-Ordnung (174-Vormerkung), TextSpanHelper Reduce/RemoveOverlap (174-Vormerkung), MutateInput-Default-Garantie (IsFileInMutateScope-Sicherheitsnetz), ADR-025-Auto-Bump (MutationProfile/Level), MSBuild-Restore-Pflicht-Memory. Register _docs/analysis/sprint_175_findings.md batch-weise committet. Teil des Programms 173–178 (Issue #276). Kein Tag (Findings-only)."
+sprint_goal: "360°-Analyse C — Initialisation/Utilities/Solutions/Configuration (Findings-only). ABGESCHLOSSEN: 98/98 Dateien gelesen, 28 Findings (H-01…H-28), 3 Proben (P-5/P-6 bestätigt, P-7 entkräftet), Issues #290–#292. Alle 6 Pflicht-Schwerpunkte aufgelöst. Register _docs/analysis/sprint_175_findings.md. Teil des Programms 173–178 (Issue #276). Kein Tag (Findings-only)."
 branch: "feature/175-analysis-c-initialisation-config"
 started_at: "2026-06-11"
-housekeeping_done: false
-memory_updated: false
-github_issues_closed: false
+housekeeping_done: true
+memory_updated: true
+github_issues_closed: true
 sprint_backlog_written: true
-semgrep_passed: false
-tests_passed: false
-documentation_updated: false
+semgrep_passed: true
+tests_passed: true
+documentation_updated: true
 ---
-# Session State — Sprint 175 (360°-Analyse C: Initialisation/Utilities/Solutions/Configuration)
+# Session State — Sprint 175 (360°-Analyse C) — ABGESCHLOSSEN
 
-## Kontext
+## Ergebnis
 
-Sprint 174 (Analyse B) geschlossen: `e6e7a5b` auf main, 39 Findings, Issues #282 (P1) – #288.
-Programm-Issue #276 trägt weiter. Methode unverändert: Volltext-Lektüre je Datei (360°-Anspruch),
-Serena-Server steht dieser Session projektfremd nicht zur Verfügung (dokumentierter Fallback,
-vgl. Sprint 170) — für Ganzdatei-Analyse ist Read ohnehin das Mittel der Wahl.
+- 98/98 Dateien gelesen (Initialisation 20, Utilities 15, Solutions 3, Configuration 60)
+- 28 Findings H-01…H-28; 3 Mess-Proben: **P-5/H-17 bestätigt** (Release→Debug-Injektion),
+  **P-6/H-18 bestätigt** (Multi-TFM-Crash), **P-7/H-21 entkräftet** (Ressourcen überleben Re-Emits)
+- Issues: **#290** (Workspace-Properties), **#291** (Multi-TFM-Fallback), **#292** (VsTest-Daten-Crash)
+- Kommentare: #273 (H-01-Wurzelbestätigung), #285 (H-28-Präzisierung: MustInjectCoverageLogic default-TRUE)
+- Semgrep 0 Findings (docs-only); Tests unberührt (Findings-only); kein Tag
 
-## Scope Sprint 175 (98 Dateien)
+## Nächster Schritt
 
-| Block | Dateien | Schwerpunkte |
-|-------|---------|--------------|
-| Initialisation/ | 20 | InputFileResolver (ADR-052/#270-Areal), TimeoutValueCalculator + InitialTestProcess (#273), InitialBuildProcess, NugetRestoreProcess, ProjectOrchestrator, CsharpProjectComponentsBuilder, FolderCompositeCache |
-| Utilities/ | 15 | TypeBasedStrategy (Registry-Ordnung), TextSpanHelper (Reduce/RemoveOverlap), MSBuild-Schicht (Loader/Analysis/Extensions), EmbeddedResourcesGenerator, FilePathUtils, HeartbeatLogger |
-| Solutions/ | 3 | SolutionFile/Provider (.slnx-Parsing) |
-| Configuration/ | 60 | StrykerOptions/StrykerInputs, MutateInput (Default-`**/*`-Garantie), MutationProfile-/MutationLevelInput (ADR-025), FilePattern/ExclusionPattern, BasicIdProvider, 46 Inputs |
-
-## Status
-
-- [x] Branch + state.md + Register angelegt
-- [ ] Batch-Lektüre (Pflicht-Schwerpunkte zuerst)
-- [ ] Verifikations-/Probe-Phase, Issues, Register-PR, Close (kein Tag)
+Sprint 176 (Analyse D): Test-Runner-Kette (Stryker.TestRunner, .VsTest, .MicrosoftTestPlatform,
+Stryker.DataCollector) + #274 (MTP-Modul rot) + #273-Restfragen. Vormerkungen aus 174/175:
+G-23 (MTP-Mutant-File Timestamp-Staleness), CoverageAnalyser-Mehrfach-Enumeration vs. Runner,
+H-13b (stale „MTP not supported"-Warnung vs. --test-runner mtp).
