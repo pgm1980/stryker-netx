@@ -1,32 +1,35 @@
 ---
-current_sprint: "176"
-sprint_goal: "360°-Analyse D — Test-Runner-Kette (Findings-only). ABGESCHLOSSEN: 62/62 Dateien gelesen, 16 Findings (I-01…I-16, 2 entkräftet), #274-Root-Cause bestätigt (Config-Fehler), Issues #294–#297. Alle 6 Pflicht-Schwerpunkte aufgelöst. Register _docs/analysis/sprint_176_findings.md. Teil des Programms 173–178 (Issue #276). Kein Tag (Findings-only)."
-branch: "feature/176-analysis-d-test-runner-chain"
+current_sprint: "177"
+sprint_goal: "360°-Analyse E — Reporters/Baseline/CLI/Abstractions/Helpers (Findings-only). 157 Dateien: Reporters (45, inkl. Json/Html/RealTime/Progress/Dashboard), Baseline+Providers+Utils (9), DiffProviders (3), Helpers-Rest (RoslynHelper komplett, SyntaxSlotValidator, MsBuildHelper, ProcessUtil 4) + Infrastructure (1), Stryker.CLI (26), Stryker.Abstractions (66). Pflicht-Schwerpunkte: I-02-Aufrufer-Watch (Reporter-Contains!), G-37-Baseline-Kette (Enum.Parse/HTTP-Provider), H-27 GitDiffProvider master-Default, RoslynHelper/SyntaxSlotValidator-Komplettlektüre (ADR-028-Herz), G-15-Reporter-Anschluss (CE/Ignored/Pending-Darstellung), CLI-Programm (MSBuildLocator/H-17-Nähe, Exit-Codes, Config-Parsing). Register _docs/analysis/sprint_177_findings.md (Präfix J-NN) batch-weise committet. Teil des Programms 173–178 (Issue #276). Kein Tag (Findings-only)."
+branch: "feature/177-analysis-e-reporters-cli-abstractions"
 started_at: "2026-06-11"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: true
-tests_passed: true
-documentation_updated: true
+semgrep_passed: false
+tests_passed: false
+documentation_updated: false
 ---
-# Session State — Sprint 176 (360°-Analyse D) — ABGESCHLOSSEN
+# Session State — Sprint 177 (360°-Analyse E: Reporters/Baseline/CLI/Abstractions/Helpers)
 
-## Ergebnis
+## Kontext
 
-- 62/62 Dateien gelesen (TestRunner 5, DataCollector 3, VsTest 15, MTP 39)
-- 16 Findings I-01…I-16 (I-12/I-13 entkräftet — Cross-Layer-Guards verifiziert)
-- **#274 Root-Cause bestätigt:** vendored `test-runner: mtp`-Key auf xunit-Projekt ohne MTP-Fähigkeit;
-  Hypothese b (Exe-vs-DLL) widerlegt; Sekundär I-14 (stderr-Blackout, Debug-Level-Fails) kommentiert
-- Issues: **#294** (Contains invertiert), **#295** (MsTest-Flag-Tippfehler), **#296** (Multi-Projekt-Init-Races),
-  **#297** (Hang-Klassen-Epic I-07+I-15)
-- Semgrep 0 Findings (docs-only); Tests unberührt (Findings-only); kein Tag
+Sprint 176 (Analyse D) geschlossen: `ba27ac4` auf main, 16 Findings, #274-Root-Cause bestätigt,
+Issues #294–#297. Programm-Issue #276 trägt weiter. Letzter Lese-Sprint vor der 178er-Synthese.
 
-## Nächster Schritt
+## Scope Sprint 177 (157 Dateien)
 
-Sprint 177 (Analyse E): Reporters/, Baseline/ (+Providers/Utils), DiffProviders/, Stryker.CLI,
-Stryker.Abstractions, Helpers-Rest (RoslynHelper komplett, MsBuildHelper, ProcessUtil).
-Vormerkungen: I-02-Aufrufer-Watch (Reporter-Ports!), G-37-Baseline-Kette (Enum.Parse auf Fremd-JSON),
-SinceTarget-„master"-Default (H-27), DisplayName-„get get" (G-30).
-Danach 178 (Synthese + priorisierter Fix-Backlog).
+| Block | Dateien | Schwerpunkte |
+|-------|---------|--------------|
+| Reporters/ | 45 | Json-Schema (statusReason/killedBy?), I-02-Contains-Watch, G-15-Darstellung, Html/RealTime-SSE, Dashboard-HTTP, Progress |
+| Baseline/ + DiffProviders/ | 12 | Provider-HTTP/Auth (G-37-Kette), BaselineMutantHelper (Span-Quelle), GitDiffProvider (H-27 master-Default) |
+| Helpers/ + Infrastructure/ | 9 | RoslynHelper KOMPLETT (#277-Wurzel IsAStringExpression, BuildDefaultExpression/G-25), SyntaxSlotValidator (ADR-028-Herz), MsBuildHelper, ProcessExecutor, ServiceCollectionExtensions (H-17-Areal) |
+| Stryker.CLI | 26 | Program/MSBuildLocator, StrykerCli (Exit-Codes), CommandLineConfigReader, FileConfigReader (JSON-Robustheit), NugetFeedClient (Netzwerk) |
+| Stryker.Abstractions | 66 | Interfaces/Enums-Sweep (Vertragskonsistenz, ITestIdentifiers-Doku vs. I-02) |
+
+## Status
+
+- [x] Branch + state.md + Register angelegt
+- [ ] Batch-Lektüre (Helpers zuerst — ADR-028-Herz + #277-Wurzel)
+- [ ] Verifikations-/Issue-Phase, Register-PR, Close (kein Tag)
