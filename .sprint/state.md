@@ -1,35 +1,32 @@
 ---
 current_sprint: "176"
-sprint_goal: "360°-Analyse D — Test-Runner-Kette (Findings-only). 62 Dateien: Stryker.TestRunner (5, inkl. TestIdentifierList = tragende Mengen-Semantik), Stryker.TestRunner.VsTest (15), Stryker.TestRunner.MicrosoftTestPlatform (39), Stryker.DataCollector (3). Pflicht-Schwerpunkte: #274 Root-Cause (MTP-Server-Start vs. Dogfood-Config-Fehler), G-23 (MTP-Mutant-File Timestamp-Staleness — Runner-Schreibseite), CoverageAnalyser-Mehrfach-Enumeration (CaptureCoverage lazy?), H-13b (stale MTP-Warnung), #273-Rest (Duration-Aggregation), G-15-Anschluss (sessionTimedOut-/forceSingle-Pfade). Register _docs/analysis/sprint_176_findings.md (Präfix I-NN) batch-weise committet. Teil des Programms 173–178 (Issue #276). Kein Tag (Findings-only)."
+sprint_goal: "360°-Analyse D — Test-Runner-Kette (Findings-only). ABGESCHLOSSEN: 62/62 Dateien gelesen, 16 Findings (I-01…I-16, 2 entkräftet), #274-Root-Cause bestätigt (Config-Fehler), Issues #294–#297. Alle 6 Pflicht-Schwerpunkte aufgelöst. Register _docs/analysis/sprint_176_findings.md. Teil des Programms 173–178 (Issue #276). Kein Tag (Findings-only)."
 branch: "feature/176-analysis-d-test-runner-chain"
 started_at: "2026-06-11"
-housekeeping_done: false
-memory_updated: false
-github_issues_closed: false
+housekeeping_done: true
+memory_updated: true
+github_issues_closed: true
 sprint_backlog_written: true
-semgrep_passed: false
-tests_passed: false
-documentation_updated: false
+semgrep_passed: true
+tests_passed: true
+documentation_updated: true
 ---
-# Session State — Sprint 176 (360°-Analyse D: Test-Runner-Kette)
+# Session State — Sprint 176 (360°-Analyse D) — ABGESCHLOSSEN
 
-## Kontext
+## Ergebnis
 
-Sprint 175 (Analyse C) geschlossen: `f48545b` auf main, 28 Findings, Issues #290–#292.
-Programm-Issue #276 trägt weiter. Methode unverändert: Volltext-Lektüre, Verdacht→Probe→Issue.
+- 62/62 Dateien gelesen (TestRunner 5, DataCollector 3, VsTest 15, MTP 39)
+- 16 Findings I-01…I-16 (I-12/I-13 entkräftet — Cross-Layer-Guards verifiziert)
+- **#274 Root-Cause bestätigt:** vendored `test-runner: mtp`-Key auf xunit-Projekt ohne MTP-Fähigkeit;
+  Hypothese b (Exe-vs-DLL) widerlegt; Sekundär I-14 (stderr-Blackout, Debug-Level-Fails) kommentiert
+- Issues: **#294** (Contains invertiert), **#295** (MsTest-Flag-Tippfehler), **#296** (Multi-Projekt-Init-Races),
+  **#297** (Hang-Klassen-Epic I-07+I-15)
+- Semgrep 0 Findings (docs-only); Tests unberührt (Findings-only); kein Tag
 
-## Scope Sprint 176 (62 Dateien)
+## Nächster Schritt
 
-| Block | Dateien | Schwerpunkte |
-|-------|---------|--------------|
-| Stryker.TestRunner | 5 | TestIdentifierList (Merge/Excluding/IsIncludedIn — tragend für AnalyzeTestRun + CoverageAnalyser), TestRunResult.Duration (#273-Rest), CoverageRunResult |
-| Stryker.DataCollector | 3 | CoverageCollector (VSTest-In-Proc-Collector, ENV-Steuerseite zu MutantControl) |
-| Stryker.TestRunner.VsTest | 15 | VsTestRunnerPool (CaptureCoverage-Materialisierung!), VsTestRunner (Timeout-/Bail-Semantik), RunEventHandler, VsTestHelper |
-| Stryker.TestRunner.MicrosoftTestPlatform | 39 | AssemblyTestServer/#274-Startstrecke, FileRpcListener + Mutant-File-Schreibseite (G-23!), TestingPlatformClient, 23 Models |
-
-## Status
-
-- [x] Branch + state.md + Register angelegt
-- [ ] #274-Schnellcheck (Dogfood-Config + .Tests-csproj) — entscheidet Config-vs-Code-Hypothese
-- [ ] Batch-Lektüre
-- [ ] Verifikations-/Issue-Phase, Register-PR, Close (kein Tag)
+Sprint 177 (Analyse E): Reporters/, Baseline/ (+Providers/Utils), DiffProviders/, Stryker.CLI,
+Stryker.Abstractions, Helpers-Rest (RoslynHelper komplett, MsBuildHelper, ProcessUtil).
+Vormerkungen: I-02-Aufrufer-Watch (Reporter-Ports!), G-37-Baseline-Kette (Enum.Parse auf Fremd-JSON),
+SinceTarget-„master"-Default (H-27), DisplayName-„get get" (G-30).
+Danach 178 (Synthese + priorisierter Fix-Backlog).

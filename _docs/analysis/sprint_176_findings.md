@@ -19,6 +19,26 @@
 > 5. **#273-Rest:** TestRunResult.Duration-Aggregation (Summe vs. Wall) runner-seitig.
 > 6. **G-15-Anschluss:** sessionTimedOut-/forceSingle-Pfade, VsTest-Timeout-Discard-Semantik.
 
+## Executive Summary (Sprint-Abschluss 2026-06-11)
+
+**Scope komplett: 62/62 Dateien gelesen** (TestRunner 5, DataCollector 3, VsTest 15, MTP 39).
+**16 Findings (I-01…I-16, davon 2 ENTKRÄFTET), 4 neue Issues (#294–#297), #274-Root-Cause + Nachtrag.**
+
+**Alle 6 Pflicht-Schwerpunkte aufgelöst:**
+- **#274 → I-01/I-14:** Config-Fehler bestätigt (vendored `test-runner: mtp` auf xunit-Projekt ohne MTP-Fähigkeit; Hypothese b widerlegt — Start nutzt korrekt `dotnet <dll> --server`); Sekundär: Diagnose-Blackout (stderr verworfen, Debug-Level-Fails). Shovel-ready Einzeiler dokumentiert
+- **G-23 → eingegrenzt:** Write-per-Lauf, Läufe trennen Writes um Sekunden → Tick-Kollision nur auf Sekunden-granularen FS + Sub-Sekunden-Läufen (Edge); dafür I-11-Landmine dokumentiert (Multi-Mutant ⇒ −1 ⇒ False-Survivors — heute durch Singleton-Gruppen-Invariante tot)
+- **CaptureCoverage-Enumeration → ENTKRÄFTET beidseitig:** VsTest materialisiert (Dictionary), MTP = pure Projektion über eager-Daten
+- **H-13b → bestätigt:** `--test-runner mtp` existiert; die „not yet supported"-Warnung ist stale
+- **#273-Rest → geklärt:** `Duration` = Σ Initial-Laufzeiten by design (Initial-Pfad korrekt, Mutations-Pfad ungenutzt-irreführend)
+- **G-15-Anschluss → Cross-Layer-Guard verifiziert:** MTP-Catch-all-Pfad (FailingTests=EveryTest) wird vom Executor-Pending-Guard aufgefangen (I-13 ENTKRÄFTET) — das 174er-Sicherheitsnetz rettet aktiv
+
+**Top-Funde:**
+- **I-08/P2 (#295):** `&= ~` statt `|=` — MsTest nie erkannt, kein DisableParallelization (still falsche Coverage/Zuordnung bei [Parallelize]; trifft auch TUnit via Fallback)
+- **I-02/P2 (#294):** `TestIdentifierList.Contains` invertiert (`is false`) — ruhende Landmine, ungetestet
+- **I-09/P2 (#296):** Multi-Projekt-Init raced auf plain Dictionaries + Instanz-Ersetzung + Cross-Clear (verstärkt H-13)
+- **I-07+I-15/P2 (#297):** Zwei Hang-Klassen (VsTest-Pool-Warm-up unobserved, MTP-Disconnect komplettiert Listener nicht) — MTP-Pool zeigt intern das richtige Muster
+- **Positiv-Bilanz:** DataCollector solide, StrykerVsTestHostLauncher vorbildlich, MtpTestDescription-First-only-Timing sauber (I-12 entkräftet)
+
 ## Abdeckungs-Protokoll
 
 | Batch | Dateien | Status |
