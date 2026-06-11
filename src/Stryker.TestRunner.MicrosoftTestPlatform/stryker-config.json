@@ -1,6 +1,5 @@
 {
   "stryker-config": {
-    "test-runner": "mtp",
     "project-info": {
       "name": "github.com/pgm1980/stryker-netx",
       "module": "testrunner-microsofttestplatform"

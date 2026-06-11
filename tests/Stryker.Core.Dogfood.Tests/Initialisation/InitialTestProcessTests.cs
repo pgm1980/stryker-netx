@@ -69,7 +69,12 @@ public class InitialTestProcessTests : TestBase
 
         var result = await _target.InitialTestAsync(_options, null!, testRunnerMock.Object);
 
-        result.TimeoutValueCalculator.DefaultTimeout.Should().BeInRange(1, 200,
-            "This test contains a Thread.Sleep to simulate time passing as this test is testing that a stopwatch is used correctly to measure time.\nIf this test is failing for unclear reasons, perhaps the computer running the test is too slow causing the time estimation to be off");
+        // Sprint 179 (issue #273, 360°-Analyse H-01): the old 1..200ms window raced the
+        // scheduler — on loaded CI machines the awaited 10ms delay plus thread scheduling
+        // regularly exceeded the ceiling. The LOWER bound carries the actual semantics
+        // ("a stopwatch measured at least the simulated run time"); the ceiling is only an
+        // absurdity guard and deliberately generous so wall-clock load cannot flake it.
+        result.TimeoutValueCalculator.DefaultTimeout.Should().BeInRange(10, 60_000,
+            "the calculator must be fed a stopwatch measurement covering the awaited 10ms test run");
     }
 }
