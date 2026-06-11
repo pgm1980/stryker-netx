@@ -50,7 +50,10 @@ public sealed class ConfigBuilder : IConfigBuilder
             foreach (var defaultConfigFileName in _defaultConfigFileNames)
             {
                 var defaultConfigFilePath = Path.Combine(basePath, defaultConfigFileName);
-                if (File.Exists(defaultConfigFileName))
+                // Sprint 179 (#302 item J-11): probe the COMBINED path, not the bare file name.
+                // Identical behavior while basePath equals the current working directory, but the
+                // bare-name check would silently break if basePath is ever decoupled from CWD.
+                if (File.Exists(defaultConfigFilePath))
                 {
                     finalConfigFilePath = defaultConfigFilePath;
                     break;

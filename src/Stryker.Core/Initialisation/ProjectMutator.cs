@@ -41,20 +41,39 @@ public partial class ProjectMutator(ILogger<ProjectMutator> logger, IServiceProv
         foreach (var unitTest in unitTests)
         {
             var testFile = testProjectsInfo.TestFiles.SingleOrDefault(testFile => string.Equals(testFile.FilePath, unitTest.CodeFilePath, StringComparison.Ordinal));
-            if (testFile is not null)
-            {
-                var lineSpan = testFile.SyntaxTree.GetText().Lines[unitTest.LineNumber - 1].Span;
-                var nodesInSpan = testFile.SyntaxTree.GetRoot().DescendantNodes(lineSpan);
-                var node = nodesInSpan.First(n => n is MethodDeclarationSyntax);
-                testFile.AddTest(unitTest.Id, unitTest.FullyQualifiedName, node);
-            }
-            else
+            if (testFile is null)
             {
                 LogCouldNotLocateUnitTest(_logger);
+                continue;
             }
+
+            // Sprint 179 (issue #292, 360°-Analyse H-12): VsTest reports LineNumber 0 when
+            // source info is missing (inherited tests, missing PDBs), and reported lines may
+            // not intersect a method declaration (top-level statements, stale PDBs). Both
+            // used to throw unguarded and killed the whole run — skip the test instead.
+            var lines = testFile.SyntaxTree.GetText().Lines;
+            if (unitTest.LineNumber < 1 || unitTest.LineNumber > lines.Count)
+            {
+                LogUnusableTestLocation(_logger, unitTest.FullyQualifiedName, unitTest.LineNumber);
+                continue;
+            }
+
+            var lineSpan = lines[unitTest.LineNumber - 1].Span;
+            var nodesInSpan = testFile.SyntaxTree.GetRoot().DescendantNodes(lineSpan);
+            var node = nodesInSpan.FirstOrDefault(n => n is MethodDeclarationSyntax);
+            if (node is null)
+            {
+                LogUnusableTestLocation(_logger, unitTest.FullyQualifiedName, unitTest.LineNumber);
+                continue;
+            }
+
+            testFile.AddTest(unitTest.Id, unitTest.FullyQualifiedName, node);
         }
     }
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Could not locate unit test in any testfile. This should not happen and results in incorrect test reporting.")]
     private static partial void LogCouldNotLocateUnitTest(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Could not map unit test {TestName} to a method declaration (reported line {LineNumber}); test reporting for it will be incomplete.")]
+    private static partial void LogUnusableTestLocation(ILogger logger, string testName, int lineNumber);
 }

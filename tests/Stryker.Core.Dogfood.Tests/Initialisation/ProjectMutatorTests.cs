@@ -145,4 +145,45 @@ public class ProjectMutatorTests : TestBase
         var testFile = _mutationTestInput.TestProjectsInfo.TestFiles.Should().ContainSingle().Subject;
         testFile.Tests.Count.Should().Be(2);
     }
+
+    // Sprint 179 (issue #292, 360°-Analyse H-12): VsTest liefert LineNumber 0, wenn
+    // Quellinfo fehlt (vererbte Tests, fehlende PDBs), und Zeilennummern können auf
+    // Zeilen ohne Methodendeklaration zeigen (Top-Level-Statements, stale PDBs).
+    // Beides crashte die Anreicherung ungefangen und riss den ganzen Lauf.
+    [Fact]
+    public void ShouldSkipTestsWithoutUsableSourceLocation()
+    {
+        var options = new StrykerOptions();
+        var serviceProviderMock = new Mock<IServiceProvider>();
+        var target = new ProjectMutator(TestLoggerFactory.CreateLogger<ProjectMutator>(), serviceProviderMock.Object);
+
+        var noLocation = new VsTestCase(new TestCase("noloc", new Uri(TestFilePath), TestFileContents)
+        {
+            Id = Guid.NewGuid(),
+            CodeFilePath = TestFilePath,
+            LineNumber = 0,
+        });
+        var lineWithoutMethod = new VsTestCase(new TestCase("nomethod", new Uri(TestFilePath), TestFileContents)
+        {
+            Id = Guid.NewGuid(),
+            CodeFilePath = TestFilePath,
+            LineNumber = 1,
+        });
+        var tests = new List<VsTestDescription> { new(noLocation), new(lineWithoutMethod) };
+        var initialTestRunResult = new TestRunResult(
+            vsTestDescriptions: tests,
+            executedTests: new TestIdentifierList(noLocation.Id.ToString(), lineWithoutMethod.Id.ToString()),
+            failedTests: TestIdentifierList.NoTest(),
+            timedOutTest: TestIdentifierList.NoTest(),
+            message: "testrun successful",
+            messages: [],
+            timeSpan: TimeSpan.FromSeconds(1));
+        _mutationTestInput.InitialTestRun = new InitialTestRun(initialTestRunResult, new TimeoutValueCalculator(500));
+
+        var act = () => target.MutateProject(options, _mutationTestInput, _reporterMock.Object, _mutationTestProcessMock.Object);
+
+        act.Should().NotThrow("unusable test source locations must be skipped, not fatal");
+        _mutationTestInput.TestProjectsInfo.TestFiles.Should().ContainSingle()
+            .Which.Tests.Should().BeEmpty();
+    }
 }

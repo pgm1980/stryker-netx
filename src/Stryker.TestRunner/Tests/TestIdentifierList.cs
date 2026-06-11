@@ -41,7 +41,7 @@ public class TestIdentifierList : ITestIdentifiers
 
     public IEnumerable<string> GetIdentifiers() => _identifiers ?? [];
 
-    public bool Contains(string testId) => IsEveryTest || _identifiers?.Contains(testId) is false;
+    public bool Contains(string testId) => IsEveryTest || _identifiers?.Contains(testId) is true;
 
     public ITestIdentifiers Intersect(ITestIdentifiers other) => IsEveryTest ? new TestIdentifierList(other.GetIdentifiers()) : new TestIdentifierList(GetIdentifiers().Intersect(other.GetIdentifiers(), StringComparer.Ordinal));
 

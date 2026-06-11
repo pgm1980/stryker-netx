@@ -844,9 +844,21 @@ public partial class InputFileResolver : IInputFileResolver
             throw new ArgumentNullException(path, "Project path cannot be null or empty.");
         }
 
-        if (FileSystem.File.Exists(path) && (FileSystem.Path.HasExtension(".csproj") || FileSystem.Path.HasExtension(".fsproj")))
+        if (FileSystem.File.Exists(path))
         {
-            return path;
+            var extension = FileSystem.Path.GetExtension(path);
+            if (string.Equals(extension, ".csproj", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".fsproj", StringComparison.OrdinalIgnoreCase))
+            {
+                return path;
+            }
+
+            // Sprint 179 (#302 item H-05): the old check called Path.HasExtension on the
+            // literal extension string instead of the path, accepting ANY existing file
+            // (.sln, .cs, …) which then failed much later inside MSBuild analysis with an
+            // opaque error. Fail fast with a clear message instead.
+            throw new InputException(
+                $"Given test project path '{path}' is not a .csproj or .fsproj file. Please provide a project file or a directory containing one.");
         }
 
         string[] projectFiles;

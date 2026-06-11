@@ -54,9 +54,15 @@ internal sealed class DefaultInitializationEngine : BaseEngine<BlockSyntax>
             originalStatements = body.Statements;
         }
 
+        // Sprint 179 (issue #282, 360°-Analyse G-25): C# 14 simple lambda parameters with
+        // modifiers may omit the parameter type, leaving Type null. The typeless default
+        // literal assigns correctly without a type syntax, so fall back to it instead of
+        // dereferencing the missing type (which crashed the whole run with an NRE).
         var initializersBlock = SyntaxFactory.Block(initializers.Union(parameters.Select(p => SyntaxFactory.ExpressionStatement(SyntaxFactory.AssignmentExpression(
                 SyntaxKind.SimpleAssignmentExpression, SyntaxFactory.IdentifierName(p.Identifier),
-                p.Type!.BuildDefaultExpression())))))
+                p.Type is null
+                    ? SyntaxFactory.LiteralExpression(SyntaxKind.DefaultLiteralExpression).WithLeadingTrivia(SyntaxFactory.Space)
+                    : p.Type.BuildDefaultExpression())))))
             .WithAdditionalAnnotations(BlockMarker);
 
         return body.WithStatements([.. originalStatements.Prepend(initializersBlock)]).WithAdditionalAnnotations(Marker);

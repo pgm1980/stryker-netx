@@ -44,7 +44,12 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         Logger = ApplicationLogging.LoggerFactory.CreateLogger<CsharpMutantOrchestrator>();
     }
 
-    private static List<INodeOrchestrator> BuildOrchestratorList() =>
+    /// <summary>
+    /// Syntax regions that must never host mutations. Registered FIRST so the
+    /// TypeBasedStrategy resolves them before any mutating orchestrator
+    /// (Sprint 179: extracted from <see cref="BuildOrchestratorList"/> for MA0051).
+    /// </summary>
+    private static IEnumerable<INodeOrchestrator> NonMutableSyntaxFences() =>
     [
         new DoNotMutateOrchestrator<AttributeListSyntax>(),
         // parameter list
@@ -61,6 +66,18 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new DoNotMutateOrchestrator<FieldDeclarationSyntax>(
             t => t.Modifiers.Any(x => x.IsKind(SyntaxKind.ConstKeyword))),
         new DoNotMutateOrchestrator<LocalDeclarationStatementSyntax>(t => t.IsConst),
+        // Sprint 179 (issue #283, 360°-Analyse G-14): legacy case labels and goto-case targets
+        // require constant expressions. A mutation wrap there is a guaranteed CS0150, so the
+        // whole label/goto-case subtree is fenced off like the other constant contexts. The
+        // (small) trade-off: statement-removal mutants on goto-case statements are lost too.
+        new DoNotMutateOrchestrator<CaseSwitchLabelSyntax>(),
+        new DoNotMutateOrchestrator<GotoStatementSyntax>(
+            t => t.CaseOrDefaultKeyword.IsKind(SyntaxKind.CaseKeyword)),
+    ];
+
+    private static List<INodeOrchestrator> BuildOrchestratorList() =>
+    [
+        .. NonMutableSyntaxFences(),
         // ensure pre/post increment/decrement mutations are mutated at statement level
         new MutateAtStatementLevelOrchestrator<PostfixUnaryExpressionSyntax>(t =>
             t.Parent is ExpressionStatementSyntax or ForStatementSyntax),

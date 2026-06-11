@@ -183,6 +183,20 @@ public class MutantPlacerTests : TestBase
                 [SyntaxFactory.Parameter(SyntaxFactory.Identifier("x")).WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.OutKeyword))).WithType(SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.IntKeyword)))]));
     }
 
+    // Sprint 179 (issue #282, 360°-Analyse G-25): C# 14 simple lambda parameters with
+    // modifiers may omit the parameter type, so the Type property of such a parameter is
+    // null. The engine used to dereference that null and crash the whole run with an NRE.
+    // A typeless default literal assigns correctly even without a type syntax.
+    [Fact]
+    public void ShouldInjectInitializersForTypelessOutParameter()
+    {
+        var source = "class Test {bool Method(out int x) {x=0;}}";
+        var expected = "class Test {bool Method(out int x) {{x = default;}x=0;}}";
+        CheckMutantPlacerProperlyPlaceAndRemoveHelpers<BlockSyntax>(source, expected,
+            n => MutantPlacer.InjectOutParametersInitialization(n,
+                [SyntaxFactory.Parameter(SyntaxFactory.Identifier("x")).WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.OutKeyword)))]));
+    }
+
     [Fact]
     public void ShouldStaticMarkerInStaticFieldInitializers()
     {
