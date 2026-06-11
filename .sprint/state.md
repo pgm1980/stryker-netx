@@ -3,9 +3,9 @@ current_sprint: "172"
 sprint_goal: "Fix Issue #270 — MatchesFilter verstümmelt gepunktete project-Filter ohne Endung: Path.GetFileNameWithoutExtension auf der FILTER-Seite macht aus 'Stryker.Configuration' → 'Stryker' (letztes Namens-Segment als 'Extension' interpretiert) ⇒ ADR-039-Layer-3-Fallback feuert immer ⇒ Multi-Referenz-Module sterben an der Disambiguierung (8/11 Nightly-Module). Die in #270 ursprünglich vermutete TargetFileName-Leere war Zwischenhypothese und wurde falsifiziert (alle 12 Analysen Succeeded=True via --diag); ebenso falsifiziert: IsTestProject-Fehlklassifikation (12-Projekte-Scan erklärt sich durch MSBuildWorkspace-transitive ProjectReferences — Timing-Beweis: 11 Folge-Analysen im 130-ms-Burst nach Dogfood). Fix: Filter-Seite roh vergleichen, Pfad-Seite mit UND ohne echte Endung anbieten. Schließt nebenbei den latenten Cross-Match ('Foo.Bar' matchte Foo.csproj). TDD 13 Tests (Red 6/13 → Green 13/13). Vorgezogen vor das 360°-Analyse-Programm (Sprints 173+), damit der Nightly als Sicherheitsnetz läuft. Target tag v3.3.3 (patch — 1-Methoden-Fix in shipped Stryker.Core)."
 branch: "feature/172-layer3-gate-project-filter-fix"
 started_at: "2026-06-11"
-housekeeping_done: false
+housekeeping_done: true
 memory_updated: true
-github_issues_closed: false
+github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
@@ -52,6 +52,22 @@ Latenter Zweitschaden derselben Zeile: 'Foo.Bar' matchte 'Foo.csproj'
 - [x] ADR-052 + 0.35.0 + Issue-#270-Korrektur (Kommentar gesetzt)
 - [x] Memory korrigiert (falsifizierte TargetFileName-These entfernt — falsche Memories sind schlimmer als keine)
 - [x] Suite grün (2168/0/27), Semgrep clean
-- [ ] PR + Gate + Merge + Tag v3.3.3 + Release
-- [ ] Dispatch: Erwartung deutlich >3/11 Module in Mutation-Loop, 0× Filter-WRN
-- [ ] Housekeeping + Closing-PR; danach Start Analyse-Sprint 173 (Mutatoren-Katalog)
+- [x] PR #272: Gate-Iteration — Erstversion brach MultipleTestProjects (targetProjectMode
+  übergibt Filter als FULL PATH; altes GetFileNameWithoutExtension strippte das
+  Verzeichnis load-bearing) → **die in Sprint 171 reanimierte Integration-Matrix hat
+  ihren ersten echten Regressions-Fang gemacht**. Iteration 2: GetFileName auf der
+  Filter-Seite; Tests auf 18 Fälle + Forward-Slash-Portabilität (ubuntu-Lehre:
+  Backslash-InlineData splittet nur auf Windows). Windows-Flake im Gate
+  (InitialTestProcess_ShouldCalculateTestTimeout, 1/1200) → Issue #273, Rerun grün.
+- [x] Squash-Merge `aef20e0`; Tag v3.3.3; release.yml success (NuGet-Push +
+  Release-Asset `dotnet-stryker-netx.3.3.3.nupkg`); Issue #270 auto-closed
+- [x] Dispatch-Verifikation Run 27353164648: **0× Filter-WRN** (Frühmessung über
+  Job-Logs) + nach 21 min **9/11 Module SUCCESS** (Sprint 171: 3/11), Core lief
+  noch tief in seiner Mutation-Loop (120-min-Fenster, Ausgang im nächsten
+  Scheduled-Run sichtbar). Einziger Failure: TestRunner.MTP „Failed to start
+  test server" — NEUER Befund, vermutlich Upstream-Vendoring-Config-Rest
+  (`test-runner: mtp` auf xunit-Projekt) → **Issue #274**, vorregistriert für
+  Analyse-Bereich D. Messlatte (>3/11 + 0 WRN) klar übertroffen.
+- [x] Issues: #270 closed (Fix), #268/#265 closed (Vor-Sprints); #273 (Flake) +
+  #274 (MTP-Server) bewusst OFFEN als Analyse-Programm-Träger
+- [x] Housekeeping + Closing-PR; danach Start Analyse-Sprint 173 (Mutatoren-Katalog)
