@@ -1,5 +1,19 @@
 # 360°-Analyse — Sprint 173: Mutatoren-Katalog (Findings-Register)
 
+## Executive Summary
+
+**Abdeckung:** 55/55 Core-Mutatoren + 20/20 RegexMutators einzeln vollständig gelesen; 5 Live-Proben auf v3.3.3 (Scratch-Projekt außerhalb des Repos). **41 Findings**, davon 13 gemessen/code-pfad-verifiziert.
+
+**Top-Befunde → Issues:**
+| Sev | Finding | Issue |
+|-----|---------|-------|
+| **P1** | F-34: RegexMutator-CRASH auf `new Regex($"…")` bei Level ≥ Advanced (Unhandled InvalidCastException, Exit 127; Orchestrator-Schleife ohne try/catch) — zweifach gemessen | **#277** |
+| **P1-Kandidat** | F-29: is-Pattern-Negation erzeugt CS0165-Mutanten im DEFAULT-Profil (jede `is T name`-Stelle mit Nutzung) | **#278** |
+| **P2-Epic** | F-06/07/09/14/23/26/35: typ-/flow-blinde Mutatoren = 56 % CE-Rate auf 15-LOC-Probe unter All (UOI 20/20, ROR 8/8, Block 2/2, async-Return, struct→null, AsSpanAsMemory=Reporter-B-Wurzel) | **#279** |
+| **P2** | F-01/F-33: Konstanten-Mutatoren als `Mutator.Linq`; Statement als Sammelkategorie — ignore-mutations/Reports betroffen | **#280** |
+
+**Schlüssel-Erkenntnisse für die Folge-Sprints:** (a) Der Semantik-Pre-Filter fängt Method-Binding-Failures, aber keine Operator-/Flow-/Slot-Fehler — Erweiterungshebel F-08. (b) Die if/else-Wrap-Konstruktion erzeugt selbst Flow-CEs; `AddEndingReturn`-Mechanik (F-14) ist Sprint-174-Pflichtlektüre. (c) Die Fix-Blaupause existiert im eigenen Code (NullCoalescing/ArgumentPropagation/MemberVariable als Positiv-Referenzen). (d) Drei Doc-Kommentare behaupten fälschlich „classified as killed".
+
 > **Programm:** 6 Analyse-Sprints (173–178), Findings-only (Issue #276). Dieses Register
 > wird batch-weise fortgeschrieben; jeder Eintrag trägt Status `VERDACHT` (unverifiziert),
 > `BESTÄTIGT` (Trace/Repro liegt vor, Issue angelegt), `ENTKRÄFTET` (geprüft, kein Bug —
@@ -30,7 +44,10 @@
 | 9 | AssignmentExpression, CollectionExpression, DateTime, DateTimeAddSign, ExceptionSwap | ✅ gelesen |
 | 10 | GenericConstraint, GenericConstraintLoosen, SpanMemory, SpanReadOnlySpanDeclaration, RegexMutator, MathExpression (+ **3. Probe-Messung: RegexMutator-CRASH** auf interpoliertem Pattern, Level Advanced) — **damit alle 55 Core-Mutator-Dateien vollständig gelesen** | ✅ gelesen + gemessen |
 
-**Offen in Sprint 173:** RegexMutators-Projekt (20 Dateien, src/Stryker.RegexMutators/) — nächster Arbeitsschritt; danach Verifikations-/Issue-Phase und Register-PR.
+| 11 | **RegexMutators komplett** (20 Dateien): Orchestrator, Mutation, IRegexMutator, RegexMutatorBase + 16 Mutatoren (Anchor, CharClass×7, Quantifier×6, Group, LookAround) | ✅ gelesen |
+| 12 | Verifikations-Proben 4+5: F-23 async-Return + F-35 struct-Ctor (+ unfreiwillige #277-Zweitbestätigung: Probe-eigener `new Regex($)` killte den Stronger-Lauf mit Exit 127) | ✅ gemessen |
+
+**ABDECKUNG VOLLSTÄNDIG: 55/55 Core-Mutatoren + 20/20 RegexMutators einzeln gelesen; 5 Live-Proben.**
 
 ## Findings
 
@@ -75,6 +92,14 @@
 | F-37 | NOTIZ | P3 | DateTimeMutator.cs:30, ArrayCreationMutator.cs:28 | `System.DateTime.Now` (qualifizierter Receiver) wird nicht erkannt (nur IdentifierName) — Katalog-Lücke; explizit dimensionierte Arrays `new int[2]{1,2}` → `{}` = CS0847-Kante |
 | F-38 | NOTIZ (Positiv) | — | CollectionExpressionMutator.cs, RegexMutator.cs:51 (Validierungs-Idee), ExceptionSwapMutator, DateTimeAddSignMutator, AssignmentExpressionMutator, SpanMemoryMutator | Qualitäts-Designs: Collection-Leerung mit Typ-Cast-Erhalt; Regex-Replacement-Validierung mit 200-ms-Timeout; Whitelist-Swaps mit Signatur-Kompatibilität; Minus-Drop statt Doppel-Negation |
 | F-39 | NOTIZ (Doku) | P3 | SpanReadOnlySpanDeclarationMutator.cs:58 | Profile.None final (ADR-027) — Katalog zählt de facto 51 aktive von „52 Mutatoren"; README/Marketing-Zahl bei Gelegenheit präzisieren |
+| F-40 | NOTIZ | P3 | RegexMutators/Mutators/LookAroundMutator.cs:17 | Copy-Paste-DisplayName: Lookaround-Flip meldet sich als „Regex greedy quantifier quantity mutation" in Reports |
+| F-41 | NOTIZ (Positiv) | — | RegexMutators-Projekt gesamt | Hohe Qualität: Bounds-validierte Range-Mutationen, Lazy-Node-Längen-Handling, [\w\W]-Äquivalenz-Skip, explizites CanHandle-Override für Reluctant-Addition; Parse-Fehler → stiller Skip; Upstream-Validierungsschicht (200-ms-Regex-Compile) fängt invalide Outputs. Mikro: ToAnyChar-Skip hängt an `is List<RegexNode>`-Typtest |
+
+## Status-Upgrades nach Verifikations-Proben 4+5
+
+- **F-23 → BESTÄTIGT (gemessen):** `Type-driven return: Task<int> → Task.FromResult(default(int))` = CompileError (Probe, Profile Stronger) — Async-Guard fehlt.
+- **F-35 → BESTÄTIGT (gemessen):** `Constructor → null: 'new Point(...)' → 'null'` = CompileError (Probe, Profile All) — Doc-behauptete Typ-Awareness existiert nicht.
+- **F-34/#277-Zweitbestätigung:** Probe-eigenes `new Regex($"…")` killte den Stronger-Lauf (Exit 127) — jeder Codebase-weite Stronger/All-Lauf über Code mit interpolierten Regex-Patterns stirbt am Crash.
 
 ## Detail-Einträge
 
