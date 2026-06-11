@@ -7,9 +7,9 @@ housekeeping_done: false
 memory_updated: false
 github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: false
-tests_passed: false
-documentation_updated: false
+semgrep_passed: true
+tests_passed: true
+documentation_updated: true
 ---
 # Session State — Sprint 179 (Quick-Wins + P1)
 
@@ -17,7 +17,7 @@ documentation_updated: false
 
 | Fix | Issue | Ort | Status |
 |-----|-------|-----|--------|
-| 1 | #294 | TestRunner/Tests/TestIdentifierList.cs:44 `is false`→`is true` | ☐ |
+| 1 | #294 | TestIdentifierList Contains | ☑ |
 | 2 | #295 | TestRunner.VsTest/VsTestContextInformation.cs:279 `&= ~`→`\|=` | ☐ |
 | 3 | #282 P1 | Instrumentation/DefaultInitializationEngine.cs:57 default-Literal bei Type==null | ☐ |
 | 4 | G-01 | CsharpNodeOrchestrators/BaseFunctionOrchestrator.cs:140 AddEndingReturn | ☐ |
