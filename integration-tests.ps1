@@ -78,6 +78,21 @@ function Run-ValidationTests {
   if ($LASTEXITCODE -ne 0) { throw "dotnet test failed with exit code ${LASTEXITCODE}" }
 }
 
+function Restore-Fixture {
+  param(
+    [string]$Path
+  )
+
+  # Sprint 171 (ADR-051): MSBuildWorkspace-based analysis requires the
+  # REFERENCED source projects to be restored (obj/project.assets.json) —
+  # on a fresh CI checkout nothing under integrationtest/ is restored, which
+  # made every netcore category fail with "Failed to analyze project builds".
+  # Restoring the category's solution restores the full fixture graph.
+  Write-Info "Restoring fixture '$Path' (MSBuildWorkspace analysis requires restored references)"
+  dotnet restore $Path
+  if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed for ${Path} with exit code ${LASTEXITCODE}" }
+}
+
 
 
 function Run-Category {
@@ -90,6 +105,13 @@ function Run-Category {
   # Log chosen category and any OS-specific behavior here
   Write-Info "Selected category: $Category"
   Write-Info "Selected runtime: $Runtime"
+
+  # Per-category fixture solutions (ADR-051): NetCore categories live in
+  # IntegrationTestApp.sln, MTP categories in MicrosoftTestPlatform.slnx.
+  # InitCommand needs no restore (analysis-free, green without it);
+  # netframework uses the dedicated nuget.exe restore step in the workflow.
+  $netCoreSolution = Join-Path $RepoRoot 'integrationtest\TargetProjects\NetCore\IntegrationTestApp.sln'
+  $mtpSolution = Join-Path $RepoRoot 'integrationtest\TargetProjects\MicrosoftTestPlatform.slnx'
 
   switch ($Category) {
     'InitCommand' {
@@ -105,6 +127,7 @@ function Run-Category {
     }
     'SingleTestProject' {
       if ($Runtime -eq 'netcore') {
+        Restore-Fixture -Path $netCoreSolution
         Run-Stryker -WorkingDirectory (Join-Path $RepoRoot 'integrationtest\TargetProjects\NetCore\NetCoreTestProject.XUnit')
       } elseif ($Runtime -eq 'netframework') {
         $netFrameworkTestProject = Join-Path $RepoRoot 'integrationtest\TargetProjects\NetFramework\FullFrameworkApp.Test'
@@ -117,51 +140,51 @@ function Run-Category {
     'MultipleTestProjects' {
       if ($Runtime -ne 'netcore') { throw "MultipleTestProjects only supports runtime 'netcore'." }
       $multiWd = Join-Path $RepoRoot 'integrationtest\TargetProjects\NetCore\TargetProject'
-      if (Test-Path $multiWd) { Run-Stryker -WorkingDirectory $multiWd } else { Write-Warn "Multi test project not found at $multiWd" }
+      if (Test-Path $multiWd) { Restore-Fixture -Path $netCoreSolution; Run-Stryker -WorkingDirectory $multiWd } else { Write-Warn "Multi test project not found at $multiWd" }
       break
     }
     'MSTestMTP' {
       if ($Runtime -ne 'netcore') { throw "MSTestMTP only supports runtime 'netcore'." }
       $mtpWd = Join-Path $RepoRoot 'integrationtest\TargetProjects\MicrosoftTestPlatform\UnitTests.MSTest'
-      if (Test-Path $mtpWd) { Run-Stryker -WorkingDirectory $mtpWd } else { Write-Warn "MTP test project not found at $mtpWd" }
+      if (Test-Path $mtpWd) { Restore-Fixture -Path $mtpSolution; Run-Stryker -WorkingDirectory $mtpWd } else { Write-Warn "MTP test project not found at $mtpWd" }
       break
     }
     'XUnitMTP' {
       if ($Runtime -ne 'netcore') { throw "XUnitMTP only supports runtime 'netcore'." }
       $xunitMtpWd = Join-Path $RepoRoot 'integrationtest\TargetProjects\MicrosoftTestPlatform\UnitTests.XUnit'
-      if (Test-Path $xunitMtpWd) { Run-Stryker -WorkingDirectory $xunitMtpWd } else { Write-Warn "XUnit MTP test project not found at $xunitMtpWd" }
+      if (Test-Path $xunitMtpWd) { Restore-Fixture -Path $mtpSolution; Run-Stryker -WorkingDirectory $xunitMtpWd } else { Write-Warn "XUnit MTP test project not found at $xunitMtpWd" }
       break
     }
     'NUnitMTP' {
       if ($Runtime -ne 'netcore') { throw "NUnitMTP only supports runtime 'netcore'." }
       $nunitMtpWd = Join-Path $RepoRoot 'integrationtest\TargetProjects\MicrosoftTestPlatform\UnitTests.NUnit'
-      if (Test-Path $nunitMtpWd) { Run-Stryker -WorkingDirectory $nunitMtpWd } else { Write-Warn "NUnit MTP test project not found at $nunitMtpWd" }
+      if (Test-Path $nunitMtpWd) { Restore-Fixture -Path $mtpSolution; Run-Stryker -WorkingDirectory $nunitMtpWd } else { Write-Warn "NUnit MTP test project not found at $nunitMtpWd" }
       break
     }
     'TUnit' {
       if ($Runtime -ne 'netcore') { throw "TUnit only supports runtime 'netcore'." }
       $tunitWd = Join-Path $RepoRoot 'integrationtest\TargetProjects\MicrosoftTestPlatform\UnitTests.TUnit'
-      if (Test-Path $tunitWd) { Run-Stryker -WorkingDirectory $tunitWd } else { Write-Warn "TUnit test project not found at $tunitWd" }
+      if (Test-Path $tunitWd) { Restore-Fixture -Path $mtpSolution; Run-Stryker -WorkingDirectory $tunitWd } else { Write-Warn "TUnit test project not found at $tunitWd" }
       break
     }
     'MTPSolution' {
       if ($Runtime -ne 'netcore') { throw "MTPSolution only supports runtime 'netcore'." }
       $mtpSolutionWd = Join-Path $RepoRoot 'integrationtest\TargetProjects'
       $mtpSolutionPath = Join-Path $mtpSolutionWd 'MicrosoftTestPlatform.slnx'
-      if (Test-Path $mtpSolutionPath) { Run-Stryker -WorkingDirectory $mtpSolutionWd -Arguments @('--solution', $mtpSolutionPath, '--test-runner', 'mtp') } else { Write-Warn "MTP Solution not found at $mtpSolutionPath" }
+      if (Test-Path $mtpSolutionPath) { Restore-Fixture -Path $mtpSolution; Run-Stryker -WorkingDirectory $mtpSolutionWd -Arguments @('--solution', $mtpSolutionPath, '--test-runner', 'mtp') } else { Write-Warn "MTP Solution not found at $mtpSolutionPath" }
       break
     }
     'WebApiWithOpenApi' {
       if ($Runtime -ne 'netcore') { throw "WebApiWithOpenApi only supports runtime 'netcore'." }
       $webApiWd = Join-Path $RepoRoot 'integrationtest\TargetProjects\NetCore\WebApiWithOpenApi'
-      if (Test-Path $webApiWd) { Run-Stryker -WorkingDirectory $webApiWd } else { Write-Warn "WebApiWithOpenApi folder not found at $webApiWd" }
+      if (Test-Path $webApiWd) { Restore-Fixture -Path $netCoreSolution; Run-Stryker -WorkingDirectory $webApiWd } else { Write-Warn "WebApiWithOpenApi folder not found at $webApiWd" }
       break
     }
     'Solution' {
       if ($Runtime -eq 'netcore') {
         $netcoreWd = Join-Path $RepoRoot 'integrationtest\TargetProjects\NetCore'
         $solutionPath = Join-Path $netcoreWd 'IntegrationTestApp.sln'
-        if (Test-Path $solutionPath) { Run-Stryker -WorkingDirectory $netcoreWd -Arguments @('--solution', $solutionPath) } else { Write-Warn "Solution not found at $solutionPath" }
+        if (Test-Path $solutionPath) { Restore-Fixture -Path $netCoreSolution; Run-Stryker -WorkingDirectory $netcoreWd -Arguments @('--solution', $solutionPath) } else { Write-Warn "Solution not found at $solutionPath" }
       } elseif ($Runtime -eq 'netframework') {
         $wd = Join-Path $RepoRoot 'integrationtest\TargetProjects\NetFramework\FullFrameworkApp.Test'
         Run-Stryker -WorkingDirectory $wd -Arguments @('--diag')

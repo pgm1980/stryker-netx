@@ -1,12 +1,12 @@
 {
   "stryker-config": {
     "project-info": {
-      "name": "github.com/stryker-mutator/stryker-net",
+      "name": "github.com/pgm1980/stryker-netx",
       "module": "testrunner-vstest"
     },
     "project": "Stryker.TestRunner.VsTest",
     "test-projects": [
-      "../Stryker.TestRunner.VsTest.UnitTest/Stryker.TestRunner.VsTest.UnitTest.csproj"
+      "../../tests/Stryker.TestRunner.VsTest.Tests/Stryker.TestRunner.VsTest.Tests.csproj"
     ]
   }
 }
