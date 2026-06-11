@@ -2,6 +2,7 @@
 
 > **Stryker.NET-X is a port of [Stryker.NET](https://github.com/stryker-mutator/stryker-net) 4.14.1 to C# 14 / .NET 10 — fully `.slnx`-aware — with an extended mutation-operator and feature catalogue that rivals PIT, cargo-mutants, and mutmut.**
 
+[![NuGet](https://img.shields.io/nuget/v/dotnet-stryker-netx)](https://www.nuget.org/packages/dotnet-stryker-netx)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 `Stryker.NET-X` is a fork of Stryker.NET that targets `.NET 10`, eliminates the `Buildalyzer` dependency in favour of `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace`, supports the modern `.slnx` (XML-based) solution format, and ships a substantially expanded mutation-operator catalogue plus a `MutationProfile` opt-in surface for tunable noise/aggression. All public CLI flags and the `stryker-config.json` schema remain 1:1 backwards-compatible with upstream Stryker.NET 4.14.1.
@@ -10,12 +11,14 @@
 
 **Fully backwards-compatible**: existing users see zero behavioral change unless they opt into a stronger mutation profile.
 
-- **`--mutation-profile` flag** (`Defaults` | `Stronger` | `All`) — orthogonal to `--mutation-level`; controls *which mutators* run (not just which mutations).
-- **25 net-new mutators** across 6 batches (typed-driven, PIT-1, PIT-2 + cargo-mutants, .NET-greenfield, spec-gap closure, **filter pipeline + operator completion**).
-- **4 equivalent-mutant filters** in the pipeline (`IdentityArithmetic`, `IdempotentBoolean`, `ConservativeDefaultsEquality`, `RoslynDiagnostics` — the mutmut-style mypy/pyrefly pre-filter).
+- **`--mutation-profile` flag** (`Defaults` | `Stronger` | `All`) — orthogonal to `--mutation-level`; controls *which mutators* run (not just which mutations). Since v3.1.0 a stronger profile auto-bumps a too-low mutation level (ADR-025).
+- **26 net-new mutators** (52 total) across 6 batches (typed-driven, PIT-1, PIT-2 + cargo-mutants, .NET-greenfield, spec-gap closure, **filter pipeline + operator completion**).
+- **5 equivalent-mutant filters** in the pipeline (`IdentityArithmetic`, `IdempotentBoolean`, `ConservativeDefaultsEquality`, `RoslynDiagnostics` — the mutmut-style pre-filter — and `RoslynSemanticDiagnostics` with O(1) speculative binding).
 - **Operator hierarchy** + `[MutationProfileMembership]` attribute on every mutator.
 - **SemanticModel-driven type-aware mutators** — used by `TypeDrivenReturn`, `ArgumentPropagation`, `MemberVariable`, `MethodBodyReplacement`.
 - **Equivalent-Mutant Filter pipeline** as a first-class stage.
+- **Production-hardened CLI surface (v3.2.x, reporter-driven):** `--break-after <phase>` diagnostic runs, `--test-case-filter` / `--test-filter`, `--all-projects` multi-project mutation, `--tool-version` / `-T`, solution-mode heartbeat diagnostics, multi-line `// Stryker disable` scoping.
+- **Type-aware literal emission (v3.3.x):** both constant-emitting mutators (`InlineConstants`, `ConstantReplacement`) emit typed `SyntaxFactory.Literal(T)` for {int, uint, long, ulong, float, double, decimal} instead of lossy `double` round-trips — eliminates whole classes of CS0029/CS0266 Safe-Mode warnings (ADR-047/049).
 
 ## Why this fork exists
 
@@ -54,7 +57,7 @@ dotnet tool install -g dotnet-stryker-netx
 Pin a specific version:
 
 ```bash
-dotnet tool install -g dotnet-stryker-netx --version 3.2.13
+dotnet tool install -g dotnet-stryker-netx --version 3.3.2
 ```
 
 ## Quickstart
@@ -131,7 +134,7 @@ Or in `stryker-config.json`:
 }
 ```
 
-The expression is forwarded verbatim to the underlying VsTest test host (via `TestRunCriteria.TestCaseFilter` and the `<TestCaseFilter>` runsettings element). Syntax matches [Microsoft's selective-unit-tests guide](https://learn.microsoft.com/dotnet/core/testing/selective-unit-tests) — `Category=Unit`, `Priority!=High`, `FullyQualifiedName~Namespace.Sub`, `&`/`|` boolean combinators. Currently supported on the VsTest runner only; MTP-runner forwarding is on the v3.3 roadmap (see ADR-044).
+The expression is forwarded verbatim to the underlying VsTest test host (via `TestRunCriteria.TestCaseFilter` and the `<TestCaseFilter>` runsettings element). Syntax matches [Microsoft's selective-unit-tests guide](https://learn.microsoft.com/dotnet/core/testing/selective-unit-tests) — `Category=Unit`, `Priority!=High`, `FullyQualifiedName~Namespace.Sub`, `&`/`|` boolean combinators. Currently supported on the VsTest runner only; MTP-runner forwarding remains roadmapped (see ADR-044).
 
 ## Diagnostic-only runs (`--break-after`, v3.2.18+)
 
@@ -213,7 +216,7 @@ That's it. **`stryker-config.json`, CLI flags, and reporter output formats are u
 
 See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking changes for the default profile**. To opt into the expanded catalogue, add `--mutation-profile Stronger` or `--mutation-profile All`.
 
-## Known limitations (v2.4.0)
+## Known limitations (v3.3.x)
 
 - **NetFramework projects** (legacy `packages.config` style — `<TargetFramework>net48</TargetFramework>`) require `nuget.exe restore` of the .sln before invocation, because `dotnet msbuild -restore` only handles `<PackageReference>` style. CI's `windows-latest` runner ships `nuget.exe`; local-only blocked unless `nuget.exe` is on PATH. (Carried forward from v1.0.)
 - `JsonReport` reporter uses **hybrid source-gen + custom-converter** serialization as of v2.3.0. Source-gen `JsonReportSerializerContext` provides JsonTypeInfo for the entry types `JsonReport` / `IJsonReport`; custom polymorphic converters (`SourceFileConverter`, `JsonMutantConverter`, etc.) handle interface-typed properties at runtime. Net effect: **AOT-trim-progress, not AOT-trim-complete**. Full AOT-trim **deferred to v3.0** per [ADR-024](_docs/architecture%20spec/architecture_specification.md) — requires flattening `IJsonReport` / `ISourceFile` / `IJsonMutant` (7 interfaces, 34 referencing files) to concrete types, which is a v3.0-cadence breaking change.
@@ -230,34 +233,24 @@ See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking
 
 ## Project status
 
-| Sprint | Outcome |
-|--------|---------|
-| Sprint 0 — Architecture & Design | ✅ 12 ADRs, FRs, NFRs, test stack chosen |
-| Sprint 1 — Implementation (Mega-Sprint, 10 phases) | ✅ Tag `v1.0.0-preview.1` — Buildalyzer fully removed, all 11 + 6 projects on .NET 10 |
-| Sprint 2 — Code Excellence | ✅ Tag `v1.0.0-preview.2` — C# 14 extension members, source-gen regex, list patterns, RSL |
-| Sprint 3 — Production Hardening | ✅ Tag `v1.0.0-rc.1` — integration suite vendored, NuGet + CI + Release pipeline |
-| Sprint 4 — Bug Elimination | ✅ Tag **`v1.0.0`** — Bug-5 fixed; all NetCore + MTP + Edge integration categories run end-to-end |
-| Sprint 5 — v2.0.0 Architecture Foundation | ✅ ADRs 013–018 + interface stubs (no tag) |
-| Sprint 6 — Operator-Hierarchy + Profile Refactor | ✅ Tag `v2.0.0-preview.1` |
-| Sprint 7 — SemanticModel + Equiv-Mutant Filter | ✅ Tag `v2.0.0-preview.2` |
-| Sprint 8 — Hot-Swap engine SCAFFOLDING | ✅ Tag `v2.0.0-preview.3` |
-| Sprint 9 — Type-Driven Mutators | ✅ Tag `v2.0.0-preview.4` |
-| Sprint 10 — PIT-1 Operator Batch | ✅ Tag `v2.0.0-preview.5` |
-| Sprint 11 — PIT-2 + cargo-mutants Batch | ✅ Tag `v2.0.0-rc.1` |
-| Sprint 12 — Greenfield + Release | ✅ Tag **`v2.0.0`** — production |
-| Sprint 13 — Spec-gap closure | ✅ Tag **`v2.0.1`** — 8 new mutators (ConfigureAwait, DateTimeAddSign, SwitchArmDeletion, MemberVariable, TaskWhenAllToWhenAny, ArgumentPropagation, AsSpanAsMemory, MethodBodyReplacement) closing remaining §4.1 / §4.2 / §4.4 spec items |
-| Sprint 14 — Filter pipeline + operator completion | ✅ Tag **`v2.1.0`** — 3 new mutators (ConstantReplacement = PIT CRCR, GenericConstraintLoosen, SpanReadOnlySpanDeclaration) + 1 new equivalence filter (RoslynDiagnostics, mutmut-style); HotSwap engine deferred to v2.2.0 per ADR-019 |
-| Sprint 15 — HotSwap walk-back | ✅ Tag **`v2.2.0`** — pre-implementation recherche revealed ADR-016 was based on a wrong mental model of Stryker.NET's cost structure (no per-mutant compile to optimize away). ADR-021 walks back ADR-016, soft-deprecates the engine surface, deletes dead code. ADR-022 (Proposed) records incremental mutation testing as the legitimate future perf direction without commitment. |
-| Sprint 16 — Long-tail items | ✅ Tag **`v2.3.0`** — 1 new mutator (AsyncAwaitResult — spec-faithful `.Result` variant), JsonReport hybrid source-gen rewrite (AOT-trim progress), validation-framework count-tests principled-skip per ADR-023. 2 deferred (RoslynDiagnostics filter v2 cost-too-high; GenericConstraintLoosen interface-target speculative). |
-| Sprint 17 — Final long-tail rest | ✅ Tag **`v2.4.0`** — RoslynSemanticDiagnosticsEquivalenceFilter (Roslyn speculative-binding for O(1) per-mutation semantic-error pre-filter — caught the v2.3 "cost-too-high" deferred item via smarter API choice), GenericConstraintLoosenMutator extension with BCL-interface-pair table (ICloneable↔IDisposable etc.). JsonReport full AOT-trim deferred to v3.0 per ADR-024. |
-| Sprint 18 — Hardening Super-Sprint A | ✅ Tag **`v2.5.0`** — full unit-test coverage for all 52 mutators. New `tests/Stryker.Core.Tests/` project with `MutatorTestBase` infrastructure, **256 tests** across 52 mutator classes + `BuildSemanticContext` helper for type-aware mutators (Hybrid SemanticModel strategy chosen via Sprint-18 ToT). Zero production-code change; pure additive test asset. |
-| Sprint 19 — Filter Tests + FsCheck Properties | ✅ Tag **`v2.6.0`** — Item B (5 filter unit tests + pipeline = ~30 tests) + Item C (5 FsCheck `[Property]` tests via ToT 9-node ranking). Solution-wide: **335 tests green** (308 Stryker.Core.Tests + 17 Sample + 10 Architecture). Zero production-code change. |
+**Current: v3.3.2 (Sprint 170, 2026-06) — production, published on [NuGet.org](https://www.nuget.org/packages/dotnet-stryker-netx).** 170 sprints, 50 ADRs, ~2,140 tests green, 160+ tagged releases. Full release history: [GitHub Releases](https://github.com/pgm1980/stryker-netx/releases).
 
-See [`_docs/`](_docs/) for per-sprint lessons.
+| Era | Sprints | Versions | Outcome |
+|-----|---------|----------|---------|
+| Architecture & design | 0 | — | 12 founding ADRs, FRs/NFRs, test stack chosen |
+| Port | 1–4 | `v1.0.0-preview.1` → **`v1.0.0`** | Buildalyzer fully removed (MSBuildWorkspace), all 11+6 projects on .NET 10, C# 14 modernization, integration suite vendored, CI pipeline |
+| Operator expansion | 5–14 | `v2.0.0` → `v2.1.0` | Mutation profiles (`Defaults`/`Stronger`/`All`), 52-mutator catalogue (PIT + cargo-mutants + mutmut parity), SemanticModel-driven mutators, equivalence-filter pipeline |
+| Consolidation | 15–17 | `v2.2.0` → `v2.4.0` | HotSwap walk-back (ADR-021), `RoslynSemanticDiagnostics` filter (speculative binding), catalogue closure — operator-shaped gaps vs PIT/cargo-mutants/mutmut exhausted |
+| Hardening | 18–24 | `v2.5.0` → `v2.11.0` | Full mutator/filter unit-test coverage, FsCheck properties, NetFramework CI, nightly dogfood workflow (Stryker on Stryker) |
+| Upstream-test-suite port | 25–138 | `v2.12.0` → `v3.0.24` | MSTest→xUnit/FluentAssertions migration of the upstream suites (~1,200 dogfood tests), architectural-deferral elimination, release pipeline repair + first public NuGet push (Sprint 138) |
+| Production bug-report era | 139–169 | `v3.0.25` → `v3.3.1` | Three external reporter teams (Calculator, Aisess, filesystem-mcp-server) drove ADR-025…049: profile auto-bump, syntax-slot validation layers, `.slnx` filter defense, disable-comment scoping, `--test-case-filter`, `--break-after`, type-aware literal emission |
+| CI reanimation | 170 | `v3.3.2` | NuGet-audit advisory bump (Nerdbank.MessagePack), nightly dogfood schedule repair (ADR-050), workspace + documentation refresh |
+
+See [`_docs/`](_docs/) for per-sprint lessons and the [architecture specification](_docs/architecture%20spec/architecture_specification.md) for all ADRs.
 
 ## Building from source
 
-Requires .NET SDK **10.0.107+**.
+Requires .NET SDK **10.0.100+** (`global.json` pins the `10.0.1xx` band with `rollForward: latestFeature`).
 
 ```bash
 dotnet build stryker-netx.slnx

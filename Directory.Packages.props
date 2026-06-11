@@ -87,8 +87,14 @@
       attacker-controlled stackalloc in DateTime decoding causes process-terminating
       StackOverflowException. Vulnerable: < 1.1.62. NuGetAudit + TreatWarningsAsErrors
       surface this as NU1903 build-error otherwise.
+      Sprint 170: bumped 1.1.62 -> 1.2.4 for two post-v3.3.1 advisories (both moderate,
+      both DoS via untrusted MessagePack input): GHSA-qjvr-435c-5fjh (memory amplification
+      in collection deserialization; fixed 1.1.78) + GHSA-92vj-hp7m-gwcj (O(n^2) CPU in
+      ExpandoObject converter; fixed 1.2.4). 1.2.4 = latest stable (2026-05-18), covers both.
+      Stryker-netx never deserializes untrusted MessagePack itself (dep is MTP-internal IPC),
+      but NU1902 + TreatWarningsAsErrors turn any open advisory into a build break.
     -->
-    <PackageVersion Include="Nerdbank.MessagePack" Version="1.1.62" />
+    <PackageVersion Include="Nerdbank.MessagePack" Version="1.2.4" />
     <PackageVersion Include="Microsoft.VisualStudio.SolutionPersistence" Version="1.0.52" />
 
     <!-- Stryker-specific dependencies -->

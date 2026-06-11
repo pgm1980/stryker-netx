@@ -3524,10 +3524,75 @@ When fixing a type-discipline or codegen bug in mutator code, **exhaustively gre
 
 ---
 
+## ADR-050: Nightly-Dogfood Scheduled-Mode Repair — GH-Expression-Koerzierungsfalle + Tool-Manifest Real-Version-Pin (v3.3.2 / Sprint 170)
+
+**Status.** Accepted — Sprint 170 (v3.3.2, 2026-06-11).
+
+**Kontext.** Session-Start-Bestandsaufnahme 2026-06-11 (16 Tage nach v3.3.1, GitHub-Issue #265) fand zwei unabhängige CI-Breaker:
+
+1. **Build rot (Sprint-Trigger, kein eigener ADR — Sprint-159-Präzedenz):** `Nerdbank.MessagePack 1.1.62` (Sprint-159-Pin gegen die transitive 1.0.2 aus Microsoft.Testing.Platform 1.5.2) bekam nach dem v3.3.1-Release zwei neue Advisories — GHSA-qjvr-435c-5fjh (memory-amplification DoS, fixed 1.1.78) + GHSA-92vj-hp7m-gwcj (O(n²) CPU im ExpandoObject-Converter, fixed 1.2.4). NuGetAudit + TreatWarningsAsErrors ⇒ 20× NU1902 ohne jede Code-Änderung. Fix: Pin → **1.2.4** (latest stable 2026-05-18, deckt beide), `dotnet list package --vulnerable --include-transitive` danach clean über alle 25 Projekte. CI erzwingt `RestoreLockedMode` ⇒ 10 regenerierte `packages.lock.json` sind Teil des Fixes.
+2. **Nightly „Stryker on Stryker" 42/42 Runs rot — er war NIE grün, und es gab nie einen workflow_dispatch-Run.** Log-verifizierter Fehlweg: schedule ⇒ `USE_LOCAL_TOOL: false` ⇒ `dotnet tool restore` gegen Manifest-Pin `0.0.0-localdev` ⇒ „not found in NuGet feeds" ⇒ exit 1 nach ~40 s.
+
+**Root Cause (Workflow).** `stryker-on-stryker.yaml:81`:
+
+```yaml
+USE_LOCAL_TOOL: ${{ inputs.useLocalTool == false && 'false' || 'true' }}
+```
+
+Bei schedule-Events ist `inputs.useLocalTool` **null**. GitHub-Actions-Expressions koerzieren `==`-Operanden auf Zahlen (null→0, false→0) ⇒ `null == false` ist **true** ⇒ env wird `'false'` — das Gegenteil der im Kommentar dokumentierten Absicht („Default to local-tool mode for scheduled runs"). Der nie-ausgeführte dispatch-Pfad maskierte den Bug zusätzlich: mit Default `useLocalTool: true` wäre er korrekt gelaufen.
+
+### Entscheidungen (Maxential 9 Thoughts, 1 ToT-Branch full-integration-merged)
+
+**D1 — Expression-Form:**
+
+```yaml
+USE_LOCAL_TOOL: ${{ github.event_name == 'workflow_dispatch' && inputs.useLocalTool == false && 'false' || 'true' }}
+```
+
+Der `event_name`-Guard macht den koerzierungsanfälligen Vergleich nur für workflow_dispatch erreichbar, wo `inputs.useLocalTool` ein typisierter Boolean ist. Verworfen: invertierte Form `!= false` (gleicher Bug, gespiegelt: schedule ⇒ `0 != 0` ⇒ false ⇒ 'false'), String-`contains`-Tricks (unleserlich), step-level-`if` (6 Zeilen ohne Mehrwert). Koerzierungsfalle ist jetzt im Workflow-Kommentar dokumentiert — sonst baut der nächste Refactor denselben Bug wieder ein.
+
+**D2 — Manifest-Pin:** `.config/dotnet-tools.json` `0.0.0-localdev` → **`3.3.1`** (neueste zum Edit-Zeitpunkt publizierte Version). Konsumenten-Analyse: Das Manifest wird NUR vom `USE_LOCAL_TOOL=false`-Pfad (`dotnet tool restore` + `dotnet tool run`) und von Contributor-`dotnet tool restore` konsumiert; der Local-Pack-Pfad nutzt tool-path-Installs am Manifest vorbei. Optionen: (A) `0.0.0-localdev` behalten — restore bleibt für alle garantiert kaputt; (B) reale Version — restore funktioniert sofort, Pin altert kontrolliert (Floor, nicht Ceiling); (C) Ziel-Tag 3.3.2 — Chicken-Egg zwischen Merge und NuGet-Indexing, bei Release-Fehlschlag dauerhaft kaputt. **B gewählt**; verifiziert: `dotnet tool restore` stellt 3.3.1 her. Follow-up-Idee (nicht Scope): release.yml bumpt den Pin automatisch pro Release.
+
+**D3 — schedule-Default bleibt local-pack** (ToT-Branch „schedule-published-tool" voll durchdacht und VERWORFEN): Der Workflow-Header aus Sprint 24 versprach den Switch auf das publizierte Tool „once the tool is published" — eingelöst wird er bewusst NICHT. (a) Ein publiziertes Tool ist beim Nightly bereits durch ci.yml + Release-Prozess validiert; Tool-Regressionen fände der Nightly damit erst NACH dem Release statt davor — der Dogfood-Zweck invertiert. (b) ci.yml läuft nur auf PRs/Pushes; zwischen Sprints ist der Nightly der EINZIGE Wächter über HEAD-Gesundheit — im local-pack-Modus hätte er den NU1902-Breaker dieses Sprints am Tag 1 sichtbar gemacht statt nach 16 Tagen. (c) Ein published-Pin ohne Auto-Bump institutionalisiert Drift. Der dispatch-false-Pfad bleibt als On-Demand-Validierung des shipped Artefakts erhalten — erstmals funktionsfähig dank D2.
+
+### Files
+
+- EDIT `Directory.Packages.props` — Nerdbank.MessagePack 1.1.62 → 1.2.4 + Advisory-Doku im Kommentar (Sprint-159-Historie erhalten)
+- EDIT 10× `packages.lock.json` — regeneriert (RestoreLockedMode-Pflicht)
+- EDIT `.github/workflows/stryker-on-stryker.yaml` — D1-Expression + Koerzierungs-Doku + Header-Kommentar (war stale: „NuGet form not yet available")
+- EDIT `.config/dotnet-tools.json` — D2-Pin 3.3.1
+
+### Scope-Grenze
+
+Sprint-170-Erfolgskriterium: Der Scheduled-Trigger nimmt den intendierten Local-Pack-Pfad und kommt über restore/pack/install hinaus in die Stryker-Execution (verifiziert via workflow_dispatch-Default-Run = identischer Pfad). **„11/11 Matrix-Mutation-Runs grün" ist explizit NICHT Kriterium** — der Local-Pack-Pfad lief auf CI noch nie; nachgelagerte Erstlauf-Fehler (à bis 120 Min/Modul) sind eigene Sprints, falls sie auftreten.
+
+### Konsequenzen
+
+- (+) Build wieder 0/0 ohne Advisory-Schulden; Audit über alle 25 Projekte clean.
+- (+) Nightly-Dogfood nimmt erstmals den Design-Pfad — und wird damit zugleich Frühwarnsystem für extern entstehende Build-Brüche (genau die Fehlerklasse dieses Sprints).
+- (+) `dotnet tool restore` funktioniert erstmals für Contributors (fresh clone / IDE-Auto-Restore).
+- (–) Manifest-Pin braucht manuelle Bumps pro Release, bis ein release.yml-Auto-Bump existiert (Follow-up-Kandidat).
+- (–) Erste echte Local-Pack-Nightly-Läufe können neue, bisher unsichtbare Fehlerklassen zeigen (bewusst akzeptiert, siehe Scope-Grenze).
+
+### Lesson committed (process)
+
+Ein Workflow, der nur über EINEN Trigger-Typ läuft, testet seine anderen Pfade nie: 42 schedule-Runs, 0 dispatch-Runs ⇒ der dispatch-Default-Pfad (der korrekt funktioniert hätte) blieb 6 Wochen unausgeführt, während der schedule-Pfad 42× identisch failte. Bei Workflow-Conditionals mit `inputs.*`: IMMER den schedule-Fall (inputs = null) explizit durchrechnen — GH-Expressions koerzieren `null == false` zu true. Und: ein dauerrotes Nightly ist kein Rauschen, sondern ein unbezahltes Frühwarnsystem.
+
+### Supersedes / supplements
+
+- **Repariert** die Sprint-24-Dogfood-Infrastruktur (v2.11.0) — erstmaliger funktionsfähiger Scheduled-Betrieb.
+- **Ergänzt** Sprint 159 (erster Nerdbank-Pin) um die Advisory-Bump-Fortschreibung.
+- **Honest-deferred unverändert** (aus ADR-049): B.1/B.2 AsSpan/AsMemory + D PluginManager — warten auf Reporter-Re-Test.
+
+**Backed by.** Sprint 170 Maxential-Session (9 Thoughts, ToT-Branch „schedule-published-tool" closed+full-integration-merged). Lokal verifiziert: Build 0/0, `dotnet list package --vulnerable --include-transitive` clean (25 Projekte), `dotnet tool restore` → 3.3.1, `dotnet pack Stryker.CLI` → nupkg erfolgreich.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |
 |---------|-------|-------|----------|
+| 0.33.0 | 2026-06-11 | Claude Fable 5 (Co-Authored mit pgm1980) | Sprint 170 v3.3.2: **ADR-050** — Nightly-Dogfood Scheduled-Mode Repair. Zwei unabhängige CI-Breaker aus Session-Start-Bestandsaufnahme (Issue #265): (1) Nerdbank.MessagePack 1.1.62 → 1.2.4 (zwei post-v3.3.1 Advisories GHSA-qjvr-435c-5fjh fixed 1.1.78 + GHSA-92vj-hp7m-gwcj fixed 1.2.4; NuGetAudit+TWAE ⇒ 20× NU1902 ohne Code-Änderung; 10 packages.lock.json regeneriert wegen RestoreLockedMode; Audit danach clean über 25 Projekte). (2) „Stryker on Stryker" 42/42 Runs rot seit Sprint 24 — `inputs.useLocalTool == false` koerziert bei schedule (inputs=null) zu `0 == 0` = true ⇒ USE_LOCAL_TOOL='false' ⇒ tool restore gegen nicht-existenten Manifest-Pin `0.0.0-localdev`. Maxential 9 Thoughts + ToT-Branch „schedule-published-tool" (verworfen, full-integration-merged): D1 event_name-Guard-Expression, D2 Manifest-Pin → 3.3.1 (reale Version, restore erstmals funktionsfähig), D3 schedule bleibt local-pack (Dogfood = Pre-Release-Detektor + einziger HEAD-Wächter zwischen Sprints — hätte den NU1902-Breaker am Tag 1 gezeigt). Scope-Grenze: Erfolg = intendierter Pfad bis in Stryker-Execution, NICHT 11/11 Mutation-Runs grün (Pfad lief auf CI noch nie). Dazu Sprint-170-Doc-Drift: README (Ära-Tabelle statt Sprint-0–19-Liste, NuGet-Badge, v3.3.x-Features, SDK-Angabe an global.json angeglichen), MEMORY.md komplett neu (Sprint-0-Stand → Sprint 170), DEEP_MEMORY.md Sektion 0 „Stand heute" + [Ausgang]-Anmerkungen, Worktree-/Clone-Leftovers entfernt (2 locked Agent-Worktrees, Inhalte verifiziert auf main gelandet). **Lesson:** Workflow mit nur einem Trigger-Typ testet seine anderen Pfade nie (42 schedule, 0 dispatch); bei `inputs.*`-Conditionals den null-Fall explizit durchrechnen; dauerrotes Nightly ist unbezahltes Frühwarnsystem. |
 | 0.32.0 | 2026-05-25 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 169 v3.3.1: **ADR-049** — ConstantReplacementMutator Type-Aware Literal Emission, extends ADR-047 to the SECOND constant-emitter that Sprint 168 missed. Reporter BUG_REPORT_9_FOLLOWUP_2 validation on v3.3.0 found 196 residual Safe Mode! warnings (31.14 % CompileError rate); 184 A.1 nested-ternary `(IsActive?-1:?0:?2:1)` + 3 A.2 direct `double→long` + 1 A.3 `ref long←ref double` = 188 / 196 = 95.9 % all root-caused in `ConstantReplacementMutator.MakeNumericMutation` still using `Convert.ToDouble + Literal(string, double)`. Reporter's hypothesis "ternary wrapper needs outer cast" was symptom-not-cause; the wrapper is correct C# semantics, the leaf is the bug. Maxential 11 thoughts + 3 ToT-Branches A (reporter's outer-cast 0.525) / **B mirror-ADR-047-on-CRCR chosen 0.875** / C hybrid (0.55). Branch B: `Make(object)` + switch-expression dispatching to typed `Literal(int|uint|long|ulong|float|double|decimal)`, unsigned types skip negative axes (→-1, →-c unrepresentable), decimal symmetric so overflow case is defensive-only (`-decimal.MaxValue = decimal.MinValue`). Catalogue {int, long, float, double} → 7 numeric types matches ADR-047. 14 new tests (7 Token.Value-type Theory + 7 compile-roundtrip Theory + 2 edge-case Fact) mirroring Sprint 168 test pattern. Solution-wide 2137 grün (+16 vs Sprint 168 baseline 2121, Stryker.Core.Tests 476 → 492), Semgrep clean. Tag **v3.3.1** (patch — same SemVer trajectory as ADR-047, additive-bug-fix). Honest-deferred Sprint 170+: B.1 (3 sites `byte[].AsSpan` overload) + B.2 (1 site `AsMemory`) + D (4 sites `PluginManager` CS0165/CS0161 control-flow) = 8 / 196 = 4.1 %. Reporter accepted scope: "If you can ship the ternary fix … that alone closes our pain point." **Lesson:** Sprint 168 announcement "closes Anomaly #4" was overclaimed — only fixed 1 of 2 mutators emitting via `Literal(string, double)`. A single command `grep -rn "Convert\\.ToDouble\\|Literal\\(.*double\\)" src/Stryker.Core/Mutators/` would have surfaced ConstantReplacementMutator.cs:107 in Sprint 168 and saved an entire sprint cycle. Pre-release mutator-changes checklist now includes that exhaustive grep. |
 | 0.31.0 | 2026-05-25 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Sprint 168 v3.3.0: **ADR-047** + **ADR-048**. P0 ADR-047 — InlineConstantsMutator Type-Aware Literal Emission (Bug Report #9 Anomaly #4, filesystem-mcp-server Sprint 56). `InlineConstantsMutator.MakeNumericMutation` emittierte via `SyntaxFactory.Literal(string, double)` → `Token.Value : double` unabhängig vom source-literal-type → CS0266/CS1503/CS0029 cascade auf int/long/uint/ulong/decimal slots → ~70 Safe Mode! warnings, ~39 % CompileError rate auf reporter-codebase. Maxential 14 Schritte, 3 ToT-Branches A (per-type helpers 0.65) / **B (single Make(object) + switch-expression 0.875)** / C (generic INumber<T> 0.76), Branch B chosen+merged. 12 new Tests (7 Token.Value-type-Theory + 7 compile-roundtrip-Theory + 2 decimal-overflow [Fact] — die existierenden 4 [Theory]-Tests aus Sprint 18 waren blind to typed-emission). Catalogue-extension {int, long, float, double} → {int, uint, long, ulong, float, double, decimal}. Decimal overflow via try/catch silent-skip. P2 ADR-048 — Coverage-Matrix Class-Fixture Attribution Limit (informational, no code change, Bug Report #9 Anomaly #7). `CoverageAnalyser` matched test→mutant via `TestId` string, nicht SUT-instance-aware → fresh-SUT-per-test pattern mit Mock<ILogger> misses statement-deletion mutations on logger calls. Documents class-fixture Mock<ILogger> als recommended pattern + roadmaps SUT-instance-aware coverage als v3.4+. README "Known limitations" mit 4 neuen Bullets (testhost lock workaround, cold-run JIT-warmup, coverage instance-limit, dotnet-tools.json rollForward pitfall). Solution-wide build 0/0, **2121 Tests grün (+16 vs Sprint 167 baseline 2105; Stryker.Core.Tests 460 → 476)**. Semgrep clean (0 findings on InlineConstantsMutator.cs). Tag **v3.3.0** (minor — additive type-coverage in Mutator-Catalogue). Honest-deferred: other emit-type-discipline bugs aus Bug Report #9 (AsSpan overload mismatch, char-literal overload, MutantPlacer ternary) als Sprint 169+ Kandidaten. |
 | 0.1.0 | 2026-04-30 | Claude Opus 4.7 (Co-Authored mit pgm1980) | Initiale Sprint-0-Version mit 12 ADRs |
