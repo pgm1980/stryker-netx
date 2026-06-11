@@ -4,9 +4,12 @@ name: Stryker on Stryker
 # Stryker mutates its own production source tree against the Sprint 18+19+20+22
 # test suites. Workflow runs nightly and on manual dispatch.
 #
-# Default uses USE_LOCAL_TOOL=true: pack-install Stryker.CLI from source as a
-# tool-path-local install. The NuGet form (`dotnet-stryker-netx` from NuGet.org)
-# is not yet available; switch the default to `false` once the tool is published.
+# Sprint 170 (ADR-050): scheduled runs deliberately stay on USE_LOCAL_TOOL=true
+# (pack-install Stryker.CLI from HEAD as a tool-path-local install) — the nightly
+# is the pre-release regression detector and the only HEAD-health sentinel between
+# sprints. Manual dispatch with useLocalTool=false runs the *published* NuGet tool
+# (`dotnet-stryker-netx`, pinned in .config/dotnet-tools.json) for on-demand
+# validation of the shipped artifact.
 
 on:
   schedule:
@@ -78,7 +81,14 @@ jobs:
           STRYKER_DASHBOARD_API_KEY: ${{ secrets.STRYKER_DASHBOARD_API_KEY || '' }}
           # Default to local-tool mode for scheduled runs (no input present).
           # Manual dispatch can override via the `useLocalTool` input.
-          USE_LOCAL_TOOL: ${{ inputs.useLocalTool == false && 'false' || 'true' }}
+          #
+          # ADR-050 coercion trap: on schedule events `inputs.useLocalTool` is null,
+          # and GH expressions coerce `==` operands to numbers (null→0, false→0), so a
+          # bare `inputs.useLocalTool == false` is TRUE on schedule — which silently
+          # flipped 42/42 nightly runs into NuGet-manifest mode. The event_name guard
+          # below makes the comparison reachable only for workflow_dispatch, where the
+          # typed boolean input compares without coercion.
+          USE_LOCAL_TOOL: ${{ github.event_name == 'workflow_dispatch' && inputs.useLocalTool == false && 'false' || 'true' }}
         run: ./stryker-on-stryker.ps1 -WorkingDirectory "${{ matrix.workingDirectory }}"
 
       - name: Upload Stryker logs

@@ -2,7 +2,33 @@
 
 > Vollständiger Projekt-Kontext. Geht über die operativen Direktiven der CLAUDE.md hinaus und beschreibt **Vision, Hintergrund, Architektur, Toolchain, Roadmap, Risiken**. Kontinuierlich verdichtet — *umso mehr Memory, umso besser*.
 >
-> **Lese-Reihenfolge bei Session-Start:** [MEMORY.md](MEMORY.md) (Index) → DEEP_MEMORY.md (dieses Dokument) → [CLAUDE.md](CLAUDE.md) (Direktiven) → [_config/development_process.md](_config/development_process.md) (Prozess) → [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md) (12 ADRs).
+> **Lese-Reihenfolge bei Session-Start:** [.sprint/state.md](.sprint/state.md) (tagesaktuelle Wahrheit) → [MEMORY.md](MEMORY.md) (Index) → DEEP_MEMORY.md (dieses Dokument) → [CLAUDE.md](CLAUDE.md) (Direktiven) → [_config/development_process.md](_config/development_process.md) (Prozess) → [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md) (ADR-001…050).
+>
+> **Dokument-Charakter:** Sektion 0 ist der aktuelle Stand (Sprint 170). Die Sektionen 1–11 sind die Sprint-0-Baseline (2026-04-30) — als Gründungs-Kontext bewusst erhalten, stellenweise mit *[Ausgang: …]*-Anmerkungen versehen, wo die Realität den Plan überholt hat.
+
+---
+
+## 0. Stand heute (Sprint 170, 2026-06-11)
+
+### 0.1 Projekt-Realität
+
+- **Production seit Sprint 12 (v2.0.0)**, öffentlich auf [NuGet.org](https://www.nuget.org/packages/dotnet-stryker-netx) seit Sprint 138. Aktuelle Version **v3.3.2** (Sprint 170). 170 Sprints, 50 ADRs, ~2.140 Tests grün, 160+ Tags.
+- **Die Portierung ist längst abgeschlossen** — seit Sprint 5 ist das Projekt ein eigenständiges Produkt mit erweitertem Katalog: **52 Mutatoren** (26 Upstream-Parität + 26 neue: PIT-, cargo-mutants-, mutmut-inspiriert), **5 Equivalence-Filter**, Mutation-Profiles (`Defaults`/`Stronger`/`All`), SemanticModel-Infrastruktur.
+- **Buildalyzer existiert nicht mehr** (Sprint 1: komplett durch `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace` ersetzt) — die Sprint-0-Annahme „Buildalyzer 9 Update" wurde von der radikaleren Lösung überholt.
+- **`.slnx`-Support ist ein Alleinstellungsmerkmal** (Microsoft.VisualStudio.SolutionPersistence), inkl. 3-Layer-Source-Project-Filter-Defense (ADR-039).
+- **Drei externe Reporter-Teams** (Calculator-Tester, Aisess-Platform, filesystem-mcp-server) haben Sprints 139–169 getrieben — strukturierte Bug-Reports in [_bug_reporting/](_bug_reporting/), alle Items entweder geschlossen oder honest-deferred (B.1/B.2/D, siehe MEMORY.md).
+- **Release-Mechanik:** Feature-PR (squash, `(#NNN)`) → annotated Tag auf Merge-Commit → release.yml (NuGet-Push + GitHub-Release) → Closing-PR flippt `.sprint/state.md`-Flags.
+
+### 0.2 Test-/Qualitäts-Realität
+
+- ~2.140 Tests: Stryker.Core.Tests (Mutator-/Filter-Vollabdeckung + Regression), Dogfood-Tests (~1.190, aus Upstream-Suite portiert), CLI/E2E/Architecture/Solutions/TestRunner-Suites.
+- 9 legitime Skips (3 permanent Buildalyzer-Architektur, 4 Windows-conditional, 2 Forever-Skip per User-Entscheid) + 11 principled-skips im Validation-Framework (ADR-023).
+- Nightly-Dogfood „Stryker on Stryker" (11 Module, ubuntu): seit Sprint 170 (ADR-050) nimmt der Scheduled-Run erstmals den intendierten Local-Pack-Pfad — er ist damit zugleich Frühwarnsystem für extern entstehende Build-Brüche (NuGetAudit-Advisories).
+
+### 0.3 Offene Richtungen
+
+- Reporter-Re-Test gegen v3.3.1+ ausstehend (Pass: <20 Safe-Mode-Warnings, <15 % CompileError); danach ggf. B.1/B.2/D.
+- MTP-Runner-Forwarding für `--test-case-filter` (ADR-044), SUT-instance-aware Coverage (ADR-048, v3.4+), inkrementelles Mutation-Testing (ADR-022, Proposed).
 
 ---
 
@@ -26,13 +52,13 @@
 Die Portierung **erhält 100% der CLI-Schnittstelle, Config-Schemas und Reporter-Outputs** des Originals, **modernisiert die transitiven Dependencies** und **fixt die identifizierten .NET-10-Inkompatibilitäten**.
 
 ### 1.3 Nicht-Ziele (Sprint 1)
-- Kein neues Mutator-Set (1:1 zu Upstream)
-- Keine CLI-Flag-Änderungen (1:1 zu Upstream)
-- Keine Config-Schema-Änderungen (1:1 zu Upstream)
-- Kein NativeAOT-Erzwingen (siehe ADR-006)
-- Keine McMaster-Replacement (siehe ADR-007 HYBRID)
-- Keine IDE-Plugins
-- Kein Visual-Basic / F# / non-C#-Source-Mutation
+- Kein neues Mutator-Set (1:1 zu Upstream) — *[Ausgang: galt nur für Sprint 1–4; ab v2.0.0 kamen 26 neue Mutatoren — als OPT-IN via `--mutation-profile`, Default bleibt Upstream-Parität]*
+- Keine CLI-Flag-Änderungen (1:1 zu Upstream) — *[Ausgang: v3.2.x ergänzte additive Flags (`--break-after`, `--test-case-filter`, `--all-projects`, `--tool-version`) — nie breaking]*
+- Keine Config-Schema-Änderungen (1:1 zu Upstream) — *[Ausgang: gehalten; nur additive Keys]*
+- Kein NativeAOT-Erzwingen (siehe ADR-006) — *[gehalten; JsonReport AOT-trim kam in v3.2.8/ADR-034]*
+- Keine McMaster-Replacement (siehe ADR-007 HYBRID) — *[gehalten]*
+- Keine IDE-Plugins — *[gehalten]*
+- Kein Visual-Basic / F# / non-C#-Source-Mutation — *[gehalten]*
 
 ---
 
@@ -99,9 +125,9 @@ Layer 0: Stryker.Abstractions, Stryker.Utilities,      → externe Pakete
 - `System.Net.Http.Json 10.0.5`
 
 **Zu aktualisieren** (für stryker-netx):
-- **`Buildalyzer 8.0.0` → 9.0.0+** ← KRITISCHER Fix
-- `Microsoft.CodeAnalysis.* 5.3.0` → C#-14-fähige Version
-- Alle anderen Pakete auf neueste stable
+- **`Buildalyzer 8.0.0` → 9.0.0+** ← KRITISCHER Fix — *[Ausgang Sprint 1: Buildalyzer wurde stattdessen KOMPLETT ENTFERNT und durch `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace` ersetzt — radikaler als der Sprint-0-Plan]*
+- `Microsoft.CodeAnalysis.* 5.3.0` → C#-14-fähige Version — *[erledigt]*
+- Alle anderen Pakete auf neueste stable — *[laufend; NuGetAudit + TWAE machen neue Advisories zu Build-Fehlern — Pin-Bumps in Sprint 159 (Nerdbank GHSA-2cwq) und Sprint 170 (zwei weitere GHSAs)]*
 
 **Bemerkenswert**:
 - `McMaster.Extensions.CommandLineUtils 5.1.0` — **deprecated** (Maintainer hat Repo archiviert), v5.1.0 ist letzte stabile Version → ADR-007 HYBRID-Strategie
@@ -155,9 +181,9 @@ Layer 0: Stryker.Abstractions, Stryker.Utilities,      → externe Pakete
 
 | Tool | Zweck | Pflicht-Trigger |
 |------|-------|-----------------|
-| **Serena** | Symbolbasierte Code-Analyse via Roslyn (OmniSharp/C# LSP) | IMMER vor Grep für Klassen/Methoden/Properties |
+| **Serena** | Symbolbasierte Code-Analyse via Roslyn (OmniSharp/C# LSP) | IMMER vor Grep für Klassen/Methoden/Properties. *Achtung: läuft als Standalone-Server (localhost:9121) mit In-Memory-Projektliste — wenn von anderem Projekt reserviert, dokumentierter Fallback auf Built-In Tools* |
 | **Semgrep** | Security-Scanning | Vor jedem Sprint-Abschluss + bei security-relevantem Code |
-| **Context7** | Aktuelle API-Doku (NuGet, .NET-APIs) | **PFLICHT vor Buildalyzer-9-Migration**, vor Roslyn-Updates, vor jedem Major-Update |
+| **Context7** | Aktuelle API-Doku (NuGet, .NET-APIs) | Vor Roslyn-Updates und jedem Major-Update neuer APIs |
 | **Sequential Thinking (Maxential)** | Branching-Reasoning | ≥10 Schritte bei Architektur, ≥8 bei Algorithmen, ≥3 bei Trade-offs |
 | **Tree of Thoughts (NextGen ToT)** | Multi-Option-Exploration | Bei mehreren validen Lösungen (User-Vorgabe) |
 | **GitHub CLI (`gh`)** | Mehrstufige Git-Workflows | Branch+PR+Push, Tag+Release, Issue-Erstellung |
@@ -173,7 +199,7 @@ Layer 0: Stryker.Abstractions, Stryker.Utilities,      → externe Pakete
 
 ## 4. Architektur-Vision (für stryker-netx)
 
-> Vollständig dokumentiert in [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md) — 12 ADRs.
+> Vollständig dokumentiert in [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md) — inzwischen ADR-001…050. Das Layering unten ist unverändert gültig und ArchUnitNET-enforced.
 
 ### 4.1 Layering (ADR-012)
 
@@ -219,6 +245,8 @@ ArchUnitNET-Tests in `tests/Stryker.Architecture.Tests/`:
 
 ## 5. Sprint-1-Roadmap (PILOT + DAG-LAYER-PARALLEL — ADR-011)
 
+> *[Historisch — Sprint 1 wurde wie geplant geliefert (Tag `v1.0.0-preview.1`), inkl. Buildalyzer-Komplett-Entfernung in Phase 5 statt des geplanten 9.0-Updates.]*
+
 ToT-Best-Path-Strategie. Realdauer-Schätzung: **4–6 Wochen**.
 
 | Phase | Dauer | Modul-Abdeckung | Subagent-Setup |
@@ -251,6 +279,8 @@ Jeder Subagent-Prompt MUSS die 5 Sektionen aus CLAUDE.md enthalten: KONTEXT, ZIE
 
 ## 6. Risiken (Top-12, vollständig in Architecture Spec)
 
+> *[Sprint-0-Risikoregister — historisch. Ausgang: R1 obsolet (Buildalyzer entfernt statt migriert); R2 materialisiert und beherrscht (Pilot-Lessons); R3 materialisiert, mechanisch abgearbeitet (Sprints 25–138); R6 bislang ohne CVE; R8 durch in-repo-Fixtures entschärft (ADR-036); R12 trat als Worktree-Leftovers auf (Sprint-170-Cleanup). Neues Risiko seither: NuGetAudit-Advisories als externe Build-Brecher — Frühwarnsystem ist der Nightly-Dogfood (ADR-050).]*
+
 | # | Risiko | Impact | Mitigation |
 |---|--------|--------|------------|
 | R1 | Buildalyzer-9-API-Migration kann unerwartete Refactors erzwingen | High | Context7 vor Update; Phase 5 dediziert |
@@ -272,12 +302,12 @@ Jeder Subagent-Prompt MUSS die 5 Sektionen aus CLAUDE.md enthalten: KONTEXT, ZIE
 
 | Komponente | Status | Notiz |
 |------------|--------|-------|
-| .NET 10 SDK | ⚠ Phase 0 verifizieren | `dotnet --version`-Check |
+| .NET 10 SDK | ✓ 10.0.100+ (global.json, rollForward latestFeature) | seit Sprint 1 im Einsatz |
 | Git for Windows | ✓ Konfiguriert | sslBackend=openssl, credential.helper=store |
 | GitHub CLI (`gh`) | ✓ Auth als pgm1980 | volle Scopes inkl. admin, repo, workflow |
-| Repo `pgm1980/stryker-netx` | ✓ Erstellt (privat), Sprint 0 gepusht | Default branch `main` |
-| Serena MCP | ✓ Verfügbar | Roslyn/OmniSharp-basiert |
-| Semgrep CLI | ⚠ Phase 0 verifizieren | `semgrep --version`-Check |
+| Repo `pgm1980/stryker-netx` | ✓ **public** seit Sprint 138 | Default branch `main`; Actions unlimited; NUGET_API_KEY-Secret gesetzt |
+| Serena MCP | ⚠ Standalone-Server (localhost:9121), In-Memory-Projektliste | Wenn von anderem Projekt reserviert → dokumentierter Built-In-Tools-Fallback (so in Sprint 170) |
+| Semgrep CLI | ✓ Verfügbar | `semgrep scan --config auto` vor jedem Sprint-Close |
 | Context7 MCP | ✓ Verfügbar | `mcp__context7__*` |
 | Sequential Thinking (Maxential) | ✓ Verfügbar | `mcp__maxential-cot-mcp-server__*` (CLAUDE.md-Naming `mcp__sequential-thinking-maxential__*` ist Doku-Inkonsistenz) |
 | NextGen ToT MCP | ✓ Verfügbar | `mcp__nextgen-tot-mcp-server__*` |
@@ -308,8 +338,8 @@ Jeder Subagent-Prompt MUSS die 5 Sektionen aus CLAUDE.md enthalten: KONTEXT, ZIE
 |---------|-----------|
 | **PFLICHT / VERBOTEN** | Nicht-verhandelbare CLAUDE.md-Direktive |
 | **Sprint 0** | Architektur- und Design-Sprint, kein Code (✅ abgeschlossen 2026-04-30) |
-| **Sprint 1** | Mega-Sprint Implementation (geplant, 4–6 Wochen) |
-| **Sprints 2..N** | Refinement-Sprints |
+| **Sprint 1** | Mega-Sprint Implementation (✅ geliefert: `v1.0.0-preview.1`, Buildalyzer entfernt) |
+| **Sprints 2..N** | Refinement-Sprints (Stand: Sprint 170 / v3.3.2; Ära-Übersicht in MEMORY.md + README) |
 | **ADR** | Architecture Decision Record |
 | **FR / NFR** | Functional / Non-Functional Requirement |
 | **DoD** | Definition of Done |
@@ -347,3 +377,4 @@ Jeder Subagent-Prompt MUSS die 5 Sektionen aus CLAUDE.md enthalten: KONTEXT, ZIE
 |-------|----------|
 | 2026-04-29 | Initial-Erstellung als Sprint-0-Baseline (Bootstrap, FS-MCP-Entfernung, Git-Setup, Repo-Init) |
 | 2026-04-30 | Sprint 0 abgeschlossen: 12 ADRs, FRs/NFRs, License-Stack, README; korrekte Stryker-4.14.1-Erkenntnisse (bereits net8.0, alle Master-PRs drin, Buildalyzer 8.0 ist eigentlicher Bug) |
+| 2026-06-11 | Sprint 170 Doc-Drift-Fix: Sektion 0 „Stand heute" ergänzt (Production-Realität v3.3.2, 50 ADRs, Bug-Report-Ära); Sektionen 1–11 als Sprint-0-Baseline markiert und mit *[Ausgang]*-Anmerkungen versehen (Buildalyzer entfernt statt migriert, Nicht-Ziele-Bilanz, Risiken-Ausgang, Tooling-Status, Serena-Standalone-Caveat) |

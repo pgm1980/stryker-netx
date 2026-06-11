@@ -3,7 +3,7 @@
   "isRoot": true,
   "tools": {
     "dotnet-stryker-netx": {
-      "version": "0.0.0-localdev",
+      "version": "3.3.1",
       "commands": [
         "dotnet-stryker-netx"
       ]
