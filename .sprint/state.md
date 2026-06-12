@@ -3,9 +3,9 @@ current_sprint: "180"
 sprint_goal: "Fix-Sprint 2/6 (CE-Noise I, Fahrplan sprint_178_synthesis.md): #278 (IsPatternExpressionMutator skippt Designation-Patterns — CS0165-Klasse), #284 (Pattern-interne Mutationen designation-aware auf Block-Level + ContainsDeclarations um VarPattern/Recursive-/ListPattern-Designation erweitert — CS0128-Klasse), #285 (StaticInitializerMarkerEngine skippt unmutierte Initializer + ExpressionBodiedProperty-Pfad auf MustInjectCoverageLogic gegated — TrackValue-CE/Heal-Klasse). Manifest-Pin 3.3.2→3.3.4. TDD je Fix; Serena-first für alle Code-Analysen; Serena-Memory vor/nach Sprint aktualisiert. Erfolgsmaß: Probe-1-CE-Rate 62,5 %→<30 %, keine „mutant −1"-Rollback-Runde im Debug-Log. Ship: PR → Squash → Tag v3.3.5 → Release → Closing."
 branch: "feature/180-ce-noise-1"
 started_at: "2026-06-12"
-housekeeping_done: false
-memory_updated: false
-github_issues_closed: false
+housekeeping_done: true
+memory_updated: true
+github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
@@ -28,6 +28,16 @@ documentation_updated: true
 - Probe-1 (lokale CLI): CE-Rate **0 %** (7 Mutanten: 5 Killed, 1 Survived, 1 Ignored) — Ziel < 30 %, Baseline 62,5 % ✓✓
 - Probe-Debug-Log: **0×** „Found mutant -1" (Heilrunde eliminiert) ✓
 - Build 0/0 ✓ · Vollsuite grün (8 Projekte, E2E 18/18) ✓ · Semgrep 0 Findings auf 7 Src-Dateien ✓
+
+## Ship-Protokoll
+- PR #306 squash-merged (b3d82f5); Issues #278/#284/#285 geschlossen + Evidenz-Kommentare
+- **Release-Gate-Hotfix PR #307** (d0756a4): MessagePack 2.5.301-Pin — erster v3.3.5-Run 27412177210
+  starb an NU1903 (GHSA-hv8m-jj95-wg3x in transitivem MessagePack 2.5.198 via StreamJsonRpc;
+  lokal unsichtbar wegen Audit-Cache). Tag/Release per Reparatur-Sequenz auf d0756a4 umgesetzt.
+- Release-Run 27412382049 **success** — v3.3.5 publiziert
+- Serena project_status_and_roadmap + Claude-Memory aktualisiert (Post-Sprint-Pflicht)
+- Notiz: softprops/action-gh-release@v2 läuft auf deprecated Node 20 (Zwang ab 2026-06-16,
+  Removal 2026-09-16) — Kandidat fürs nächste Housekeeping
 
 ## Sprint Context (auto-saved before compaction at 2026-06-12T10:24:05Z)
 
