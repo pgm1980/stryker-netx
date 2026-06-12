@@ -260,4 +260,64 @@ public class CsharpMutantOrchestratorTests : MutantOrchestratorTestsBase
             "string constants in case labels and goto-case targets must not be mutated");
     }
 
+    // Sprint 180 (issue #284, 360-Grad-Analyse G-26): ein Pattern mit Designation bindet
+    // seine Variable in den umgebenden Statement-Scope. Ein Ternary-Wrap am is-Ausdruck
+    // dupliziert die Designation im selben Scope (CS0128, Probe Sprint 174: 2/2). Pattern-
+    // interne Mutationen muessen deshalb auf Block-Ebene gehoben werden, wo jede if/else-
+    // Kopie ihren eigenen Scope hat.
+    [Fact]
+    public void ShouldLiftPatternInternalMutationsToBlockWhenPatternBindsAVariable()
+    {
+        var source = """
+            bool M(string o)
+            {
+                if (o is { Length: > 2 } s)
+                {
+                    return s.Length > 5;
+                }
+                return false;
+            }
+            """;
+
+        var mutated = MutateSourceInClass(source);
+
+        Target.Mutants.Should().Contain(
+            m => m.Mutation.OriginalNode.ToString() == "> 2",
+            "the relational pattern itself must stay mutable — only its control location moves");
+        AssertNoTernaryDuplicatesADesignation(mutated);
+    }
+
+    // Sprint 180 (issue #284b): ContainsDeclarations kannte nur DeclarationExpression und
+    // DeclarationPattern. Designationen an Recursive-, Var- und List-Patterns wurden daher
+    // nicht erkannt und Mutationen am umgebenden Ausdruck (hier &&) als Ternary gewrappt —
+    // dieselbe CS0128-Klasse ueber einen zweiten Pfad.
+    [Fact]
+    public void ShouldControlConditionMutationAtBlockLevelWhenRecursivePatternBindsAVariable()
+    {
+        var source = """
+            bool M(string o, bool flag)
+            {
+                var r = o is { Length: 2 } t && flag;
+                return r && t.Length > 1;
+            }
+            """;
+
+        var mutated = MutateSourceInClass(source);
+
+        Target.Mutants.Should().Contain(
+            m => m.Mutation.OriginalNode.ToString() == "o is { Length: 2 } t && flag",
+            "the logical mutation on the pattern-carrying condition must stay mutable");
+        AssertNoTernaryDuplicatesADesignation(mutated);
+    }
+
+    private static void AssertNoTernaryDuplicatesADesignation(string mutated)
+    {
+        var offendingTernaries = CSharpSyntaxTree.ParseText(mutated).GetRoot()
+            .DescendantNodes().OfType<ConditionalExpressionSyntax>()
+            .Where(c => c.DescendantNodes().Any(d => d is SingleVariableDesignationSyntax))
+            .ToList();
+
+        offendingTernaries.Should().BeEmpty(
+            "a conditional expression duplicates pattern designations in the same statement scope (CS0128)");
+    }
 }

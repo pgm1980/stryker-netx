@@ -33,9 +33,49 @@ internal static class RoslynHelper
     /// </summary>
     /// <param name="node">expression to check</param>
     /// <returns>true if it contains a declaration</returns>
+    /// <remarks>
+    /// Sprint 180 (issue #284b): single-variable designations are included because var-,
+    /// recursive- and list-patterns bind their variable into the enclosing statement scope
+    /// just like declaration patterns do — a conditional-expression wrap would duplicate
+    /// the designation in that scope (CS0128). Lambda bodies are excluded by
+    /// <see cref="ContainsNodeThatVerifies"/>, so designations that stay lambda-scoped
+    /// do not trigger block-level control.
+    /// </remarks>
     public static bool ContainsDeclarations(this SyntaxNode node) =>
         node.ContainsNodeThatVerifies(x =>
-            x.IsKind(SyntaxKind.DeclarationExpression) || x.IsKind(SyntaxKind.DeclarationPattern));
+            x.IsKind(SyntaxKind.DeclarationExpression) || x.IsKind(SyntaxKind.DeclarationPattern) ||
+            x.IsKind(SyntaxKind.SingleVariableDesignation));
+
+    /// <summary>
+    /// Check if a node binds a variable through a single-variable designation
+    /// (declaration-, var-, recursive- or list-pattern, or an out-variable).
+    /// </summary>
+    /// <param name="node">node to check</param>
+    /// <returns>true if it binds a variable</returns>
+    public static bool ContainsBindingDesignation(this SyntaxNode node) =>
+        node.ContainsNodeThatVerifies(x => x.IsKind(SyntaxKind.SingleVariableDesignation));
+
+    /// <summary>
+    /// Check if a node sits inside the pattern of an is-expression whose pattern binds a
+    /// variable into the enclosing statement scope.
+    /// </summary>
+    /// <param name="node">node to check (a pattern, or an expression nested in a pattern)</param>
+    /// <returns>true if mutations on the node must be controlled at block level</returns>
+    /// <remarks>
+    /// Sprint 180 (issue #284a): mutations inside such patterns cannot be wrapped in a
+    /// conditional expression — the wrap duplicates the designation in the same statement
+    /// scope (CS0128). Switch-expression arms and case labels are excluded: their
+    /// designations are scoped to the arm respectively the switch section, so the existing
+    /// expression- and statement-level controls stay legal there. Expressions inside
+    /// patterns are constant expressions and can never contain a nested is-pattern, which
+    /// makes the outermost pattern ancestor unambiguous.
+    /// </remarks>
+    public static bool IsInsideVariableBindingIsPattern(this SyntaxNode node)
+    {
+        var outermostPattern = node.AncestorsAndSelf().OfType<PatternSyntax>().LastOrDefault();
+        return outermostPattern?.Parent is IsPatternExpressionSyntax isPattern
+            && isPattern.Pattern.ContainsBindingDesignation();
+    }
 
     /// <summary>
     /// Gets the return the type of the method (incl. constructor, destructor...)

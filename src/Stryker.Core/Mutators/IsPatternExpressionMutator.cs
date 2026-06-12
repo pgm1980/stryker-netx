@@ -27,7 +27,7 @@ public class IsPatternExpressionMutator : MutatorBase<IsPatternExpressionSyntax>
         // variable (CS0165) — a guaranteed compile error whenever the variable is consumed,
         // so such expressions are not mutated at all. Discard designations bind nothing and
         // stay mutable.
-        if (node.Pattern.DescendantNodesAndSelf().Any(d => d is SingleVariableDesignationSyntax))
+        if (node.Pattern.ContainsBindingDesignation())
         {
             yield break;
         }

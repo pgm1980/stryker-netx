@@ -94,7 +94,7 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new MemberAccessExpressionOrchestrator<PostfixUnaryExpressionSyntax>(t =>
             t.IsKind(SyntaxKind.SuppressNullableWarningExpression)),
         // ensure pattern syntax nodes are mutated (as they are neither expression nor statements, they are not mutated by default)
-        new NodeSpecificOrchestrator<PatternSyntax, PatternSyntax>(),
+        new PatternSyntaxOrchestrator(),
         new NodeSpecificOrchestrator<SubpatternSyntax, SubpatternSyntax>(),
         new ConditionalExpressionOrchestrator(),
         new ConstantPatternSyntaxOrchestrator(),
