@@ -95,6 +95,17 @@
       but NU1902 + TreatWarningsAsErrors turn any open advisory into a build break.
     -->
     <PackageVersion Include="Nerdbank.MessagePack" Version="1.2.4" />
+    <!--
+      Sprint 180 (release-gate hotfix): MessagePack (neuecc, distinct from Nerdbank.MessagePack
+      above) pinned to 2.5.301 to override the transitive 2.5.198 pulled in by
+      StreamJsonRpc 2.24.84. GHSA-hv8m-jj95-wg3x / CVE-2026-48109 (high severity): crafted
+      LZ4 tokens cause out-of-bounds reads in Lz4Block/Lz4BlockArray decompression ->
+      AccessViolationException (DoS, limited memory disclosure). Fixed: 2.5.301 (v2 line).
+      Same rationale as the Nerdbank pin: the dep is MTP/JsonRpc-internal IPC, but
+      NuGetAudit + TreatWarningsAsErrors turn any open advisory into a restore break
+      (NU1903 killed the v3.3.5 release run on locked-mode restore).
+    -->
+    <PackageVersion Include="MessagePack" Version="2.5.301" />
     <PackageVersion Include="Microsoft.VisualStudio.SolutionPersistence" Version="1.0.52" />
 
     <!-- Stryker-specific dependencies -->
