@@ -19,10 +19,10 @@ documentation_updated: false
 |-----|-------|-----|--------|
 | 0 | Pin | .config/dotnet-tools.json 3.3.2→3.3.4 | ☑ |
 | 1 | #278 | Mutators/IsPatternExpressionMutator: Skip bei SingleVariableDesignation im Pattern | ☑ |
-| 2 | #284a | Neuer PatternOrchestrator: Block-Store, wenn IsPattern-Wurzel Designation trägt | ☐ |
-| 3 | #284b | RoslynHelper.ContainsDeclarations + VarPattern/Recursive-/ListPattern-Designation | ☐ |
-| 4 | #285a | StaticInitializerMarkerEngine: Skip ohne Mutations-Annotationen im Initializer | ☐ |
-| 5 | #285b | ExpressionBodiedPropertyOrchestrator: Marker nur bei MustInjectCoverageLogic | ☐ |
+| 2 | #284a | Neuer PatternOrchestrator: Block-Store, wenn IsPattern-Wurzel Designation trägt | ☑ |
+| 3 | #284b | RoslynHelper.ContainsDeclarations + VarPattern/Recursive-/ListPattern-Designation | ☑ |
+| 4 | #285a | MutantPlacer.CanHostValueMarker: target-typed nie, konstant+mutationsfrei nie, User-Code immer | ☑ |
+| 5 | #285b | ExpressionBodiedPropertyOrchestrator: Marker nur bei MustInjectCoverageLogic | ☑ |
 
 ## Erfolgsmaße
 - Probe-1 (lokale CLI): CE-Rate < 30 % (Baseline 62,5 % nach Sprint 179)

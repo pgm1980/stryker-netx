@@ -2,6 +2,10 @@ using System.Linq;
 using FluentAssertions;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Stryker.Abstractions;
+using Stryker.Abstractions.Options;
+using Stryker.Configuration.Options;
+using Stryker.Core.Mutants;
 using Xunit;
 
 namespace Stryker.Core.Dogfood.Tests.Mutants;
@@ -319,5 +323,30 @@ public class CsharpMutantOrchestratorTests : MutantOrchestratorTestsBase
 
         offendingTernaries.Should().BeEmpty(
             "a conditional expression duplicates pattern designations in the same statement scope (CS0128)");
+    }
+
+    // Sprint 180 (issue #285b): der Property-Initializer-Pfad setzte den TrackValue-Marker
+    // ungeprueft — der Static-Field-Pfad ist seit jeher auf MustInjectCoverageLogic gegated.
+    // Ohne Coverage-Logik trackt der Marker nichts und riskiert nur die CE-Klassen aus #285a.
+    [Fact]
+    public void ShouldNotPlaceStaticMarkerOnPropertyInitializerWithoutCoverageLogic()
+    {
+        Target = new CsharpMutantOrchestrator(new MutantPlacer(Injector), options: new StrykerOptions
+        {
+            MutationLevel = MutationLevel.Complete,
+            OptimizationMode = OptimizationModes.None,
+        });
+
+        var mutated = MutateSourceInClass("static int P { get; } = Compute();");
+
+        mutated.Should().NotContain("TrackValue");
+    }
+
+    [Fact]
+    public void ShouldPlaceStaticMarkerOnPropertyInitializerWithCoverageLogic()
+    {
+        var mutated = MutateSourceInClass("static int P { get; } = Compute();");
+
+        mutated.Should().Contain("TrackValue");
     }
 }
