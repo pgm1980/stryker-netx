@@ -170,6 +170,31 @@ public class StrykerInputsTests : TestBase
         result.DashboardApiKey.Should().BeNull();
     }
 
+    // Sprint 184 (360-Grad-Analyse H-25): die Threshold-Quervalidierung lief gegen die
+    // SUPPLIED-Werte — null bei Default —, sodass ein einzeln gesetzter Threshold still
+    // ein inkonsistentes Tripel erzeugen konnte, etwa high 30 gegen das Low-Default 60.
+    // Validiert wird jetzt gegen die Effektivwerte.
+    [Fact]
+    public void SingleThresholdBelowDefaults_IsCrossValidatedAgainstEffectiveValues()
+    {
+        _target.ThresholdHighInput.SuppliedInput = 30;
+
+        var act = () => _target.ValidateAll();
+
+        act.Should().Throw<InputException>()
+            .WithMessage("*Threshold high must be higher than or equal to threshold low*");
+    }
+
+    [Fact]
+    public void ConsistentSingleThreshold_StillValidates()
+    {
+        _target.ThresholdHighInput.SuppliedInput = 70;
+
+        var result = _target.ValidateAll();
+
+        result.Thresholds.High.Should().Be(70);
+    }
+
     [Fact]
     public void WithBaselineAndSinceShouldBeMutuallyExclusive()
     {

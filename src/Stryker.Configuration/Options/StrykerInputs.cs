@@ -187,12 +187,22 @@ public partial class StrykerInputs : IStrykerInputs
 #pragma warning restore CS0618
     }
 
-    private Thresholds BuildThresholds() => new()
+    private Thresholds BuildThresholds()
     {
-        High = ThresholdHighInput.Validate(ThresholdLowInput.SuppliedInput),
-        Low = ThresholdLowInput.Validate(ThresholdBreakInput.SuppliedInput, ThresholdHighInput.SuppliedInput),
-        Break = ThresholdBreakInput.Validate(ThresholdLowInput.SuppliedInput),
-    };
+        // Sprint 184 (360°-Analyse H-25): cross-validation used the SUPPLIED values (null
+        // when defaulted) — a single explicitly set threshold could silently produce an
+        // inconsistent triple (e.g. --threshold-high 30 against the low default of 60).
+        // Validate against the EFFECTIVE values instead.
+        var effectiveHigh = ThresholdHighInput.SuppliedInput ?? ThresholdHighInput.Default;
+        var effectiveLow = ThresholdLowInput.SuppliedInput ?? ThresholdLowInput.Default;
+        var effectiveBreak = ThresholdBreakInput.SuppliedInput ?? ThresholdBreakInput.Default;
+        return new()
+        {
+            High = ThresholdHighInput.Validate(effectiveLow),
+            Low = ThresholdLowInput.Validate(effectiveBreak, effectiveHigh),
+            Break = ThresholdBreakInput.Validate(effectiveLow),
+        };
+    }
 
     /// <summary>
     /// v3.1.0 (Sprint 140, ADR-025): resolve <see cref="MutationLevel"/> with auto-bump

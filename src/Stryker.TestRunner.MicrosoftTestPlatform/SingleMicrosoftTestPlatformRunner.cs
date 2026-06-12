@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Stryker.Abstractions;
+using Stryker.Abstractions.Exceptions;
 using Stryker.Abstractions.Options;
 using Stryker.Abstractions.Testing;
 using Stryker.TestRunner.MicrosoftTestPlatform.Models;
@@ -81,9 +82,18 @@ public partial class SingleMicrosoftTestPlatformRunner : IDisposable
         IReadOnlyList<IMutant> mutants,
         TestUpdateHandler? update)
     {
+        // Sprint 184 (#302, I-11): this runner can activate exactly ONE mutant per run via
+        // the control file. A multi-mutant group used to fall through silently with no
+        // active mutation — every mutant in the group would report as a false survivor.
+        // The pool's grouping guarantees singletons today; this guard codifies the invariant.
+        if (mutants.Count > 1)
+        {
+            throw new GeneralStrykerException(
+                $"The Microsoft Testing Platform runner received {mutants.Count} mutants in one group but supports exactly one active mutant per run. This is a bug — please report it at https://github.com/pgm1980/stryker-netx/issues.");
+        }
+
         var assemblies = project.GetTestAssemblies();
 
-        // Determine which mutant to activate
         // When testing a single mutant, activate it; otherwise use -1 (no mutation)
         var mutantId = mutants.Count == 1 ? mutants[0].Id : -1;
 
