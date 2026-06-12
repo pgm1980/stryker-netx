@@ -15,6 +15,16 @@ public class ConstantReplacementMutatorTests : MutatorTestBase
     public void Profile_IsStrongerOrAll()
         => AssertProfileMembership<ConstantReplacementMutator>(MutationProfile.Stronger | MutationProfile.All);
 
+    // Sprint 184 (issue #280, F-01): Pin gegen die Linq-Fehlkategorisierung — siehe
+    // InlineConstantsMutatorTests fuer die volle Begruendung.
+    [Fact]
+    public void ApplyMutations_ReportsNumberCategory()
+    {
+        var node = ParseExpression<LiteralExpressionSyntax>("42");
+        var mutations = ApplyMutations<ConstantReplacementMutator, LiteralExpressionSyntax>(new(), node);
+        mutations.Should().OnlyContain(m => m.Type == Mutator.Number);
+    }
+
     [Theory]
     [InlineData("42")]
     [InlineData("100L")]

@@ -105,7 +105,7 @@ public sealed class InlineConstantsMutator : MutatorBase<LiteralExpressionSyntax
             OriginalNode = original,
             ReplacementNode = literal.WithCleanTriviaFrom(original),
             DisplayName = $"Inline-constants ({original.Token.Text} -> {newValue} [{suffix}])",
-            Type = Mutator.Linq,
+            Type = Mutator.Number,
         };
     }
 

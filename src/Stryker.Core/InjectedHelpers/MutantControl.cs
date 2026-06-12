@@ -7,8 +7,11 @@ namespace Stryker
     /// </summary>
     public static class MutantControl
     {
-        private static System.Collections.Generic.List<int> _coveredMutants = new System.Collections.Generic.List<int>();
-        private static System.Collections.Generic.List<int> _coveredStaticMutants = new System.Collections.Generic.List<int>();
+        // Sprint 184 (issue #287, G-22): HashSet instead of List — RegisterCoverage runs on
+        // EVERY IsActive hit during coverage capture; List.Contains made hot loops pay
+        // O(covered mutants) per hit (quadratic overall in the user test process).
+        private static System.Collections.Generic.HashSet<int> _coveredMutants = new System.Collections.Generic.HashSet<int>();
+        private static System.Collections.Generic.HashSet<int> _coveredStaticMutants = new System.Collections.Generic.HashSet<int>();
         private static string envName = string.Empty;
         private static System.Object _coverageLock = new System.Object();
         private static long _lastMutantFileVersion = -1;
@@ -55,8 +58,8 @@ namespace Stryker
 
         public static void ResetCoverage()
         {
-            _coveredMutants = new System.Collections.Generic.List<int>();
-            _coveredStaticMutants = new System.Collections.Generic.List<int>();
+            _coveredMutants = new System.Collections.Generic.HashSet<int>();
+            _coveredStaticMutants = new System.Collections.Generic.HashSet<int>();
         }
 
         public static void ResetActiveMutant()
@@ -117,7 +120,13 @@ namespace Stryker
 
         public static System.Collections.Generic.IList<int>[] GetCoverageData()
         {
-            System.Collections.Generic.IList<int>[] result = new System.Collections.Generic.IList<int>[] { _coveredMutants, _coveredStaticMutants };
+            // The IList contract is consumed via reflection by the data collector — the sets
+            // are materialized once per coverage handover, never on the hot path.
+            System.Collections.Generic.IList<int>[] result = new System.Collections.Generic.IList<int>[]
+            {
+                new System.Collections.Generic.List<int>(_coveredMutants),
+                new System.Collections.Generic.List<int>(_coveredStaticMutants)
+            };
             ResetCoverage();
             return result;
         }
@@ -162,12 +171,6 @@ namespace Stryker
                 // Do not fail tests due to coverage write issues; log for diagnostics instead.
                 System.Diagnostics.Debug.WriteLine(string.Format("[Stryker] Failed to flush coverage to file '{0}': {1}", _cachedCoverageFilePath, ex));
             }
-        }
-
-        private static void CurrentDomain_ProcessExit(object sender, System.EventArgs e)
-        {
-            System.GC.KeepAlive(_coveredMutants);
-            System.GC.KeepAlive(_coveredStaticMutants);
         }
 
         // check with: Stryker.MutantControl.IsActive(ID)
@@ -226,11 +229,9 @@ namespace Stryker
         {
             lock (_coverageLock)
             {
-                if (!_coveredMutants.Contains(id))
-                {
-                    _coveredMutants.Add(id);
-                }
-                if (MutantContext.InStatic() && !_coveredStaticMutants.Contains(id))
+                // HashSet.Add is contains-and-add in one O(1) step (issue #287).
+                _coveredMutants.Add(id);
+                if (MutantContext.InStatic())
                 {
                     _coveredStaticMutants.Add(id);
                 }

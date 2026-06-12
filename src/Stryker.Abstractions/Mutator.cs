@@ -41,5 +41,10 @@ public enum Mutator
     [MutatorDescription("Conditional operators")]
     Conditional,
     [MutatorDescription("Collection expressions")]
-    CollectionExpression
+    CollectionExpression,
+    // Sprint 184 (issue #280, F-01): the constant mutators reported Mutator.Linq for lack
+    // of a fitting member — ignore-mutations ['linq'] silently disabled them and reports
+    // miscategorized them. Appended (not inserted) to keep existing ordinals stable.
+    [MutatorDescription("Number literals")]
+    Number
 }
