@@ -27,10 +27,10 @@ documentation_updated: false
 | 8 | H-25 | Threshold-Quervalidierung gegen Effektivwerte | ☐ |
 | 9 | I-11 | MTP-Multi-Mutant-Guard statt stillem mutantId=-1 | ☐ |
 
-## Erfolgsmaße
-- 56 %-CE-Probe (15-LOC-Shapes, `--mutation-profile All`, lokale CLI): CE-Rate deutlich rückläufig (Baseline Sprint 173: 31/55 = 56 %)
-- BenchmarkDotNet: RegisterCoverage-Delta dokumentiert (Release-Modus)
-- Je Fix Red→Green; Build 0/0; Vollsuite grün; Semgrep 0
+## Erfolgsmaße — ERGEBNIS 2026-06-12
+- **CE-Probe (Class5, 173er-Shapes, Profil All): 56 % → 29,4 %** (5 CE von 17). Die Probe deckte zwei F-07-Gate-Löcher auf (UOI auf Namespace-/Methodengruppen-Identifier — aufgelöste Nicht-Wert-Symbole), die nachgeschärft wurden; verbleibende CEs sind ausschließlich die bewusst offenen Klassen des #279-Epics (Block-Removal F-09/F-14, AsyncAwait) ✓
+- **BenchmarkDotNet (Release, 20 Hits/Mutant): 10k Mutanten 23.262 µs → 2.076 µs (11,2×, Ratio 0.09); 1k: 375 → 203 µs** ✓
+- Je Fix Red→Green ✓ · Build 0/0 ✓ · Semgrep 0/11 ✓ · Core-Suiten grün (549 + 1248; ein nicht-reproduzierbarer Einzelflake in Doppelläufen, isoliert 4× grün)
 
 ## Notizen
 - #279 bleibt nach Batch 1 OFFEN (Block/F-14, AsSpanAsMemory/B.1+B.2, F-08-Filter-Erweiterung) — Checkboxen im Issue abhaken
