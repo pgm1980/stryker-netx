@@ -43,6 +43,25 @@ public static partial class MSBuildProjectAnalysisLoader
         try
         {
             evaluationProject = projectCollection.LoadProject(projectFilePath);
+
+            // Sprint 183 (issue #291, H-18): without a TargetFramework pin, a multi-TFM
+            // project yields the OUTER evaluation — it lacks every per-framework property
+            // (Language, output paths, …) and only carries the semicolon-separated list.
+            // Re-evaluate pinned to the first listed framework, mirroring what the Roslyn
+            // workspace loads; evaluated property data stays valid after the collection
+            // is disposed.
+            var targetFramework = evaluationProject.GetPropertyValue("TargetFramework");
+            var targetFrameworks = evaluationProject.GetPropertyValue("TargetFrameworks");
+            if (string.IsNullOrEmpty(targetFramework) && !string.IsNullOrEmpty(targetFrameworks)
+                && RoslynProjectAnalysis.FirstTargetFrameworkFrom(targetFrameworks) is { Length: > 0 } firstFramework)
+            {
+                var pinned = new Dictionary<string, string>(properties, StringComparer.Ordinal)
+                {
+                    ["TargetFramework"] = firstFramework,
+                };
+                using var pinnedCollection = new Microsoft.Build.Evaluation.ProjectCollection(pinned);
+                evaluationProject = pinnedCollection.LoadProject(projectFilePath);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

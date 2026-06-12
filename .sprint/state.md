@@ -17,11 +17,11 @@ documentation_updated: false
 
 | Fix | Issue | Ort | Status |
 |-----|-------|-----|--------|
-| 1 | #299 | GitInfoProvider.GetTargetCommit — exaktes Segment-Matching + master-Fallback + Meldung | ☐ |
-| 2 | #300 | SseServer (_writers) + RealTimeMutantHandler (_delayedEventQueue) — Sync, Listener-Guard, best-effort Close | ☐ |
-| 3 | #296 | Initial-Tests sequenzialisieren + VsTests-Instanz-Ersetzung + projektscharfes ClearInitialResult | ☐ |
-| 4 | #291 | RoslynProjectAnalysis.TargetFramework — erstes Listen-Segment + Meldungs-Hinweis | ☐ |
-| 5 | #290 | DI-Factory füttert MSBuildWorkspaceProvider mit Configuration/Platform/TargetFramework | ☐ |
+| 1 | #299 | Exaktes Segment-Matching + master→main-Fallback (WARN) + --since-target-Meldung + Kurz-SHA (J-05) | ☑ |
+| 2 | #300 | Writer-Lock + Snapshot-Send, Listener-Shutdown = Loop-Ende, best-effort Close, ConcurrentQueue | ☑ |
+| 3 | #296 | Initial-Tests sequenziell (Overlap-Detektor-Red) + VsTests get-only/in-place | ☑ |
+| 4 | #291 | FirstTargetFrameworkFrom (erstes Listen-Segment, public + getestet) | ☑ |
+| 5 | #290 | ForProperties-Self-Factory + ConfiguredWorkspace einmal pro Lauf im Resolver | ☑ |
 
 ## Erfolgsmaße
 - P-5-Probe: `-c Release` → Debug-Log zeigt Injektion in `bin\Release\...` (Baseline: bin\Debug trotz Release-Build)
