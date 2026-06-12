@@ -3825,6 +3825,30 @@ NEU `tests/Stryker.Core.Tests/Initialisation/ProjectFilterMatchingTests.cs` — 
 
 ---
 
+## ADR-058: Backlog-Rest — Coverage-Perf, Mutator-Kategorien, Typ-Gates Batch 1 (v3.3.9 / Sprint 184)
+
+**Status:** Accepted · **Kontext:** Sechster und LETZTER Fix-Sprint des Fahrplans (`sprint_178_synthesis.md`) — Abschluss des 360°-Programms (Analyse 173–178, Fixes 179–184).
+
+**Entscheidungen & Fixes (TDD je Item):**
+
+1. **#287 (G-22) — RegisterCoverage O(1):** Der injizierte Helper machte pro `IsActive`-Hit im Coverage-Capture `lock` + `List.Contains` ×2 — O(#covered) pro Hit, quadratisch im USER-Testprozess. `HashSet<int>` als Drop-in (Add = contains-and-add in einem Schritt); `GetCoverageData` materialisiert die Listen EINMAL pro Übergabe (Reflection-Vertrag `IList<int>[]` mit dem DataCollector bleibt). Toter `CurrentDomain_ProcessExit`-Handler entfernt (G-24). **BenchmarkDotNet (Release, 20 Hits/Mutant): 10k Mutanten 23.262 µs → 2.076 µs (11,2×, Ratio 0.09); 1k: 375 µs → 203 µs.**
+2. **#280 (F-01) — `Mutator.Number`:** Die Konstanten-Mutatoren meldeten mangels passenden Members `Mutator.Linq` — `ignore-mutations: ['linq']` deaktivierte still ALLE Konstanten-Mutanten, Reports kategorisierten sie als Linq. Additiver Enum-Member `Number` (ans Ende — Ordinals stabil, config-kompatibel); beide Mutatoren umgestellt; Type-Pins in den Mutator-Tests ergänzt (vorher prüfte KEIN Test das Type-Feld — deshalb unentdeckt). F-33 (Statement-Sammelkategorie für ~10 Expression-Mutatoren) bewusst NICHT angefasst.
+3. **#279 Batch 1 — Typ-Gates nach der Hausblaupause** (NullCoalescing-FlowState / ArgumentPropagation-ClassifyConversion / MemberVariable-Symbol-Gate; Prinzip: skip nur, wenn die Semantik eine Verletzung AUFLÖST — bei Unbekanntem wird mutiert, Tests ohne Modell bleiben unberührt):
+   - **UOI (F-07, Probe 20/20 CE):** Skip bei auflösbar nicht-inkrementierbarem Typ (string/object/Arrays/bool; numerisch/char/enum/Pointer/op_Increment bleiben) und nicht beschreibbaren Symbolen (get-only-Property, readonly-Feld, const).
+   - **ROR-Matrix (F-06, Probe 8/8 CE):** Ordnungs-Replacements nur bei geordneten Operanden (numerisch/char/enum/Pointer/op_LessThan; lifted Nullables entpackt) — Null-Checks erzeugen keine vier CS0019-Mutanten mehr; ==/!=-Swaps bleiben für alle Typen.
+   - **ConstructorNull (F-35):** Structs können nie null sein (CS0037) — das Doc-Versprechen „type-aware" ist jetzt Code; Nullable-Konstruktionen mutieren weiter.
+   - **TypeDrivenReturn (F-23):** Async-Kontext-Walk — in async-Methoden wird `default(T)` statt `Task.FromResult(...)`/`new ValueTask<...>(...)` emittiert (CS4016).
+   - **Doc-F-30:** SECHS Mutator-Docs (Register zählte 3) behaupteten „non-compiling mutants are classified as killed" — Realität ist CompileError via Rollback; korrigiert.
+   - **Epic #279 bleibt OFFEN:** BlockMutator (F-09/F-14-Mechanik), AsSpanAsMemory (Reporter-B.1/B.2-Deferral), F-08-Filter-Erweiterung = künftige Batches.
+4. **H-25:** Die Threshold-Quervalidierung lief gegen SUPPLIED-Werte (null bei Default) — ein einzeln gesetzter Threshold konnte still ein inkonsistentes Tripel erzeugen (high 30 gegen Low-Default 60). Validierung jetzt gegen Effektivwerte.
+5. **I-11 (#302):** Der MTP-Runner aktiviert exakt EINEN Mutanten pro Lauf (File-Control); Multi-Mutant-Gruppen liefen still OHNE aktive Mutation → jeder Gruppen-Mutant wäre False Survivor. Lauter Guard kodifiziert die Singleton-Invariante; zwei Upstream-Port-Tests, die das Bug-Verhalten PINNTEN, auf den Guard umgeschrieben.
+
+**Verifikation:** Build 0/0 · Vollsuite grün · Semgrep 0 auf 11 geänderten Dateien · Benchmark-Delta dokumentiert · CE-Probe (173er-Shapes, Profil All): Messung im Ship-Gate gegen die 56-%-Baseline. **Tag v3.3.9** (Patch).
+
+**Konsequenzen:** Issues #287, #280 geschlossen; #302 um H-25/I-11/G-24 abgehakt; #279 offen mit Batch-1-Stand. **Fahrplan 179–184 ABGESCHLOSSEN** — das 360°-Programm (12 Sprints: 6 Analyse, 6 Fix) ist damit komplett; verbleibender kuratierter Rest: #279-Folgebatches, #302-Restposten.
+
+---
+
 ## Änderungshistorie
 
 | Version | Datum | Autor | Änderung |

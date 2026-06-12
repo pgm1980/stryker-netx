@@ -188,6 +188,14 @@ private static bool IsKnownNotIncrementable(IdentifierNameSyntax node, SemanticM
             return false;
         }
 
+        // resolved NON-VALUE symbols (namespace names, type references, method groups)
+        // can never be incremented — the CE probe showed UOI firing on a file-scoped
+        // namespace identifier and on Task.Yield's method group.
+        if (symbol is INamespaceSymbol or IMethodSymbol or ITypeSymbol)
+        {
+            return true;
+        }
+
         var type = typeInfo.Type;
         if (type is null || type.TypeKind == TypeKind.Error)
         {
