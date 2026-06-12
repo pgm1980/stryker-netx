@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
@@ -70,18 +71,39 @@ public class DiscoveryEventHandler : ITestDiscoveryEventsHandler
         }
     }
 
+    // Sprint 182 (issue #297b, I-07b): generous ceiling — discovery of huge suites is slow,
+    // but a vstest.console crash before DiscoveryComplete must not hang the run forever.
+    private static readonly TimeSpan DefaultDiscoveryTimeout = TimeSpan.FromMinutes(5);
+
     /// <summary>
-    /// Blocks until <see cref="HandleDiscoveryComplete"/> has been called.
+    /// Blocks until <see cref="HandleDiscoveryComplete"/> has been called or the default
+    /// five-minute ceiling elapses; a timeout surfaces through <see cref="Aborted"/>.
     /// </summary>
-    public void WaitEnd()
+    public void WaitEnd() => WaitEnd(DefaultDiscoveryTimeout);
+
+    /// <summary>
+    /// Blocks until <see cref="HandleDiscoveryComplete"/> has been called or the given
+    /// timeout elapses.
+    /// </summary>
+    /// <param name="timeout">maximum time to wait for the discovery to complete</param>
+    /// <returns>true when the discovery completed; false on timeout (with <see cref="Aborted"/> set)</returns>
+    public bool WaitEnd(TimeSpan timeout)
     {
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
         lock (_lck)
         {
             while (!_discoveryDone)
             {
-                Monitor.Wait(_lck);
+                var remaining = timeout - elapsed.Elapsed;
+                if (remaining <= TimeSpan.Zero || !Monitor.Wait(_lck, remaining))
+                {
+                    Aborted = true;
+                    return false;
+                }
             }
         }
+
+        return true;
     }
 
     /// <inheritdoc />

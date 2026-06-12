@@ -17,7 +17,11 @@ public abstract class ResponseListener(Guid requestId)
     /// </summary>
     public abstract Task OnMessageReceiveAsync(object message);
 
-    internal void Complete() => _allMessageReceived.SetResult();
+    internal void Complete() => _allMessageReceived.TrySetResult();
+
+    // Sprint 182 (issue #297c, I-15): wakes pending waiters with the disconnect cause.
+    // Try-semantics on both settle paths keep the complete/disconnect race harmless.
+    internal void Fail(Exception exception) => _allMessageReceived.TrySetException(exception);
 
     // VSTHRD003: WaitCompletionAsync deliberately returns the underlying TaskCompletionSource Task
     // for direct awaiting by callers; the StreamJsonRpc threading-context guidance is NOT applicable

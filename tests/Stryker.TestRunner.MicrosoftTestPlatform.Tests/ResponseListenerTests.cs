@@ -110,4 +110,31 @@ public class ResponseListenerTests
 
         result.Should().BeFalse();
     }
+
+    // Sprint 182 (issue #297c, 360-Grad-Analyse I-15): bei einem Server-Disconnect sammelte
+    // der Client nur Text, komplettierte aber keine registrierten Listener — der
+    // timeout-lose WaitCompletionAsync-Pfad wartete ewig auf das null-Changes-Signal eines
+    // toten Servers. Fail muss alle Warter mit der Disconnect-Ursache aufwecken.
+    [Fact]
+    public async Task Fail_CompletesPendingWaitersWithTheDisconnectCause()
+    {
+        var listener = new TestNodeUpdatesResponseListener(Guid.NewGuid(), _ => Task.CompletedTask);
+        var waiter = listener.WaitCompletionAsync();
+
+        listener.Fail(new InvalidOperationException("server connection lost"));
+
+        var act = async () => await waiter.ConfigureAwait(false);
+        (await act.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(true)).WithMessage("*connection lost*");
+    }
+
+    [Fact]
+    public void Fail_AfterComplete_IsIgnored()
+    {
+        var listener = new TestNodeUpdatesResponseListener(Guid.NewGuid(), _ => Task.CompletedTask);
+        listener.Complete();
+
+        var act = () => listener.Fail(new InvalidOperationException("late disconnect"));
+
+        act.Should().NotThrow("settling a settled listener must be a no-op");
+    }
 }

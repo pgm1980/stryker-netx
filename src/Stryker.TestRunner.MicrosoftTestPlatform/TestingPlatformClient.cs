@@ -51,6 +51,13 @@ public sealed class TestingPlatformClient : ITestingPlatformClient
         _disconnectionReason.AppendLine(CultureInfo.InvariantCulture, $"{e.Reason}");
         _disconnectionReason.AppendLine(e.Description);
         _disconnectionReason.AppendLine(CultureInfo.InvariantCulture, $"{e.Exception}");
+
+        // Sprint 182 (issue #297c, I-15): a dead server can never send the null-changes
+        // completion — settle every pending listener with the disconnect cause so
+        // timeout-less waits (MTP discovery, initial runs) end instead of hanging.
+        _targetHandler.FailAllListeners(new IOException(
+            $"The test platform server disconnected before completing the request: {e.Reason}. {e.Description}",
+            e.Exception));
     }
 
     /// <inheritdoc />
@@ -193,6 +200,22 @@ public sealed class TestingPlatformClient : ITestingPlatformClient
 
         public void RegisterResponseListener(ResponseListener responseListener)
             => _ = _listeners.TryAdd(responseListener.RequestId, responseListener);
+
+        /// <summary>
+        /// Sprint 182 (issue #297c, I-15): settles every registered listener with the
+        /// disconnect cause so timeout-less <c>WaitCompletionAsync</c> callers stop
+        /// waiting for the null-changes signal of a dead server.
+        /// </summary>
+        public void FailAllListeners(Exception exception)
+        {
+            foreach (var requestId in _listeners.Keys)
+            {
+                if (_listeners.TryRemove(requestId, out var listener))
+                {
+                    listener.Fail(exception);
+                }
+            }
+        }
 
         [JsonRpcMethod("client/attachDebugger", UseSingleObjectParameterDeserialization = true)]
         public static Task AttachDebuggerAsync(AttachDebuggerInfo attachDebuggerInfo) => throw new NotSupportedException("Debugger attach is not supported by stryker-netx test runs.");
