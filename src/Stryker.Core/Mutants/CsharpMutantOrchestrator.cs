@@ -259,6 +259,18 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
                 if (equivalentBy is not null)
                 {
                     LogEquivalentMutantSkipped(Logger, equivalentBy, mutation.OriginalNode, mutation.ReplacementNode);
+                    // Sprint 181 (G-19): surface the decision instead of dropping it. The mutant
+                    // is registered as Ignored with the filter id (visible in the report, like
+                    // upstream), but never returned for injection — an equivalent mutant would
+                    // only bloat the mutated assembly without changing behaviour.
+                    var equivalentMutant = CreateNewMutant(mutation, context);
+                    if (!IsMutantDuplicate(equivalentMutant, mutation))
+                    {
+                        equivalentMutant.Id = GetNextId();
+                        equivalentMutant.ResultStatus = MutantStatus.Ignored;
+                        equivalentMutant.ResultStatusReason = $"Equivalent mutant (filter: {equivalentBy})";
+                        Mutants.Add(equivalentMutant);
+                    }
                     continue;
                 }
 

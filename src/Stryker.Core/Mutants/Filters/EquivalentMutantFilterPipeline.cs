@@ -30,6 +30,10 @@ public sealed class EquivalentMutantFilterPipeline
     /// </summary>
     public static EquivalentMutantFilterPipeline Default { get; } = new(
     [
+        // v3.3.6 Sprint 181 (G-17): generic no-op detector — cheapest check, broadest
+        // class; runs first so no-ops are attributed to it instead of reaching the
+        // shape-restricted or semantic filters below.
+        new NoOpMutationFilter(),
         new IdentityArithmeticFilter(),
         new IdempotentBooleanFilter(),
         // v2.0.0 Sprint 9: cargo-mutants-style conservative defaults for unsigned types.

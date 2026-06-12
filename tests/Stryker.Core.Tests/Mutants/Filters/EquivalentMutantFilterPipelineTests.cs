@@ -17,6 +17,7 @@ public class EquivalentMutantFilterPipelineTests : MutatorTestBase
         var pipeline = EquivalentMutantFilterPipeline.Default;
         pipeline.Filters.Should().HaveCountGreaterThanOrEqualTo(4);
         pipeline.Filters.Select(f => f.FilterId).Should().Contain([
+            "NoOpMutation",
             "IdentityArithmetic",
             "IdempotentBoolean",
             "ConservativeDefaultsEquality",
@@ -24,6 +25,14 @@ public class EquivalentMutantFilterPipelineTests : MutatorTestBase
             "RoslynSemanticDiagnostics",
         ]);
     }
+
+    // Sprint 181 (G-17): der No-op-Detektor ist der billigste Filter (reiner Baum-Vergleich,
+    // keine Semantik) und faengt die breiteste Klasse — er laeuft als erster, damit
+    // FindEquivalentFilter No-ops als "NoOpMutation" attribuiert statt sie teureren,
+    // shape-beschraenkten Filtern zu ueberlassen.
+    [Fact]
+    public void Default_RunsNoOpFilterFirst()
+        => EquivalentMutantFilterPipeline.Default.Filters[0].FilterId.Should().Be("NoOpMutation");
 
     [Fact]
     public void IsEquivalent_WhenAnyFilterReturnsTrue_ReturnsTrue()
