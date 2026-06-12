@@ -1,41 +1,39 @@
 ---
-current_sprint: "183"
-sprint_goal: "Fix-Sprint 5/6 (Config & Nebenläufigkeit, Fahrplan sprint_178_synthesis.md): #290/H-17 (--configuration/--target-framework erreichen die MSBuildWorkspace nie — Factory-Lambda füttert Provider-Ctor mit Optionen), #291/H-18 (Multi-TFM-Fallback parst erstes Listen-Segment statt InputException auf der Rohliste), #296/I-09 (Multi-Projekt-Init-Races: sequenzialisieren + Instanz-Ersetzungs-/Clear-Fixes), #299/J-04 (GitInfoProvider exaktes Branch-Segment-Matching statt Substring-Contains + master-Default-Fallback + saubere Meldung), #300/J-06 (SseServer/RealTimeMutantHandler Synchronisation + Listener-Guard + best-effort CloseSse — Broadcast-Kette darf nicht brechen). TDD je Fix; Serena-first für Analyse UND Implementierung; Serena-Memory vor/nach Sprint. Erfolgsmaße: P-5-Probe (-c Release → Injektion in bin\\Release), P-6-Probe (Multi-TFM-Lauf Exit 0). Ship: PR → Squash → Tag v3.3.8 → Release → Closing."
-branch: "feature/183-config-concurrency"
+current_sprint: "184"
+sprint_goal: "Fix-Sprint 6/6 — letzter Fahrplan-Sprint (Backlog-Rest, sprint_178_synthesis.md): #287/G-22 (RegisterCoverage HashSet-Drop-in + BenchmarkDotNet-Delta; G-24 toter Handler), #280/F-01 (Mutator.Number statt Linq-Fehlkategorisierung der Konstanten-Mutatoren, Type-Assertions), #279-Batch-1 (UOI numerischer Gate + get-only-Props, ROR Ordnungs-Matrix nur numerisch/IComparable, ConstructorNull IsReferenceType-Gate, TypeDrivenReturn Async-Guard, Doc-F-30; Block/AsSpanAsMemory/F-08 bleiben offen), H-25 (Threshold-Quervalidierung Effektivwerte), I-11 (Guard statt mutantId=-1). TDD je Fix; Serena-first; Memory vor/nach Sprint. Erfolgsmaße: 56 %-CE-Probe (profile All) deutlich rückläufig; Benchmark-Delta dokumentiert. Ship: PR → Squash → Tag v3.3.9 → Release → Closing."
+branch: "feature/184-backlog-rest"
 started_at: "2026-06-12"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: true
-tests_passed: true
-documentation_updated: true
+semgrep_passed: false
+tests_passed: false
+documentation_updated: false
 ---
-# Session State — Sprint 183 (Config & Nebenläufigkeit)
+# Session State — Sprint 184 (Backlog-Rest, Fahrplan-Abschluss)
 
 ## Fix-Liste
 
-| Fix | Issue | Ort | Status |
-|-----|-------|-----|--------|
-| 1 | #299 | Exaktes Segment-Matching + master→main-Fallback (WARN) + --since-target-Meldung + Kurz-SHA (J-05) | ☑ |
-| 2 | #300 | Writer-Lock + Snapshot-Send, Listener-Shutdown = Loop-Ende, best-effort Close, ConcurrentQueue | ☑ |
-| 3 | #296 | Initial-Tests sequenziell (Overlap-Detektor-Red) + VsTests get-only/in-place | ☑ |
-| 4 | #291 | FirstTargetFrameworkFrom (erstes Listen-Segment, public + getestet) | ☑ |
-| 5 | #290 | ForProperties-Self-Factory + ConfiguredWorkspace einmal pro Lauf im Resolver | ☑ |
+| Fix | Befund | Ort | Status |
+|-----|--------|-----|--------|
+| 1 | #287/G-22+G-24 | MutantControl.RegisterCoverage → HashSet; toter ProcessExit-Handler raus; Benchmark | ☐ |
+| 2 | #280/F-01 | Mutator-Enum + Number; InlineConstants/ConstantReplacement umkategorisieren; Type-Assertions | ☐ |
+| 3 | #279/F-07 | UoiMutator: numerischer Typ-Gate (GetTypeInfo) + get-only-Property-Check | ☐ |
+| 4 | #279/F-06 | RorMatrixMutator: Ordnungs-Replacements nur numerisch/IComparable; ==/!=-Swaps bleiben | ☐ |
+| 5 | #279/F-35 | ConstructorNullMutator: IsReferenceType-Gate (Doc-Versprechen einlösen) | ☐ |
+| 6 | #279/F-23 | TypeDrivenReturnMutator: Async-Guard | ☐ |
+| 7 | #279/F-30 | Doc-Korrektur „classified as killed" → CompileError/Rollback (3 Dateien) | ☐ |
+| 8 | H-25 | Threshold-Quervalidierung gegen Effektivwerte | ☐ |
+| 9 | I-11 | MTP-Multi-Mutant-Guard statt stillem mutantId=-1 | ☐ |
 
-## Erfolgsmaße — ERGEBNIS 2026-06-12
-- **P-5 ✓**: `--configuration Release` → „Injected the mutated assembly file into …\bin\Release\net10.0\ProbeLib.dll" (Baseline: bin\Debug), EXIT=0
-- **P-6 ✓**: ProbeLib `<TargetFrameworks>net10.0;net8.0</TargetFrameworks>` ohne --target-framework → EXIT=0, Score 83,33 % (Baseline: Exit 1 InputException). Probe deckte SCHICHT 2 auf: nach dem TFM-Listen-Fix starb der Lauf an „Language not supported: Undefined" (Outer-Evaluation ohne per-Framework-Properties) → Loader pinnt die Evaluation aufs erste Listen-TFM
-- Je Fix Red→Green ✓ · Build 0/0 ✓ · Vollsuite grün (10 Projekte, E2E 18/18) ✓ · Semgrep 0/9 ✓ · Core-Suiten nach Layer-2-Fix erneut grün (536 + 1237) ✓
+## Erfolgsmaße
+- 56 %-CE-Probe (15-LOC-Shapes, `--mutation-profile All`, lokale CLI): CE-Rate deutlich rückläufig (Baseline Sprint 173: 31/55 = 56 %)
+- BenchmarkDotNet: RegisterCoverage-Delta dokumentiert (Release-Modus)
+- Je Fix Red→Green; Build 0/0; Vollsuite grün; Semgrep 0
 
 ## Notizen
-- #296: einfachster struktureller Fix = foreach statt Task.WhenAll (Initial-Läufe dominieren die Gesamtzeit nicht); zusätzlich defensive Dictionary-Fixes
-- #299: J-05 (Kurz-SHA-Lookup) mitgenommen
-- #290: Provider-Lebenszyklus beachtet (ConfiguredWorkspace einmal pro transientem Resolver)
-- ProbeLib.csproj nach P-6 zurückgesetzt auf <TargetFramework>net10.0</TargetFramework> ✓
-
-## Ship-Protokoll
-- PR #313 squash-merged (ace6848); Issues #290/#291/#296/#299/#300 geschlossen + Evidenz-Kommentare
-- Tag v3.3.8 auf Merge-Commit; Release-Run 27422801439 **success** (kein NU190x)
-- Serena project_status_and_roadmap (183 ✅, 184 NÄCHSTER/letzter Fahrplan-Sprint) + Claude-Memory aktualisiert
-- Kern-Lehre dokumentiert: Live-Probe deckte #291-Schicht-2 auf (Outer-Evaluation ohne per-Framework-Properties), die Unit-Tests nicht sahen
+- #279 bleibt nach Batch 1 OFFEN (Block/F-14, AsSpanAsMemory/B.1+B.2, F-08-Filter-Erweiterung) — Checkboxen im Issue abhaken
+- Blaupausen im Repo: NullCoalescingExpressionMutator (FlowState), ArgumentPropagation (ClassifyConversion), MemberVariable (Symbol-Gate)
+- MutantControl ist C#-2-beschränkt per Doku — HashSet ist .NET 3.5+: Kommentar-Lage prüfen
+- #302-Quickies nur bei Restzeit (G-30, G-05, H-10, G-34)
