@@ -60,7 +60,7 @@ public sealed partial class GitInfoProvider : IGitInfoProvider
 
         if (commit == null)
         {
-            throw new InputException($"No branch or tag or commit found with given target {_options.SinceTarget}. Please provide a different GitDiffTarget.");
+            throw new InputException($"No branch, tag or commit found for the configured --since-target '{_options.SinceTarget}'. Please pass a different --since-target (branch name, tag or commit SHA).");
         }
 
         return commit;
@@ -84,23 +84,57 @@ public sealed partial class GitInfoProvider : IGitInfoProvider
         {
             return null;
         }
-        foreach (var branch in Repository.Branches)
+
+        var commit = FindBranchTip(sinceTarget) ?? FindTagCommit(sinceTarget) ?? LookupCommitBySha(sinceTarget);
+
+        // Sprint 183 (issue #299, H-27): the historical default 'master' strands on modern
+        // main-repositories — fall back once, loudly.
+        if (commit is null && string.Equals(sinceTarget, "master", StringComparison.Ordinal))
+        {
+            LogMasterFallsBackToMain(_logger);
+            commit = FindBranchTip("main");
+        }
+
+        return commit;
+    }
+
+    /// <summary>
+    /// Matches a git reference name against the configured target — exact name or final
+    /// path segment(s), never a substring.
+    /// </summary>
+    /// <param name="name">reference name (friendly or canonical)</param>
+    /// <param name="target">configured since-target</param>
+    /// <returns>true when the reference designates the target</returns>
+    /// <remarks>
+    /// Sprint 183 (issue #299, J-04): the previous Contains-matching let
+    /// <c>--since-target main</c> silently match 'maintenance' (first enumeration hit
+    /// wins) — a wrong diff base without any warning.
+    /// </remarks>
+    private static bool MatchesTarget(string? name, string target) =>
+        !string.IsNullOrEmpty(name)
+        && !string.IsNullOrEmpty(target)
+        && (string.Equals(name, target, StringComparison.Ordinal)
+            || name.EndsWith("/" + target, StringComparison.Ordinal));
+
+    private Commit? FindBranchTip(string target)
+    {
+        foreach (var branch in Repository!.Branches)
         {
             try
             {
-                if (branch.UpstreamBranchCanonicalName?.Contains(sinceTarget) ?? false)
+                if (MatchesTarget(branch.UpstreamBranchCanonicalName, target))
                 {
-                    LogMatchedUpstreamCanonical(_logger, branch.UpstreamBranchCanonicalName);
+                    LogMatchedUpstreamCanonical(_logger, branch.UpstreamBranchCanonicalName!);
                     return branch.Tip;
                 }
-                if (branch.CanonicalName?.Contains(sinceTarget) ?? false)
+                if (MatchesTarget(branch.CanonicalName, target))
                 {
-                    LogMatchedCanonical(_logger, branch.CanonicalName);
+                    LogMatchedCanonical(_logger, branch.CanonicalName!);
                     return branch.Tip;
                 }
-                if (branch.FriendlyName?.Contains(sinceTarget) ?? false)
+                if (MatchesTarget(branch.FriendlyName, target))
                 {
-                    LogMatchedFriendly(_logger, branch.FriendlyName);
+                    LogMatchedFriendly(_logger, branch.FriendlyName!);
                     return branch.Tip;
                 }
             }
@@ -110,29 +144,44 @@ public sealed partial class GitInfoProvider : IGitInfoProvider
             }
         }
 
-        LogLookingForTag(_logger, sinceTarget);
-        var tag = Repository.Tags.FirstOrDefault(t => t.Target is Commit && (t.CanonicalName?.Contains(sinceTarget) ?? false));
-        var tagCommit = tag?.Target as Commit;
-        if (tagCommit != null)
+        return null;
+    }
+
+    private Commit? FindTagCommit(string target)
+    {
+        LogLookingForTag(_logger, target);
+        var tag = Repository!.Tags.FirstOrDefault(t => t.Target is Commit && MatchesTarget(t.CanonicalName, target));
+        if (tag?.Target is Commit tagCommit)
         {
-            LogFoundTag(_logger, tag!.CanonicalName, sinceTarget);
+            LogFoundTag(_logger, tag.CanonicalName, target);
             return tagCommit;
-        }
-
-        // It's a commit!
-        if (sinceTarget.Length == 40)
-        {
-            var commit = Repository.Lookup(new ObjectId(sinceTarget)) as Commit;
-
-            if (commit != null)
-            {
-                LogFoundCommit(_logger, commit.Sha, sinceTarget);
-                return commit;
-            }
         }
 
         return null;
     }
+
+    private Commit? LookupCommitBySha(string target)
+    {
+        // Sprint 183 (issue #299, J-05): abbreviated SHAs (7..40 hex digits) are an everyday
+        // form — the previous gate only accepted exactly 40 characters.
+        if (target.Length is < 7 or > 40 || !target.All(Uri.IsHexDigit))
+        {
+            return null;
+        }
+
+        var commit = target.Length == 40
+            ? Repository!.Lookup(new ObjectId(target)) as Commit
+            : Repository!.Lookup(target) as Commit;
+        if (commit != null)
+        {
+            LogFoundCommit(_logger, commit.Sha, target);
+        }
+
+        return commit;
+    }
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "The since target 'master' was not found — falling back to 'main'. Pass --since-target explicitly to silence this.")]
+    private static partial void LogMasterFallsBackToMain(ILogger logger);
 
     [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "{BranchName} identified as current branch")]
     private static partial void LogBranchIdentified(ILogger logger, string branchName);

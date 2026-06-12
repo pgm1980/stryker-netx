@@ -266,4 +266,121 @@ public class GitInfoProviderTests : TestBase
         res.Should().BeSameAs(commitMock.Object);
         repositoryMock.Verify();
     }
+
+    // Sprint 183 (issue #299, 360-Grad-Analyse J-04): das Branch-Matching lief per
+    // Substring-Contains — "--since-target main" traf auch "maintenance" (erster Treffer
+    // in Enumerationsreihenfolge gewinnt) und lieferte still den falschen Diff-Base.
+    [Fact]
+    public void DetermineCommit_DoesNotMatchBranchesBySubstring()
+    {
+        var options = new StrykerOptions { Since = true, SinceTarget = "main" };
+        var repositoryMock = new Mock<IRepository>();
+        var maintenanceTip = new Mock<Commit>();
+        var mainTip = new Mock<Commit>();
+
+        var maintenance = new Mock<Branch>();
+        maintenance.SetupGet(x => x.UpstreamBranchCanonicalName).Returns("refs/heads/maintenance");
+        maintenance.SetupGet(x => x.CanonicalName).Returns("refs/heads/maintenance");
+        maintenance.SetupGet(x => x.FriendlyName).Returns("maintenance");
+        maintenance.SetupGet(x => x.Tip).Returns(maintenanceTip.Object);
+
+        var main = new Mock<Branch>();
+        main.SetupGet(x => x.UpstreamBranchCanonicalName).Returns("refs/heads/main");
+        main.SetupGet(x => x.CanonicalName).Returns("refs/heads/main");
+        main.SetupGet(x => x.FriendlyName).Returns("main");
+        main.SetupGet(x => x.Tip).Returns(mainTip.Object);
+
+        var branchCollectionMock = new Mock<BranchCollection>();
+        branchCollectionMock.Setup(x => x.GetEnumerator())
+            .Returns(((IEnumerable<Branch>)new List<Branch> { maintenance.Object, main.Object }).GetEnumerator());
+        repositoryMock.SetupGet(x => x.Branches).Returns(branchCollectionMock.Object);
+
+        var target = new GitInfoProvider(options, repositoryMock.Object);
+        var res = target.DetermineCommit();
+
+        res.Should().BeSameAs(mainTip.Object,
+            "'main' must match the 'main' branch exactly, never 'maintenance' by substring");
+    }
+
+    // Sprint 183 (issue #299, H-27): der historische Default "master" endet auf modernen
+    // main-Repos in einer InputException. Ein dokumentierter Fallback auf "main" macht
+    // den Default gebrauchstauglich.
+    [Fact]
+    public void DetermineCommit_FallsBackFromMasterToMain()
+    {
+        var options = new StrykerOptions { Since = true, SinceTarget = "master" };
+        var repositoryMock = new Mock<IRepository>();
+        var mainTip = new Mock<Commit>();
+
+        var main = new Mock<Branch>();
+        main.SetupGet(x => x.UpstreamBranchCanonicalName).Returns("refs/heads/main");
+        main.SetupGet(x => x.CanonicalName).Returns("refs/heads/main");
+        main.SetupGet(x => x.FriendlyName).Returns("main");
+        main.SetupGet(x => x.Tip).Returns(mainTip.Object);
+
+        var branchCollectionMock = new Mock<BranchCollection>();
+        branchCollectionMock.Setup(x => x.GetEnumerator())
+            .Returns(() => ((IEnumerable<Branch>)new List<Branch> { main.Object }).GetEnumerator());
+        repositoryMock.SetupGet(x => x.Branches).Returns(branchCollectionMock.Object);
+
+        var tagCollectionMock = new Mock<TagCollection>();
+        tagCollectionMock.Setup(x => x.GetEnumerator())
+            .Returns(() => ((IEnumerable<Tag>)new List<Tag>()).GetEnumerator());
+        repositoryMock.SetupGet(x => x.Tags).Returns(tagCollectionMock.Object);
+
+        var target = new GitInfoProvider(options, repositoryMock.Object);
+        var res = target.DetermineCommit();
+
+        res.Should().BeSameAs(mainTip.Object, "a missing 'master' must fall back to 'main'");
+    }
+
+    [Fact]
+    public void DetermineCommit_OnNoMatch_MentionsSinceTargetOption()
+    {
+        var options = new StrykerOptions { Since = true, SinceTarget = "release-42" };
+        var repositoryMock = new Mock<IRepository>();
+
+        var branchCollectionMock = new Mock<BranchCollection>();
+        branchCollectionMock.Setup(x => x.GetEnumerator())
+            .Returns(() => ((IEnumerable<Branch>)new List<Branch>()).GetEnumerator());
+        repositoryMock.SetupGet(x => x.Branches).Returns(branchCollectionMock.Object);
+
+        var tagCollectionMock = new Mock<TagCollection>();
+        tagCollectionMock.Setup(x => x.GetEnumerator())
+            .Returns(() => ((IEnumerable<Tag>)new List<Tag>()).GetEnumerator());
+        repositoryMock.SetupGet(x => x.Tags).Returns(tagCollectionMock.Object);
+
+        var target = new GitInfoProvider(options, repositoryMock.Object);
+        Action act = () => target.DetermineCommit();
+
+        act.Should().Throw<InputException>("the error must name the user-facing option")
+            .WithMessage("*--since-target*");
+    }
+
+    // Sprint 183 (issue #299, J-05-Beifang): nur exakt 40-stellige SHAs wurden nachgeschlagen —
+    // gebraeuchliche Kurz-SHAs liefen ins Leere.
+    [Fact]
+    public void DetermineCommit_LooksUpAbbreviatedSha()
+    {
+        var sha = "5a694013";
+        var options = new StrykerOptions { Since = true, SinceTarget = sha };
+        var commitMock = new Mock<Commit>();
+        var repositoryMock = new Mock<IRepository>();
+
+        var branchCollectionMock = new Mock<BranchCollection>();
+        branchCollectionMock.Setup(x => x.GetEnumerator())
+            .Returns(() => ((IEnumerable<Branch>)new List<Branch>()).GetEnumerator());
+        repositoryMock.SetupGet(x => x.Branches).Returns(branchCollectionMock.Object);
+
+        var tagCollectionMock = new Mock<TagCollection>();
+        tagCollectionMock.Setup(x => x.GetEnumerator())
+            .Returns(() => ((IEnumerable<Tag>)new List<Tag>()).GetEnumerator());
+        repositoryMock.SetupGet(x => x.Tags).Returns(tagCollectionMock.Object);
+        repositoryMock.Setup(x => x.Lookup(sha)).Returns(commitMock.Object);
+
+        var target = new GitInfoProvider(options, repositoryMock.Object);
+        var result = target.DetermineCommit();
+
+        result.Should().BeSameAs(commitMock.Object);
+    }
 }
