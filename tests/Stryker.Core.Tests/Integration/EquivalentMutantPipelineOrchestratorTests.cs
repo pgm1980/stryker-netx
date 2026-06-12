@@ -24,11 +24,12 @@ namespace Stryker.Core.Tests.Integration;
 public class EquivalentMutantPipelineOrchestratorTests : IntegrationTestBase
 {
     [Fact]
-    public void DefaultPipeline_HasFiveFilters()
+    public void DefaultPipeline_HasSixFilters()
     {
-        // Sprint 7 + 9 + 14 + 17 cumulative: 5 filters in the Default chain.
-        EquivalentMutantFilterPipeline.Default.Filters.Should().HaveCount(5,
-            "the Default pipeline must include all v2.0–v2.4 equivalent-filter rules");
+        // Sprint 7 + 9 + 14 + 17 + 181 cumulative: 6 filters in the Default chain
+        // (Sprint 181 / G-17 adds the generic NoOpMutation filter at position 0).
+        EquivalentMutantFilterPipeline.Default.Filters.Should().HaveCount(6,
+            "the Default pipeline must include all v2.0–v3.3.6 equivalent-filter rules");
     }
 
     [Fact]

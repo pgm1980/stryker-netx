@@ -58,12 +58,17 @@ internal static partial class OrchestrationHelpers
     /// <param name="children">Children to consider for replacement (typically <c>node.ChildNodes()</c>).</param>
     /// <param name="computeReplacementNode">Mutation function — receives the original child, returns the
     /// (possibly mutated) replacement. Returning the same instance signals "no mutation".</param>
+    /// <param name="onMutationsDropped">Sprint 181 (issue #286, G-15): invoked with every mutated
+    /// subtree this method drops (per-child slot reject or bulk-replace fallback). Dropped subtrees
+    /// carry already-registered mutants; the caller must flag those as CompileError or they end as
+    /// score-corrupting ghosts (false survivors / NoCoverage).</param>
     /// <returns>The parent with all valid child mutations applied; or <paramref name="node"/> unchanged
     /// if no valid mutations are produced (or the bulk replacement fails as a final safety net).</returns>
     public static TParent ReplaceChildrenValidated<TParent>(
         TParent node,
         IEnumerable<SyntaxNode> children,
-        Func<SyntaxNode, SyntaxNode> computeReplacementNode)
+        Func<SyntaxNode, SyntaxNode> computeReplacementNode,
+        Action<SyntaxNode>? onMutationsDropped = null)
         where TParent : SyntaxNode
     {
         ArgumentNullException.ThrowIfNull(node);
@@ -82,14 +87,18 @@ internal static partial class OrchestrationHelpers
             {
                 validated[child] = mutated;
             }
-            else if (Logger.IsEnabled(LogLevel.Debug))
+            else
             {
-                // CA1873 false-positive: the IsEnabled(Debug) guard above ensures Kind() is
-                // only invoked when Debug logging is actually consumed. The analyzer can't
-                // see across the guard / source-gen boundary.
+                onMutationsDropped?.Invoke(mutated);
+                if (Logger.IsEnabled(LogLevel.Debug))
+                {
+                    // CA1873 false-positive: the IsEnabled(Debug) guard above ensures Kind() is
+                    // only invoked when Debug logging is actually consumed. The analyzer can't
+                    // see across the guard / source-gen boundary.
 #pragma warning disable CA1873
-                LogPerChildRejected(Logger, child.Kind(), mutated.Kind(), error ?? "(no diagnostic)");
+                    LogPerChildRejected(Logger, child.Kind(), mutated.Kind(), error ?? "(no diagnostic)");
 #pragma warning restore CA1873
+                }
             }
         }
 
@@ -105,6 +114,10 @@ internal static partial class OrchestrationHelpers
         catch (Exception ex) when (ex is InvalidCastException or NullReferenceException or InvalidOperationException)
         {
             LogBulkReplaceCrashed(Logger, ex);
+            foreach (var droppedSubtree in validated.Values)
+            {
+                onMutationsDropped?.Invoke(droppedSubtree);
+            }
             return node;
         }
     }

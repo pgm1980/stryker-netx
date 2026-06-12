@@ -349,4 +349,33 @@ public class CsharpMutantOrchestratorTests : MutantOrchestratorTestsBase
 
         mutated.Should().Contain("TrackValue");
     }
+
+    // Sprint 181 (360-Grad-Analyse G-19): equivalence-gefilterte Mutationen wurden per
+    // continue verworfen, BEVOR ein Mutant entstand — kein Ignored-Status, kein
+    // Report-Eintrag, nur ein Debug-Log. Filter-False-Positives waren damit unsichtbarer
+    // Mutanten-Verlust. Upstream zeigt Ignored mitsamt Grund im Report; das stellt dieser
+    // Test her. Trigger: TypeDrivenReturnMutator emittiert auf "return 0;" die identische
+    // Ersetzung "return 0;" — ein garantiertes No-op, das Filter #0 (G-17) faengt.
+    [Fact]
+    public void ShouldRegisterEquivalentMutationsAsIgnoredWithReason()
+    {
+        // TypeDrivenReturnMutator gehoert zum Stronger-/All-Profil — dort liegt laut
+        // Register auch die Hauptreichweite der No-op-Klasse.
+        Target = new CsharpMutantOrchestrator(new MutantPlacer(Injector), options: new StrykerOptions
+        {
+            MutationLevel = MutationLevel.Complete,
+            OptimizationMode = OptimizationModes.CoverageBasedTest,
+            MutationProfile = MutationProfile.All,
+        });
+
+        _ = MutateSourceInClass("int M() { return 0; }");
+
+        var ignored = Target.Mutants.Where(m =>
+            m.ResultStatus == MutantStatus.Ignored
+            && m.ResultStatusReason != null
+            && m.ResultStatusReason.Contains("NoOpMutation", System.StringComparison.Ordinal)).ToList();
+
+        ignored.Should().NotBeEmpty(
+            "an equivalent mutation must surface as Ignored with the filter id instead of vanishing");
+    }
 }

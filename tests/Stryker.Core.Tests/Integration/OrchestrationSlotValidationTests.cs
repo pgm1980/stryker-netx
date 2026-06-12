@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using FluentAssertions;
 using Stryker.Abstractions;
 using Xunit;
@@ -50,11 +51,21 @@ public sealed class OrchestrationSlotValidationTests : IntegrationTestBase
         // orchestrator drops slot-incompatible mutations silently instead of crashing.
         Action act = () =>
         {
-            var (_, mutatedTree) = RunOrchestratorOnSource(source, MutationProfile.All);
+            var (mutants, mutatedTree) = RunOrchestratorOnSource(source, MutationProfile.All);
             // re-parsing the mutated tree must succeed: the ConditionalInstrumentationEngine
             // envelope and the validated child mutations together produce well-formed C#.
             mutatedTree.GetDiagnostics().Should().BeEmpty(
                 $"the All-profile orchestrator on the {scenario} pattern must produce a well-formed mutated tree");
+
+            // Sprint 181 (issue #286, G-15): generic ghost detector. Every mutant that is
+            // still Pending after orchestration must actually exist in the mutated tree
+            // (its control wrapper carries the MutationId annotation) — a registered mutant
+            // missing from the tree never compiles into the assembly and ends as a false
+            // survivor or NoCoverage entry. Dropped mutants must be CompileError instead.
+            var injectedIds = Core.Mutants.MutantPlacer.ExtractMutantIds(mutatedTree.GetRoot()).ToHashSet();
+            mutants.Where(m => m.ResultStatus == MutantStatus.Pending && !injectedIds.Contains(m.Id))
+                .Should().BeEmpty(
+                    $"every pending mutant on the {scenario} pattern must be present in the mutated tree or flagged CompileError");
         };
 
         act.Should().NotThrow(

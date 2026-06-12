@@ -116,6 +116,12 @@ public partial class MutationTestProcess(
             if (mutant.ResultStatus == MutantStatus.Pending)
             {
                 LogMutationNotFullyTested(_logger, mutant.Id);
+                // Sprint 181 (360°-Analyse J-01): the test session is over for this mutant —
+                // leaving it Pending would leak a schema-foreign status into the final report
+                // and keep it out of realtime reporting. Ignored is the honest, score-neutral
+                // outcome for "could not be assessed".
+                mutant.ResultStatus = MutantStatus.Ignored;
+                mutant.ResultStatusReason = "The test session could not assess this mutant (it was not fully tested).";
             }
 
             OnMutantTested(mutant, reportedMutants);

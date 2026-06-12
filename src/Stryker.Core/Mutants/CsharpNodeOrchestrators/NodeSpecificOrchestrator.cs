@@ -93,7 +93,8 @@ internal class NodeSpecificOrchestrator<TNode, TBase> : INodeOrchestrator where 
     protected virtual TBase OrchestrateChildrenMutation(TNode node, SemanticModel semanticModel, MutationContext context) =>
         OrchestrationHelpers.ReplaceChildrenValidated(
             node, node.ChildNodes(),
-            original => context.Mutate(original, semanticModel));
+            original => context.Mutate(original, semanticModel),
+            context.FlagDroppedMutantsIn);
 
     /// <summary>
     /// Set up the mutation context before triggering mutation.
