@@ -23,10 +23,10 @@ documentation_updated: false
 | 4 | #291 | FirstTargetFrameworkFrom (erstes Listen-Segment, public + getestet) | ☑ |
 | 5 | #290 | ForProperties-Self-Factory + ConfiguredWorkspace einmal pro Lauf im Resolver | ☑ |
 
-## Erfolgsmaße
-- P-5-Probe: `-c Release` → Debug-Log zeigt Injektion in `bin\Release\...` (Baseline: bin\Debug trotz Release-Build)
-- P-6-Probe: ProbeLib mit `<TargetFrameworks>netstandard2.0;net10.0</TargetFrameworks>` → Exit 0 (Baseline: Exit 1 InputException)
-- Je Fix Red→Green; Build 0/0; Vollsuite grün; Semgrep 0
+## Erfolgsmaße — ERGEBNIS 2026-06-12
+- **P-5 ✓**: `--configuration Release` → „Injected the mutated assembly file into …\bin\Release\net10.0\ProbeLib.dll" (Baseline: bin\Debug), EXIT=0
+- **P-6 ✓**: ProbeLib `<TargetFrameworks>net10.0;net8.0</TargetFrameworks>` ohne --target-framework → EXIT=0, Score 83,33 % (Baseline: Exit 1 InputException). Probe deckte SCHICHT 2 auf: nach dem TFM-Listen-Fix starb der Lauf an „Language not supported: Undefined" (Outer-Evaluation ohne per-Framework-Properties) → Loader pinnt die Evaluation aufs erste Listen-TFM
+- Je Fix Red→Green ✓ · Build 0/0 ✓ · Vollsuite grün (10 Projekte, E2E 18/18) ✓ · Semgrep 0/9 ✓ · Core-Suiten nach Layer-2-Fix erneut grün (536 + 1237) ✓
 
 ## Notizen
 - #296: einfachster struktureller Fix = foreach statt Task.WhenAll (Initial-Läufe dominieren die Gesamtzeit nicht); zusätzlich defensive Dictionary-Fixes
