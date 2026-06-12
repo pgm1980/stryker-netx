@@ -39,9 +39,13 @@ public partial class RegexMutator : MutatorBase<ObjectCreationExpressionSyntax>
             var patternArgument = namedArgument ?? node.ArgumentList.Arguments.FirstOrDefault();
             var patternExpression = patternArgument?.Expression;
 
-            if (patternExpression!= null && patternExpression.IsAStringExpression())
+            // Sprint 182 (issue #277a): IsAStringExpression deliberately also accepts
+            // interpolated strings, but only literal patterns carry a statically known
+            // value — the former hard cast crashed the whole run with an
+            // InvalidCastException on shapes like new Regex($"^{prefix}").
+            if (patternExpression is LiteralExpressionSyntax literalPattern && patternExpression.IsAStringExpression())
             {
-                var currentValue = ((LiteralExpressionSyntax)patternExpression).Token.ValueText;
+                var currentValue = literalPattern.Token.ValueText;
                 var regexMutantOrchestrator = new RegexMutantOrchestrator(currentValue);
                 var replacementValues = regexMutantOrchestrator.Mutate();
                 foreach (var regexMutation in replacementValues)
