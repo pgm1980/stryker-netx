@@ -3,13 +3,13 @@ current_sprint: "183"
 sprint_goal: "Fix-Sprint 5/6 (Config & Nebenläufigkeit, Fahrplan sprint_178_synthesis.md): #290/H-17 (--configuration/--target-framework erreichen die MSBuildWorkspace nie — Factory-Lambda füttert Provider-Ctor mit Optionen), #291/H-18 (Multi-TFM-Fallback parst erstes Listen-Segment statt InputException auf der Rohliste), #296/I-09 (Multi-Projekt-Init-Races: sequenzialisieren + Instanz-Ersetzungs-/Clear-Fixes), #299/J-04 (GitInfoProvider exaktes Branch-Segment-Matching statt Substring-Contains + master-Default-Fallback + saubere Meldung), #300/J-06 (SseServer/RealTimeMutantHandler Synchronisation + Listener-Guard + best-effort CloseSse — Broadcast-Kette darf nicht brechen). TDD je Fix; Serena-first für Analyse UND Implementierung; Serena-Memory vor/nach Sprint. Erfolgsmaße: P-5-Probe (-c Release → Injektion in bin\\Release), P-6-Probe (Multi-TFM-Lauf Exit 0). Ship: PR → Squash → Tag v3.3.8 → Release → Closing."
 branch: "feature/183-config-concurrency"
 started_at: "2026-06-12"
-housekeeping_done: false
-memory_updated: false
-github_issues_closed: false
+housekeeping_done: true
+memory_updated: true
+github_issues_closed: true
 sprint_backlog_written: true
-semgrep_passed: false
-tests_passed: false
-documentation_updated: false
+semgrep_passed: true
+tests_passed: true
+documentation_updated: true
 ---
 # Session State — Sprint 183 (Config & Nebenläufigkeit)
 
@@ -30,6 +30,12 @@ documentation_updated: false
 
 ## Notizen
 - #296: einfachster struktureller Fix = foreach statt Task.WhenAll (Initial-Läufe dominieren die Gesamtzeit nicht); zusätzlich defensive Dictionary-Fixes
-- #299: J-05 (Kurz-SHA-Lookup) nur mitnehmen, wenn trivial — sonst #302
-- #290: Provider-Lebenszyklus beachten (Factory pro Resolve-Lauf); Wechselwirkung mit #291 (Workspace lädt erstes TFM)
-- Proben am Ende gegen lokale Release-CLI aus ProbeLib.Tests/ (Class1-Pattern); Probe-Quelle: ProbeLib.csproj temporär auf Multi-TFM für P-6
+- #299: J-05 (Kurz-SHA-Lookup) mitgenommen
+- #290: Provider-Lebenszyklus beachtet (ConfiguredWorkspace einmal pro transientem Resolver)
+- ProbeLib.csproj nach P-6 zurückgesetzt auf <TargetFramework>net10.0</TargetFramework> ✓
+
+## Ship-Protokoll
+- PR #313 squash-merged (ace6848); Issues #290/#291/#296/#299/#300 geschlossen + Evidenz-Kommentare
+- Tag v3.3.8 auf Merge-Commit; Release-Run 27422801439 **success** (kein NU190x)
+- Serena project_status_and_roadmap (183 ✅, 184 NÄCHSTER/letzter Fahrplan-Sprint) + Claude-Memory aktualisiert
+- Kern-Lehre dokumentiert: Live-Probe deckte #291-Schicht-2 auf (Outer-Evaluation ohne per-Framework-Properties), die Unit-Tests nicht sahen
