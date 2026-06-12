@@ -142,6 +142,46 @@ public class SseServerTest : IDisposable
         // CloseSseEndpoint omitted — Dispose() handles cleanup; calling both causes double-dispose of writers
     }
 
+    // Sprint 183 (issue #300, 360-Grad-Analyse J-06): CloseSseEndpoint machte Task.WaitAll
+    // ueber alle Writer-Flushes — ein zwischenzeitlich getrennter Client warf eine
+    // AggregateException, die die BroadcastReporter-Kette brach und nachfolgende Reporter
+    // (Json, Baseline) verschluckte. Close muss best-effort sein, egal in welchem Zustand
+    // die Clients sind. Die Race-Konstellationen selbst (Writer-Liste/Queue zwischen
+    // Listener-Task und Mutant-Threads) sind nicht deterministisch provozierbar — die
+    // Synchronisierung ist strukturell (Lock/ConcurrentQueue) und laeuft unter denselben
+    // Bestandstests.
+    [Fact]
+    public async Task SseServer_CloseSseEndpoint_WithDisconnectedClient_DoesNotThrow()
+    {
+        _sut.OpenSseEndpoint();
+
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var resp = await http.GetAsync(new Uri($"http://localhost:{_sut.Port}/"), HttpCompletionOption.ResponseHeadersRead);
+                using var stream = await resp.Content.ReadAsStreamAsync();
+                using var reader = new StreamReader(stream);
+                _ = await reader.ReadLineAsync();
+            }
+            catch
+            {
+                // best-effort — the client gets torn down on purpose
+            }
+        });
+        WaitForConnection(10000).Should().BeTrue();
+
+        // tear the client down while the server still holds its writer
+        http.Dispose();
+        _sut.SendEvent(new SseEvent<string> { Event = SseEventType.MutantTested, Data = "x" });
+
+        var closeAct = () => _sut.CloseSseEndpoint();
+
+        closeAct.Should().NotThrow(
+            "a disconnected client must never break the reporter chain at the end of the run");
+    }
+
     [Fact]
     public async Task SseServer_SendMutantTestedEvent_DoesNotThrow()
     {
