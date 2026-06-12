@@ -26,9 +26,9 @@ documentation_updated: false
 | 7 | H-19 | TryParse-Guards (bool/int) + File.Exists vor CreateFromFile + InputException für „no serializer" | ☑ |
 | 8 | G-37b | BaselineMutantFilter Enum.TryParse — unbekannter Status → Mutant bleibt Pending | ☑ |
 
-## Erfolgsmaße
-- Crash-Probe (interpolierter Regex, `--mutation-level Advanced` auf Probe-Projekt): Exit 0 + WARN statt Exit 127
-- Je Fix Red→Green; Build 0/0; Vollsuite grün; Semgrep 0
+## Erfolgsmaße — ERGEBNIS 2026-06-12
+- Crash-Probe (interpolierter Regex `$"^{prefix}"`, Level Advanced, Class4): **Exit 0** (Baseline: Exit 127, kein Report) — 0× InvalidCastException; sauberer JSON-Report (2 Mutanten, beide Killed). Kein WARN nötig: #277a fixt die Wurzel, #277b-Schicht greift nur bei künftigen Mutator-Bugs (per Unit-Test mit werfendem Mutator verifiziert) ✓✓
+- Je Fix Red→Green ✓ · Build 0/0 ✓ · Vollsuite grün (10 Projekte, E2E 18/18) ✓ · Semgrep 0/10 ✓
 
 ## Notizen
 - #297a-Vorbild: MicrosoftTestPlatformRunnerPool (synchrones Parallel.For im Ctor + 5-Min-Timeout mit Wartelogs)
