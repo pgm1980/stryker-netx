@@ -23,7 +23,7 @@ namespace Stryker.Core.Mutators;
 /// returns <c>Task&lt;T[]&gt;</c>; <c>WhenAny(IEnumerable&lt;Task&lt;T&gt;&gt;)</c>
 /// returns <c>Task&lt;Task&lt;T&gt;&gt;</c>. Call-sites that index the
 /// result array won't compile after the swap. The runner classifies
-/// non-compiling mutants as killed (precedent: <see cref="GenericConstraintMutator"/>).
+/// non-compiling mutants as CompileError and rolls them back (precedent: <see cref="GenericConstraintMutator"/>).
 ///
 /// Profile membership: Stronger | All.
 /// </summary>

@@ -72,4 +72,40 @@ public class RorMatrixMutatorTests : MutatorTestBase
         var mutations = ApplyMutations<RorMatrixMutator, BinaryExpressionSyntax>(new(), node);
         AssertNoMutations(mutations);
     }
+
+    // Sprint 184 zu Issue 279, Befund F-06: die volle Ordnungs-Matrix lief auch auf
+    // Referenztyp-Gleichheit — jeder Null-Check bekam vier garantierte CompileError
+    // der Form name kleiner null. Ordnungs-Ersetzungen verlangen jetzt aufloesbar
+    // ordnungsfaehige Operanden; Gleichheits-Tausch bleibt fuer alle Typen, und ohne
+    // Semantik bleibt das bisherige Verhalten erhalten.
+    [Fact]
+    public void ApplyMutations_OnReferenceEquality_EmitsOnlyTheEqualitySwap()
+    {
+        var (model, node) = BuildSemanticContext<BinaryExpressionSyntax>(
+            "class C { bool Probe(string name) => name == null; }");
+
+        var mutations = ApplyMutations(new RorMatrixMutator(), node, model);
+
+        mutations.Should().ContainSingle("ordering operators do not exist on reference types")
+            .Which.ReplacementNode.ToString().Should().Contain("!=");
+    }
+
+    [Fact]
+    public void ApplyMutations_OnNumericEquality_KeepsTheFullMatrix()
+    {
+        var (model, node) = BuildSemanticContext<BinaryExpressionSyntax>(
+            "class C { bool Probe(int x) => x == 1; }");
+
+        var mutations = ApplyMutations(new RorMatrixMutator(), node, model);
+
+        mutations.Should().HaveCount(5, "numeric operands support the whole ROR matrix");
+    }
+
+    [Fact]
+    public void ApplyMutations_WithoutSemanticModel_KeepsTheFullMatrix()
+    {
+        var node = ParseExpression<BinaryExpressionSyntax>("a == b");
+        var mutations = ApplyMutations<RorMatrixMutator, BinaryExpressionSyntax>(new(), node);
+        AssertMutationCount(mutations, 5);
+    }
 }

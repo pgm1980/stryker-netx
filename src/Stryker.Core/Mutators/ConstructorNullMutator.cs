@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -37,6 +38,15 @@ public sealed class ConstructorNullMutator : MutatorBase<ObjectCreationExpressio
             yield break;
         }
 
+        // Sprint 184 (issue #279, F-35): structs can never be null (CS0037) — the doc
+        // promised type-awareness, the code checked nothing. Skip when the constructed
+        // type RESOLVES to a non-nullable value type; nullable constructions and unknown
+        // types keep the historical behaviour.
+        if (IsKnownNonNullableValueType(node, semanticModel))
+        {
+            yield break;
+        }
+
         // Typed as ExpressionSyntax so WithCleanTriviaFrom<T> binds T = ExpressionSyntax,
         // letting node (ObjectCreationExpressionSyntax) upcast.
         ExpressionSyntax nullLiteral = SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression);
@@ -47,5 +57,32 @@ public sealed class ConstructorNullMutator : MutatorBase<ObjectCreationExpressio
             DisplayName = $"Constructor → null: 'new {node.Type}(...)' → 'null'",
             Type = Mutator.Initializer,
         };
+    }
+
+    private static bool IsKnownNonNullableValueType(ObjectCreationExpressionSyntax node, SemanticModel? semanticModel)
+    {
+        if (semanticModel is null)
+        {
+            return false;
+        }
+
+        ITypeSymbol? type;
+        try
+        {
+            type = semanticModel.GetTypeInfo(node).Type;
+        }
+        catch (ArgumentException)
+        {
+            // node does not belong to this model's tree — abstain, mutate as before
+            return false;
+        }
+
+        if (type is null || type.TypeKind == TypeKind.Error
+            || type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+        {
+            return false;
+        }
+
+        return !type.IsReferenceType;
     }
 }

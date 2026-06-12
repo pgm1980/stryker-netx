@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -68,6 +69,16 @@ public sealed class UoiMutator : MutatorBase<IdentifierNameSyntax>
         // existing increments, ref/out args, NameSyntax-typed slots
         // (QualifiedName / AliasQualifiedName), and TypeSyntax-typed slots.
         if (!IsSafeToWrap(node))
+        {
+            yield break;
+        }
+
+        // Sprint 184 (issue #279, F-07): UOI used to be fully type-blind — increments on
+        // string/object/array identifiers and get-only properties were guaranteed compile
+        // errors (probe: 20/20 CE). When the semantic model RESOLVES the identifier to a
+        // non-incrementable type or a non-writable symbol, skip; when nothing resolves
+        // (no model, error type), keep the historical behaviour and mutate.
+        if (IsKnownNotIncrementable(node, semanticModel))
         {
             yield break;
         }
@@ -154,6 +165,55 @@ public sealed class UoiMutator : MutatorBase<IdentifierNameSyntax>
             ReplacementNode = replacement.WithCleanTriviaFrom(pivot),
             DisplayName = $"UOI: '{labelSource.Identifier.Text}' -> '{label}'",
             Type = Mutator.Update,
+        };
+    }
+
+private static bool IsKnownNotIncrementable(IdentifierNameSyntax node, SemanticModel? semanticModel)
+    {
+        if (semanticModel is null)
+        {
+            return false;
+        }
+
+        TypeInfo typeInfo;
+        ISymbol? symbol;
+        try
+        {
+            typeInfo = semanticModel.GetTypeInfo(node);
+            symbol = semanticModel.GetSymbolInfo(node).Symbol;
+        }
+        catch (ArgumentException)
+        {
+            // node does not belong to this model's tree — abstain, mutate as before
+            return false;
+        }
+
+        var type = typeInfo.Type;
+        if (type is null || type.TypeKind == TypeKind.Error)
+        {
+            return false;
+        }
+
+        var incrementable = type.TypeKind is TypeKind.Enum or TypeKind.Pointer
+            || type.SpecialType is SpecialType.System_SByte or SpecialType.System_Byte
+                or SpecialType.System_Int16 or SpecialType.System_UInt16
+                or SpecialType.System_Int32 or SpecialType.System_UInt32
+                or SpecialType.System_Int64 or SpecialType.System_UInt64
+                or SpecialType.System_Single or SpecialType.System_Double
+                or SpecialType.System_Decimal or SpecialType.System_Char
+            || !type.GetMembers("op_Increment").IsEmpty;
+        if (!incrementable)
+        {
+            return true;
+        }
+
+        // increments assign back — a get-only property, readonly field or const cannot host them
+        return symbol switch
+        {
+            IPropertySymbol { SetMethod: null } => true,
+            IFieldSymbol { IsReadOnly: true } or IFieldSymbol { IsConst: true } => true,
+            ILocalSymbol { IsConst: true } => true,
+            _ => false,
         };
     }
 

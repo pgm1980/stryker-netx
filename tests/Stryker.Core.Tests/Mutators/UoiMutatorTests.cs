@@ -18,6 +18,57 @@ public class UoiMutatorTests : MutatorTestBase
     public void Type_IsUoiMutator()
         => typeof(UoiMutator).Should().NotBeNull();
 
+    // Sprint 184 zu Issue 279, Befund F-07: UOI war komplett typ-blind — Inkremente auf
+    // string-, object- und Array-Identifiern sowie get-only-Properties erzeugten in der
+    // Probe zwanzig von zwanzig CompileError. Bei aufloesbar nicht-inkrementierbarem Typ
+    // oder nicht beschreibbarem Symbol wird nicht mutiert; bei unbekanntem Typ — etwa
+    // ohne Modell oder mit Error-Type — bleibt das bisherige Verhalten erhalten.
+    [Fact]
+    public void DoesNotMutate_KnownStringIdentifier()
+    {
+        var (model, node) = BuildSemanticContext<IdentifierNameSyntax>(
+            "class C { string Probe(string s) => s; }");
+
+        var mutations = ApplyMutations(new UoiMutator(), node, model);
+
+        mutations.Should().BeEmpty("string has no increment operators — every variant is CS0023");
+    }
+
+    [Fact]
+    public void DoesNotMutate_GetOnlyPropertyAccess()
+    {
+        var (model, node) = BuildSemanticContext<IdentifierNameSyntax>(
+            "class C { int Probe(string data) => data.Length; }",
+            n => string.Equals(n.Identifier.Text, "Length", System.StringComparison.Ordinal));
+
+        var mutations = ApplyMutations(new UoiMutator(), node, model);
+
+        mutations.Should().BeEmpty("Length is get-only — increments cannot assign (CS0200)");
+    }
+
+    [Fact]
+    public void StillMutates_KnownNumericIdentifier()
+    {
+        var (model, node) = BuildSemanticContext<IdentifierNameSyntax>(
+            "class C { int Probe(int x) => x; }");
+
+        var mutations = ApplyMutations(new UoiMutator(), node, model);
+
+        mutations.Should().HaveCount(4, "numeric locals support all four increment variants");
+    }
+
+    [Fact]
+    public void StillMutates_WhenTypeIsUnknown()
+    {
+        var tree = CSharpSyntaxTree.ParseText("class C { int Probe(int x) => x; }");
+        var node = tree.GetRoot().DescendantNodes().OfType<IdentifierNameSyntax>()
+            .Single(n => string.Equals(n.Identifier.Text, "x", System.StringComparison.Ordinal) && n.Parent is ArrowExpressionClauseSyntax);
+
+        var mutations = ApplyMutations(new UoiMutator(), node);
+
+        mutations.Should().HaveCount(4, "without semantic information the mutator keeps its historical behaviour");
+    }
+
     [Fact]
     public void DoesNotMutate_IdentifierInsideQualifiedName()
     {

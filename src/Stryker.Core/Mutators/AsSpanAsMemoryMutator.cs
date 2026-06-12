@@ -22,7 +22,7 @@ namespace Stryker.Core.Mutators;
 /// <c>yield</c> boundaries; <c>Memory&lt;T&gt;</c> can. Most call-sites
 /// that pass the result to a method with a <c>Span&lt;T&gt;</c> parameter
 /// won't compile after the swap to <c>AsMemory()</c>. The runner
-/// classifies non-compiling mutants as killed (precedent:
+/// classifies non-compiling mutants as CompileError and rolls them back (precedent:
 /// <see cref="GenericConstraintMutator"/>).
 ///
 /// Profile membership: All only — high compile-failure rate.

@@ -34,7 +34,7 @@ namespace Stryker.Core.Mutators;
 ///         (non-generic) does not, but <c>await x</c> on a non-generic
 ///         <c>Task</c> resolves to <c>void</c> — substituting <c>x.Result</c>
 ///         then yields a parser/semantic mismatch which the runner classifies
-///         as killed. Acceptable.</item>
+///         as CompileError via rollback. Acceptable.</item>
 /// </list>
 ///
 /// Profile membership: Stronger | All. Async-correctness probe — opt-in.
