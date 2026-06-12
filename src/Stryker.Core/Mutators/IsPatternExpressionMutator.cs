@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -20,6 +21,17 @@ public class IsPatternExpressionMutator : MutatorBase<IsPatternExpressionSyntax>
     /// </summary>
     public override IEnumerable<Mutation> ApplyMutations(IsPatternExpressionSyntax node, SemanticModel semanticModel)
     {
+        // Sprint 180 (issue #278, 360°-Analyse F-29): a pattern that binds a variable via a
+        // single-variable designation leaks that variable into the enclosing statement scope.
+        // Negating the root pattern breaks definite assignment for every later use of the
+        // variable (CS0165) — a guaranteed compile error whenever the variable is consumed,
+        // so such expressions are not mutated at all. Discard designations bind nothing and
+        // stay mutable.
+        if (node.Pattern.DescendantNodesAndSelf().Any(d => d is SingleVariableDesignationSyntax))
+        {
+            yield break;
+        }
+
         yield return ReverseRootPattern(node);
     }
 
