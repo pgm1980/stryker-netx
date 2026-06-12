@@ -65,4 +65,49 @@ public class ProjectAnalysisExtensionsTests : TestBase
 
         analysis.GetWarningLevel().Should().Be(7);
     }
+
+    // Sprint 183 (issue #291, 360-Grad-Analyse H-18): Multi-TFM-Projekte tragen in der
+    // aeusseren Evaluation nur die TargetFrameworks-LISTE. Die Rohliste lief in den
+    // Framework-Parser und endete als irrefuehrende InputException — der erste Eintrag
+    // ist das, was die Roslyn-Workspace ohnehin laedt.
+    [Theory]
+    [InlineData("netstandard2.0;net10.0", "netstandard2.0")]
+    [InlineData("net10.0", "net10.0")]
+    [InlineData(" net10.0 ; net8.0 ", "net10.0")]
+    public void FirstTargetFrameworkFrom_PicksTheFirstListEntry(string list, string expected)
+        => RoslynProjectAnalysis.FirstTargetFrameworkFrom(list).Should().Be(expected);
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void FirstTargetFrameworkFrom_PassesBlankInputThrough(string? input)
+        => RoslynProjectAnalysis.FirstTargetFrameworkFrom(input).Should().Be(input);
+
+    // Sprint 183 (issue #290, 360-Grad-Analyse H-17): die DI baut den Workspace-Provider
+    // BEVOR die Optionen existieren — Konfigurations-Pins erreichten die Roslyn-Sicht nie.
+    // ForProperties liefert einen Provider, dessen Workspace die Pins traegt; ohne Pins
+    // bleibt es dieselbe Instanz.
+    [Fact]
+    public void ForProperties_WithPins_CreatesConfiguredWorkspace()
+    {
+        using var bare = new MSBuildWorkspaceProvider();
+        var pins = new Dictionary<string, string>(System.StringComparer.Ordinal)
+        {
+            ["Configuration"] = "Release",
+        };
+
+        using var configured = bare.ForProperties(pins);
+
+        configured.Should().NotBeSameAs(bare);
+        configured.Properties.Should().Contain("Configuration", "Release");
+    }
+
+    [Fact]
+    public void ForProperties_WithoutPins_ReturnsSameInstance()
+    {
+        using var bare = new MSBuildWorkspaceProvider();
+
+        bare.ForProperties(null).Should().BeSameAs(bare);
+        bare.ForProperties(new Dictionary<string, string>(System.StringComparer.Ordinal)).Should().BeSameAs(bare);
+    }
 }

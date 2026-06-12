@@ -248,10 +248,34 @@ public sealed class RoslynProjectAnalysis : IProjectAnalysis
     public string ProjectFilePath => _roslynProject.FilePath ?? string.Empty;
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Sprint 183 (issue #291, H-18): multi-TFM projects have an empty TargetFramework in
+    /// the outer evaluation and only carry the semicolon-separated TargetFrameworks LIST.
+    /// Returning the raw list made GetNuGetFramework parse "netstandard2.0;net10.0" into
+    /// UnsupportedFramework and killed the run with a misleading InputException. The first
+    /// list entry is what the Roslyn workspace loads anyway (single-target evaluation).
+    /// </remarks>
     public string TargetFramework =>
         GetPropertyOrDefault("TargetFramework")
-        ?? GetPropertyOrDefault("TargetFrameworks")
+        ?? FirstTargetFrameworkFrom(GetPropertyOrDefault("TargetFrameworks"))
         ?? string.Empty;
+
+    /// <summary>
+    /// Picks the first entry of a semicolon-separated <c>TargetFrameworks</c> list.
+    /// </summary>
+    /// <param name="frameworks">raw property value, e.g. "netstandard2.0;net10.0"</param>
+    /// <returns>the first framework moniker, or the input when it is null/blank</returns>
+    public static string? FirstTargetFrameworkFrom(string? frameworks)
+    {
+        if (string.IsNullOrWhiteSpace(frameworks))
+        {
+            return frameworks;
+        }
+
+        var separatorIndex = frameworks.IndexOf(';');
+        var first = separatorIndex < 0 ? frameworks : frameworks[..separatorIndex];
+        return first.Trim();
+    }
 
     /// <inheritdoc />
     public string AssemblyName => _roslynProject.AssemblyName;

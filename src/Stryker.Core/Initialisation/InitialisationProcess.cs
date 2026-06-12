@@ -104,13 +104,24 @@ public partial class InitialisationProcess(
         IReadOnlyCollection<SourceProjectInfo> projects,
         ITestRunner runner)
     {
-        var getInputs = projects.Select(async info => new MutationTestInput {
-            SourceProjectInfo = info,
-            TestProjectsInfo = info.TestProjectsInfo,
-            TestRunner = runner,
-            InitialTestRun = await InitialTestAsync(options, info, runner, projects.Count == 1).ConfigureAwait(false)
-        });
-        return await Task.WhenAll(getInputs).ConfigureAwait(false);
+        // Sprint 183 (issue #296, I-09): initial test sessions share unsynchronized VsTest
+        // context state (test registries, initial-run timings) across all pool runners —
+        // running them concurrently raced and corrupted multi-project runs. Sequential
+        // execution removes those race paths structurally; initial runs do not dominate
+        // the total runtime.
+        var inputs = new List<MutationTestInput>(projects.Count);
+        foreach (var info in projects)
+        {
+            inputs.Add(new MutationTestInput
+            {
+                SourceProjectInfo = info,
+                TestProjectsInfo = info.TestProjectsInfo,
+                TestRunner = runner,
+                InitialTestRun = await InitialTestAsync(options, info, runner, projects.Count == 1).ConfigureAwait(false)
+            });
+        }
+
+        return inputs;
     }
 
     private async Task<InitialTestRun> InitialTestAsync(IStrykerOptions options, SourceProjectInfo projectInfo,

@@ -34,4 +34,19 @@ public interface IMSBuildWorkspaceProvider : IDisposable
     /// MSBuild global-properties applied to every project the workspace loads.
     /// </summary>
     IReadOnlyDictionary<string, string> Properties { get; }
+
+    /// <summary>
+    /// Returns a provider whose workspace applies the given MSBuild global properties to
+    /// every project it loads — or this very instance when there is nothing to apply.
+    /// </summary>
+    /// <param name="properties">global properties (Configuration, TargetFramework, …)</param>
+    /// <returns>a configured provider; the caller owns its disposal when a new one is created</returns>
+    /// <remarks>
+    /// Sprint 183 (issue #290, H-17): the DI registration constructs the provider before
+    /// the options are known, so configuration pins never reached the Roslyn view —
+    /// source files, references and OutputFilePath stayed Debug/first-TFM regardless of
+    /// the configuration option. This self-factory lets the resolver build the properly
+    /// configured workspace once per run.
+    /// </remarks>
+    IMSBuildWorkspaceProvider ForProperties(IReadOnlyDictionary<string, string>? properties);
 }

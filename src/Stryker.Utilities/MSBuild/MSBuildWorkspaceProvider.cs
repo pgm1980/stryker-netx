@@ -76,5 +76,11 @@ public sealed class MSBuildWorkspaceProvider : IMSBuildWorkspaceProvider
     public IReadOnlyDictionary<string, string> Properties => _workspace.Properties;
 
     /// <inheritdoc />
+    public IMSBuildWorkspaceProvider ForProperties(IReadOnlyDictionary<string, string>? properties) =>
+        properties is null || properties.Count == 0
+            ? this
+            : new MSBuildWorkspaceProvider(properties);
+
+    /// <inheritdoc />
     public void Dispose() => _workspace.Dispose();
 }

@@ -30,6 +30,9 @@ public partial class InputFileResolver : IInputFileResolver
     private readonly ILogger _logger;
     private readonly IMSBuildWorkspaceProvider _workspaceProvider;
     private readonly ISolutionProvider _solutionProvider;
+    // Sprint 183 (issue #290, H-17): workspace configured with the run's MSBuild pins,
+    // created lazily once per resolver (the resolver is registered transient per run).
+    private IMSBuildWorkspaceProvider? _configuredWorkspace;
     // Phase 10.4: FrozenSet for O(1) lookup of MSBuild diagnostic-property names.
     // Read-only after construction; never mutated.
     private static readonly FrozenSet<string> ImportantProperties =
@@ -540,6 +543,41 @@ public partial class InputFileResolver : IInputFileResolver
             "Available projects:" + Environment.NewLine + "  - " + available);
     }
 
+    /// <summary>
+    /// Returns the workspace provider configured with the run's MSBuild pins.
+    /// </summary>
+    /// <param name="options">Stryker options carrying the configuration/framework pins</param>
+    /// <returns>the configured provider (created once per resolver instance)</returns>
+    /// <remarks>
+    /// Sprint 183 (issue #290, H-17): the DI-provided workspace is constructed before the
+    /// options exist, so the Roslyn view (source files, references, OutputFilePath/TargetDir)
+    /// ignored the configuration and target-framework options — the probe showed mutated
+    /// assemblies injected into bin\Debug despite a Release build. Per-project platform
+    /// values from solution configurations stay with the parallel MSBuild evaluation; the
+    /// shared workspace applies the run-level pins.
+    /// </remarks>
+    private IMSBuildWorkspaceProvider ConfiguredWorkspace(IStrykerOptions options)
+    {
+        if (_configuredWorkspace is not null)
+        {
+            return _configuredWorkspace;
+        }
+
+        var properties = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrEmpty(options.Configuration))
+        {
+            properties["Configuration"] = options.Configuration;
+        }
+
+        if (!string.IsNullOrEmpty(options.TargetFramework))
+        {
+            properties["TargetFramework"] = options.TargetFramework;
+        }
+
+        _configuredWorkspace = _workspaceProvider.ForProperties(properties);
+        return _configuredWorkspace;
+    }
+
     private IReadOnlyList<IProjectAnalysis> LoadProjectAnalyses(string projectFile, string framework, string configuration, string platform, IStrykerOptions options)
     {
         try
@@ -564,7 +602,7 @@ public partial class InputFileResolver : IInputFileResolver
             LogAnalyzingProjectFile(_logger, projectLogName);
 
             var analysis = MSBuildProjectAnalysisLoader.LoadAsync(
-                _workspaceProvider,
+                ConfiguredWorkspace(options),
                 projectFile,
                 globalProperties,
                 _logger,

@@ -1,43 +1,35 @@
 ---
-current_sprint: "182"
-sprint_goal: "Fix-Sprint 4/6 (Robustheit, Fahrplan sprint_178_synthesis.md): #277a (RegexMutator-Cast-Crash auf interpolierten Patterns), #277b (try/catch-Robustheitsschicht um mutator.Mutate — ein Mutator-Bug darf den Lauf nie töten), #288 (Loop-Bound im Roslyn-NRE-Retry des CsharpCompilingProcess — Hang-Klasse), #297a/b/c (Hang-Epic Runner-Kette: VsTest-Pool-Init fire-and-forget, Discovery-Wait ohne Timeout, MTP-Disconnect komplettiert Listener nicht), Parse-Guards H-19 (bool/int.Parse, Referenz-Existenz, SolutionFile-Catch-Set) + G-37b (Baseline-Enum.TryParse). TDD je Fix; Serena-first für Analyse UND Implementierung; Serena-Memory vor/nach Sprint. Erfolgsmaß: Crash-Probe interpolierter Regex (Level Advanced) → Exit 0 + WARN statt Exit 127. Ship: PR → Squash → Tag v3.3.7 → Release → Closing."
-branch: "feature/182-robustness"
+current_sprint: "183"
+sprint_goal: "Fix-Sprint 5/6 (Config & Nebenläufigkeit, Fahrplan sprint_178_synthesis.md): #290/H-17 (--configuration/--target-framework erreichen die MSBuildWorkspace nie — Factory-Lambda füttert Provider-Ctor mit Optionen), #291/H-18 (Multi-TFM-Fallback parst erstes Listen-Segment statt InputException auf der Rohliste), #296/I-09 (Multi-Projekt-Init-Races: sequenzialisieren + Instanz-Ersetzungs-/Clear-Fixes), #299/J-04 (GitInfoProvider exaktes Branch-Segment-Matching statt Substring-Contains + master-Default-Fallback + saubere Meldung), #300/J-06 (SseServer/RealTimeMutantHandler Synchronisation + Listener-Guard + best-effort CloseSse — Broadcast-Kette darf nicht brechen). TDD je Fix; Serena-first für Analyse UND Implementierung; Serena-Memory vor/nach Sprint. Erfolgsmaße: P-5-Probe (-c Release → Injektion in bin\\Release), P-6-Probe (Multi-TFM-Lauf Exit 0). Ship: PR → Squash → Tag v3.3.8 → Release → Closing."
+branch: "feature/183-config-concurrency"
 started_at: "2026-06-12"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: true
-tests_passed: true
-documentation_updated: true
+semgrep_passed: false
+tests_passed: false
+documentation_updated: false
 ---
-# Session State — Sprint 182 (Robustheit)
+# Session State — Sprint 183 (Config & Nebenläufigkeit)
 
 ## Fix-Liste
 
-| Fix | Befund | Ort | Status |
-|-----|--------|-----|--------|
-| 1 | #277a | RegexMutator — is-Pattern statt hartem Cast; interpolierte Patterns unmutiert | ☑ |
-| 2 | #277b | SafelyMutate-Guard (Materialisierung IM try; OCE propagiert; WARN mit Mutator+NodeKind) | ☑ |
-| 3 | #288 | HasScanProgress (Tree-Referenzvergleich) + MaxNreScanRounds=5 → CompilationException | ☑ |
-| 4 | #297a | Pool beobachtet Runner-Bau-Fehler; RunThis nach MTP-Muster (1s-Poll, 5-Min-Cap, Fail-fast) | ☑ |
-| 5 | #297b | WaitEnd(TimeSpan) — Timeout in den Aborted-Pfad; Default 5 Min | ☑ |
-| 6 | #297c | ResponseListener.Fail (TrySet-Semantik) + FailAllListeners bei Disconnect (IOException) | ☑ |
-| 7 | H-19 | TryParse-Guards (bool/int) + File.Exists vor CreateFromFile + InputException für „no serializer" | ☑ |
-| 8 | G-37b | BaselineMutantFilter Enum.TryParse — unbekannter Status → Mutant bleibt Pending | ☑ |
+| Fix | Issue | Ort | Status |
+|-----|-------|-----|--------|
+| 1 | #299 | Exaktes Segment-Matching + master→main-Fallback (WARN) + --since-target-Meldung + Kurz-SHA (J-05) | ☑ |
+| 2 | #300 | Writer-Lock + Snapshot-Send, Listener-Shutdown = Loop-Ende, best-effort Close, ConcurrentQueue | ☑ |
+| 3 | #296 | Initial-Tests sequenziell (Overlap-Detektor-Red) + VsTests get-only/in-place | ☑ |
+| 4 | #291 | FirstTargetFrameworkFrom (erstes Listen-Segment, public + getestet) | ☑ |
+| 5 | #290 | ForProperties-Self-Factory + ConfiguredWorkspace einmal pro Lauf im Resolver | ☑ |
 
 ## Erfolgsmaße — ERGEBNIS 2026-06-12
-- Crash-Probe (interpolierter Regex `$"^{prefix}"`, Level Advanced, Class4): **Exit 0** (Baseline: Exit 127, kein Report) — 0× InvalidCastException; sauberer JSON-Report (2 Mutanten, beide Killed). Kein WARN nötig: #277a fixt die Wurzel, #277b-Schicht greift nur bei künftigen Mutator-Bugs (per Unit-Test mit werfendem Mutator verifiziert) ✓✓
-- Je Fix Red→Green ✓ · Build 0/0 ✓ · Vollsuite grün (10 Projekte, E2E 18/18) ✓ · Semgrep 0/10 ✓
+- **P-5 ✓**: `--configuration Release` → „Injected the mutated assembly file into …\bin\Release\net10.0\ProbeLib.dll" (Baseline: bin\Debug), EXIT=0
+- **P-6 ✓**: ProbeLib `<TargetFrameworks>net10.0;net8.0</TargetFrameworks>` ohne --target-framework → EXIT=0, Score 83,33 % (Baseline: Exit 1 InputException). Probe deckte SCHICHT 2 auf: nach dem TFM-Listen-Fix starb der Lauf an „Language not supported: Undefined" (Outer-Evaluation ohne per-Framework-Properties) → Loader pinnt die Evaluation aufs erste Listen-TFM
+- Je Fix Red→Green ✓ · Build 0/0 ✓ · Vollsuite grün (10 Projekte, E2E 18/18) ✓ · Semgrep 0/9 ✓ · Core-Suiten nach Layer-2-Fix erneut grün (536 + 1237) ✓
 
 ## Notizen
-- #297a-Vorbild: MicrosoftTestPlatformRunnerPool (synchrones Parallel.For im Ctor + 5-Min-Timeout mit Wartelogs)
-- #288: äußere MaxAttempt=50 zählt Rollback-Runden, NICHT NRE-Retries — eigener Bound nötig
-- G-29/G-30 (Generator-Trees, „get get"-DisplayName) bleiben außen vor (P3, #302-Liste)
-
-## Ship-Protokoll
-- PR #311 squash-merged (5c94121); Issues #277/#288/#297 geschlossen + Evidenz-Kommentare
-- Tag v3.3.7 auf Merge-Commit; Release-Run 27419231019 **success** (kein NU190x)
-- Serena project_status_and_roadmap (182 ✅, 183 NÄCHSTER) + Claude-Memory aktualisiert
-  (inkl. insert_before_symbol-Doc-Falle in den Serena-Betriebsregeln)
-- Probe-Infrastruktur erweitert: Class4 (interpolierter Regex) + Class4Tests dauerhaft im Probe-Projekt
+- #296: einfachster struktureller Fix = foreach statt Task.WhenAll (Initial-Läufe dominieren die Gesamtzeit nicht); zusätzlich defensive Dictionary-Fixes
+- #299: J-05 (Kurz-SHA-Lookup) nur mitnehmen, wenn trivial — sonst #302
+- #290: Provider-Lebenszyklus beachten (Factory pro Resolve-Lauf); Wechselwirkung mit #291 (Workspace lädt erstes TFM)
+- Proben am Ende gegen lokale Release-CLI aus ProbeLib.Tests/ (Class1-Pattern); Probe-Quelle: ProbeLib.csproj temporär auf Multi-TFM für P-6
