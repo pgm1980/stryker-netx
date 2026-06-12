@@ -107,4 +107,39 @@ public class CSharpCompilingProcessTests : TestBase
         result.Success.Should().BeTrue();
         ilStream.Length.Should().BeGreaterThan(0);
     }
+
+    // Sprint 182 (issue #288, 360-Grad-Analyse G-31): der Roslyn-NRE-Retry-Pfad lief in
+    // einer unbegrenzten while-Schleife — reproduziert sich der Emit-NRE nur in Datei-
+    // INTERAKTION, gibt der Einzeldatei-Scan die Compilation unveraendert zurueck und
+    // der Lauf haengt fuer immer. Die Fortschritts-Erkennung vergleicht den Tree-Satz
+    // per Referenz; ohne Fortschritt bricht der Retry mit CompilationException ab.
+    [Fact]
+    public void HasScanProgress_OnIdenticalTreeSet_ReturnsFalse()
+    {
+        var treeA = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("class A { }");
+        var treeB = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("class B { }");
+
+        CsharpCompilingProcess.HasScanProgress([treeA, treeB], [treeA, treeB]).Should().BeFalse(
+            "an unchanged tree set means the scan could not isolate the crash cause");
+    }
+
+    [Fact]
+    public void HasScanProgress_OnReplacedTree_ReturnsTrue()
+    {
+        var treeA = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("class A { }");
+        var treeB = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("class B { }");
+        var cleaned = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("class B2 { }");
+
+        CsharpCompilingProcess.HasScanProgress([treeA, treeB], [treeA, cleaned]).Should().BeTrue(
+            "a cleaned-up file is progress the next emit attempt can build on");
+    }
+
+    [Fact]
+    public void HasScanProgress_OnDifferentTreeCount_ReturnsTrue()
+    {
+        var treeA = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("class A { }");
+        var treeB = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("class B { }");
+
+        CsharpCompilingProcess.HasScanProgress([treeA, treeB], [treeA]).Should().BeTrue();
+    }
 }
