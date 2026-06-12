@@ -3,13 +3,13 @@ current_sprint: "184"
 sprint_goal: "Fix-Sprint 6/6 — letzter Fahrplan-Sprint (Backlog-Rest, sprint_178_synthesis.md): #287/G-22 (RegisterCoverage HashSet-Drop-in + BenchmarkDotNet-Delta; G-24 toter Handler), #280/F-01 (Mutator.Number statt Linq-Fehlkategorisierung der Konstanten-Mutatoren, Type-Assertions), #279-Batch-1 (UOI numerischer Gate + get-only-Props, ROR Ordnungs-Matrix nur numerisch/IComparable, ConstructorNull IsReferenceType-Gate, TypeDrivenReturn Async-Guard, Doc-F-30; Block/AsSpanAsMemory/F-08 bleiben offen), H-25 (Threshold-Quervalidierung Effektivwerte), I-11 (Guard statt mutantId=-1). TDD je Fix; Serena-first; Memory vor/nach Sprint. Erfolgsmaße: 56 %-CE-Probe (profile All) deutlich rückläufig; Benchmark-Delta dokumentiert. Ship: PR → Squash → Tag v3.3.9 → Release → Closing."
 branch: "feature/184-backlog-rest"
 started_at: "2026-06-12"
-housekeeping_done: false
-memory_updated: false
-github_issues_closed: false
+housekeeping_done: true
+memory_updated: true
+github_issues_closed: true
 sprint_backlog_written: true
-semgrep_passed: false
-tests_passed: false
-documentation_updated: false
+semgrep_passed: true
+tests_passed: true
+documentation_updated: true
 ---
 # Session State — Sprint 184 (Backlog-Rest, Fahrplan-Abschluss)
 
@@ -33,7 +33,14 @@ documentation_updated: false
 - Je Fix Red→Green ✓ · Build 0/0 ✓ · Semgrep 0/11 ✓ · Core-Suiten grün (549 + 1248; ein nicht-reproduzierbarer Einzelflake in Doppelläufen, isoliert 4× grün)
 
 ## Notizen
-- #279 bleibt nach Batch 1 OFFEN (Block/F-14, AsSpanAsMemory/B.1+B.2, F-08-Filter-Erweiterung) — Checkboxen im Issue abhaken
-- Blaupausen im Repo: NullCoalescingExpressionMutator (FlowState), ArgumentPropagation (ClassifyConversion), MemberVariable (Symbol-Gate)
-- MutantControl ist C#-2-beschränkt per Doku — HashSet ist .NET 3.5+: Kommentar-Lage prüfen
-- #302-Quickies nur bei Restzeit (G-30, G-05, H-10, G-34)
+- #279 bleibt nach Batch 1 OFFEN (Block/F-14, AsSpanAsMemory/B.1+B.2, AsyncAwait, F-08) — Batch-1-Stand als Issue-Kommentar
+- #302-Quickies (G-30, G-05, H-10, G-34 …) nicht mehr erreicht — bleiben kuratiert in der Liste
+
+## Ship-Protokoll — 🏁 FAHRPLAN 179–184 ABGESCHLOSSEN
+- PR #315 squash-merged (883ea4c); Issues #287/#280 geschlossen + Evidenz (Benchmark-Tabelle);
+  #279-Batch-1-Kommentar mit abgehakten Punkten + CE-Proben-Zahlen; #302 um H-25/I-11/G-24 abgehakt
+- Tag v3.3.9 auf Merge-Commit; Release-Run 27426308768 **success** (kein NU190x)
+- Serena project_status_and_roadmap: Programm-Abschluss-Banner + 184 ✅; Claude-Memory: Programm-Bilanz
+- **360°-Programm komplett**: 12 Sprints (173–178 Analyse: 139 Findings; 179–184 Fixes: 6 Releases
+  v3.3.4–v3.3.9, ADR-053…058); 21/23 Issues geschlossen; End-Belege Probe-CE 70 %→0 %,
+  Crash Exit 127→0, P-5/P-6 ✓, CE-Probe-All 56 %→29,4 %, Coverage 11,2×
