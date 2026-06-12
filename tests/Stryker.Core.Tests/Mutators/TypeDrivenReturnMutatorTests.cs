@@ -108,4 +108,21 @@ public class TypeDrivenReturnMutatorTests : MutatorTestBase
             new(), returnNode, model);
         AssertNoMutations(mutations);
     }
+
+    // Sprint 184 zu Issue 279, Befund F-23: in async-Methoden returnt man T direkt — die
+    // Task.FromResult-Ersetzung ist dort CS4016. Der Guard erkennt den async-Kontext und
+    // emittiert die default-Form.
+    [Fact]
+    public void ApplyMutations_OnAsyncTaskReturn_EmitsDefaultInsteadOfTaskFromResult()
+    {
+        var (model, returnNode) = BuildSemanticContext<ReturnStatementSyntax>(
+            "using System.Threading.Tasks; class C { async Task<int> M() { await Task.Yield(); return 1; } }");
+
+        var mutations = ApplyTypeAwareMutations<TypeDrivenReturnMutator, ReturnStatementSyntax>(
+            new(), returnNode, model);
+
+        var replacement = AssertSingleMutation(mutations).ReplacementNode.ToString();
+        replacement.Should().NotContain("Task.FromResult", "async methods return the value directly");
+        replacement.Should().Contain("default(int)");
+    }
 }

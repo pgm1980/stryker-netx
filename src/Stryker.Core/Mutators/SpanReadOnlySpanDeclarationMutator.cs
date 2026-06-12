@@ -25,7 +25,7 @@ namespace Stryker.Core.Mutators;
 /// often compiles but breaks if the body assigns into the span;
 /// <c>ReadOnlySpan&lt;T&gt; → Span&lt;T&gt;</c> typically requires an
 /// explicit cast at the call site that won't be present. The runner
-/// classifies non-compiling mutants as killed.
+/// classifies non-compiling mutants as CompileError and rolls them back.
 ///
 /// <para><b>v3.1.2 (Sprint 142, Bug #9 from Calculator-tester report):</b>
 /// disabled from all profiles via <see cref="MutationProfile.None"/>. The
@@ -48,7 +48,7 @@ namespace Stryker.Core.Mutators;
 /// case (Span/Memory pairs) which produces compile-pass mutants when the body
 /// only reads the span (effectively no-op mutation, useless for test scoring)
 /// and compile-fail mutants when the body writes (which the standard runtime
-/// pipeline already classifies as killed without needing this engine). The
+/// pipeline already classifies as CompileError via rollback without needing this engine). The
 /// skip is therefore the final design. If a future user need motivates the
 /// engine work, it would warrant its own multi-sprint v3.x release with
 /// updated ADR.</para>

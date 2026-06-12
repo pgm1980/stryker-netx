@@ -46,7 +46,7 @@ public sealed class TypeDrivenReturnMutator : TypeAwareMutatorBase<ReturnStateme
             yield break;
         }
 
-        foreach (var replacement in GenerateReplacementsForType(returnType))
+        foreach (var replacement in GenerateReplacementsForType(returnType, IsInsideAsyncContext(node)))
         {
             yield return new Mutation
             {
@@ -58,12 +58,19 @@ public sealed class TypeDrivenReturnMutator : TypeAwareMutatorBase<ReturnStateme
         }
     }
 
-    private static IEnumerable<ExpressionSyntax> GenerateReplacementsForType(ITypeSymbol returnType)
+    private static IEnumerable<ExpressionSyntax> GenerateReplacementsForType(ITypeSymbol returnType, bool insideAsyncContext)
     {
         var displayName = returnType.OriginalDefinition.ToDisplayString();
 
         switch (displayName)
         {
+            // Sprint 184 (issue #279, F-23): async methods return the VALUE directly —
+            // wrapping it in Task.FromResult / new ValueTask is CS4016 there.
+            case "System.Threading.Tasks.Task<TResult>" when insideAsyncContext:
+            case "System.Threading.Tasks.ValueTask<TResult>" when insideAsyncContext:
+                yield return ParseExpression("default(" + GetSingleTypeArgument(returnType) + ")");
+                yield break;
+
             case "System.Threading.Tasks.Task<TResult>":
                 yield return ParseExpression("System.Threading.Tasks.Task.FromResult(default(" + GetSingleTypeArgument(returnType) + "))");
                 yield break;
@@ -85,6 +92,14 @@ public sealed class TypeDrivenReturnMutator : TypeAwareMutatorBase<ReturnStateme
                 yield break;
         }
 
+        foreach (var replacement in GenerateSpecialTypeReplacements(returnType))
+        {
+            yield return replacement;
+        }
+    }
+
+    private static IEnumerable<ExpressionSyntax> GenerateSpecialTypeReplacements(ITypeSymbol returnType)
+    {
         switch (returnType.SpecialType)
         {
             case SpecialType.System_String:
@@ -117,6 +132,24 @@ public sealed class TypeDrivenReturnMutator : TypeAwareMutatorBase<ReturnStateme
     }
 
     private static ExpressionSyntax ParseExpression(string text) => SyntaxFactory.ParseExpression(text);
+
+    private static bool IsInsideAsyncContext(SyntaxNode node)
+    {
+        for (var current = node; current is not null; current = current.Parent)
+        {
+            switch (current)
+            {
+                case MethodDeclarationSyntax method:
+                    return method.Modifiers.Any(SyntaxKind.AsyncKeyword);
+                case LocalFunctionStatementSyntax localFunction:
+                    return localFunction.Modifiers.Any(SyntaxKind.AsyncKeyword);
+                case AnonymousFunctionExpressionSyntax anonymousFunction:
+                    return anonymousFunction.AsyncKeyword.IsKind(SyntaxKind.AsyncKeyword);
+            }
+        }
+
+        return false;
+    }
 
     private static string GetSingleTypeArgument(ITypeSymbol type) =>
         type is INamedTypeSymbol named && named.TypeArguments.Length == 1

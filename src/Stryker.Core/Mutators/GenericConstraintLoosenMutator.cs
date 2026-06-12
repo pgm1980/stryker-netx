@@ -24,7 +24,7 @@ namespace Stryker.Core.Mutators;
 /// </list>
 /// May produce non-compiling mutants (e.g. when the body relies on the
 /// original constraint via <c>new T()</c> for <c>: new()</c>); the runner
-/// classifies non-compiling mutants as killed (precedent:
+/// classifies non-compiling mutants as CompileError and rolls them back (precedent:
 /// <see cref="GenericConstraintMutator"/>).
 ///
 /// Profile membership: Stronger | All — less aggressive than the drop-all

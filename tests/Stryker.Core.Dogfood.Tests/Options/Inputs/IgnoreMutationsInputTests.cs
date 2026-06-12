@@ -30,7 +30,7 @@ public class IgnoreMutationsInputTests
         var act = () => target.Validate<Mutator>();
 
         act.Should().Throw<InputException>()
-            .WithMessage("Invalid excluded mutation (gibberish). The excluded mutations options are [Statement, Arithmetic, Block, Equality, Boolean, Logical, Assignment, Unary, Update, Checked, Linq, String, Bitwise, Initializer, Regex, NullCoalescing, Math, StringMethod, Conditional, CollectionExpression]");
+            .WithMessage("Invalid excluded mutation (gibberish). The excluded mutations options are [Statement, Arithmetic, Block, Equality, Boolean, Logical, Assignment, Unary, Update, Checked, Linq, String, Bitwise, Initializer, Regex, NullCoalescing, Math, StringMethod, Conditional, CollectionExpression, Number]");
     }
 
     [Fact]

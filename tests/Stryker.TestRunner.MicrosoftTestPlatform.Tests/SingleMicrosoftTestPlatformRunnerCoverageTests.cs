@@ -6,6 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using Stryker.Abstractions;
+using Stryker.Abstractions.Exceptions;
 using Stryker.TestRunner.MicrosoftTestPlatform;
 using Stryker.TestRunner.MicrosoftTestPlatform.Models;
 using Stryker.TestRunner.Tests;
@@ -222,6 +225,42 @@ public class SingleMicrosoftTestPlatformRunnerCoverageTests
         var result3 = await runner.DiscoverTestsAsync(testAssembly);
         result3.Should().BeTrue("Discovery after disabling coverage should succeed (server restarted)");
     }
+
+    // Sprint 184 zu Sammelliste 302, Analyse-Befund I-11: der MTP-Runner kann pro Lauf
+    // genau einen Mutanten aktivieren, gesteuert ueber die Kontroll-Datei. Eine Gruppe
+    // mit mehreren Mutanten lief bisher still ohne aktive Mutation und haette jeden
+    // Gruppen-Mutanten als False Survivor zurueckgemeldet. Die Pool-Gruppierung
+    // garantiert heute Einzelgruppen; dieser Guard kodifiziert die Invariante.
+    [Fact]
+    public async Task TestMultipleMutants_WithMoreThanOneMutant_ThrowsInsteadOfTestingNothing()
+    {
+        using var runner = new SingleMicrosoftTestPlatformRunner(
+            700,
+            _testsByAssembly,
+            _testDescriptions,
+            _testSet,
+            _discoveryLock,
+            NullLogger.Instance);
+        var mutants = new IMutant[]
+        {
+            new Stryker.Core.Mutants.Mutant { Id = 1, Mutation = BuildMutation() },
+            new Stryker.Core.Mutants.Mutant { Id = 2, Mutation = BuildMutation() },
+        };
+
+        var act = async () => await runner.TestMultipleMutantsAsync(
+            Mock.Of<IProjectAndTests>(), null, mutants, null).ConfigureAwait(false);
+
+        (await act.Should().ThrowAsync<GeneralStrykerException>())
+            .WithMessage("*exactly one*");
+    }
+
+    private static Stryker.Abstractions.Mutation BuildMutation() => new()
+    {
+        OriginalNode = Microsoft.CodeAnalysis.CSharp.SyntaxFactory.ParseExpression("1 + 1"),
+        ReplacementNode = Microsoft.CodeAnalysis.CSharp.SyntaxFactory.ParseExpression("1 - 1"),
+        Type = Stryker.Abstractions.Mutator.Arithmetic,
+        DisplayName = "test",
+    };
 
     [Fact]
     public void ReadCoverageData_ShouldReturnEmpty_WhenFileDoesNotExist()

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Stryker.Abstractions;
+using Stryker.Abstractions.Exceptions;
 using Stryker.TestRunner.MicrosoftTestPlatform;
 using Stryker.TestRunner.MicrosoftTestPlatform.Models;
 using Stryker.TestRunner.Results;
@@ -396,8 +397,10 @@ public sealed class SingleMicrosoftTestPlatformRunnerTests : IDisposable
     }
 
     [Fact]
-    public async Task RunTestsInternalAsync_WithMultipleMutants_UsesNegativeOneMutantId()
+    public async Task RunTestsInternalAsync_WithMultipleMutants_RefusesTheGroup()
     {
+        // Sprint 184 (#302, I-11): formerly pinned the silent no-active-mutation run for
+        // multi-mutant groups; the runner now guards the single-mutant invariant.
         var project = new Mock<IProjectAndTests>();
         project.Setup(x => x.GetTestAssemblies()).Returns(["/test.dll"]);
 
@@ -409,10 +412,9 @@ public sealed class SingleMicrosoftTestPlatformRunnerTests : IDisposable
 
         using var runner = CreateRunner(0);
 
-        var result = await runner.TestMultipleMutantsAsync(project.Object, null, mutants, null);
+        var act = async () => await runner.TestMultipleMutantsAsync(project.Object, null, mutants, null).ConfigureAwait(false);
 
-        result.Should().NotBeNull();
-        result.ExecutedTests.Should().NotBeNull();
+        await act.Should().ThrowAsync<GeneralStrykerException>();
     }
 
     [Fact]
@@ -510,8 +512,11 @@ public sealed class SingleMicrosoftTestPlatformRunnerTests : IDisposable
     }
 
     [Fact]
-    public async Task TestMultipleMutantsAsync_ShouldUseNoMutationId_WhenMultipleMutants()
+    public async Task TestMultipleMutantsAsync_ShouldThrow_WhenMultipleMutants()
     {
+        // Sprint 184 (#302, I-11): this upstream port used to PIN the bug — a multi-mutant
+        // group silently ran with no active mutation (mutant id -1), reporting every group
+        // member as a false survivor. The runner now refuses such groups loudly.
         var project = new Mock<IProjectAndTests>();
         project.Setup(x => x.GetTestAssemblies()).Returns([]);
 
@@ -523,10 +528,10 @@ public sealed class SingleMicrosoftTestPlatformRunnerTests : IDisposable
 
         using var runner = CreateRunner(0);
 
-        var result = await runner.TestMultipleMutantsAsync(project.Object, null, mutants, null);
+        var act = async () => await runner.TestMultipleMutantsAsync(project.Object, null, mutants, null).ConfigureAwait(false);
 
-        result.Should().NotBeNull();
-        result.ExecutedTests.Should().NotBeNull();
+        (await act.Should().ThrowAsync<GeneralStrykerException>())
+            .WithMessage("*exactly one*");
     }
 
     [Fact]

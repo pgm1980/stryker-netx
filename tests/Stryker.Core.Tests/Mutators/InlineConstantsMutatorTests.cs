@@ -15,6 +15,17 @@ public class InlineConstantsMutatorTests : MutatorTestBase
     public void Profile_IsStrongerOrAll()
         => AssertProfileMembership<InlineConstantsMutator>(MutationProfile.Stronger | MutationProfile.All);
 
+    // Sprint 184 (issue #280, F-01): die Konstanten-Mutatoren meldeten Mutator.Linq —
+    // ignore-mutations ['linq'] deaktivierte sie still und Reports kategorisierten sie
+    // als Linq-Methoden. Kein Test prüfte das Type-Feld; dieser pinnt es.
+    [Fact]
+    public void ApplyMutations_ReportsNumberCategory()
+    {
+        var node = ParseExpression<LiteralExpressionSyntax>("42");
+        var mutations = ApplyMutations<InlineConstantsMutator, LiteralExpressionSyntax>(new(), node);
+        mutations.Should().OnlyContain(m => m.Type == Mutator.Number);
+    }
+
     [Theory]
     [InlineData("42")]
     [InlineData("100L")]

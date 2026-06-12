@@ -86,6 +86,20 @@ public abstract class MutatorTestBase
     }
 
     /// <summary>
+    /// Overload of <see cref="BuildSemanticContext{TNode}(string)"/> selecting the first
+    /// descendant of the requested type that satisfies <paramref name="selector"/>.
+    /// </summary>
+    protected static (SemanticModel SemanticModel, TNode Node) BuildSemanticContext<TNode>(
+        string source, Func<TNode, bool> selector)
+        where TNode : SyntaxNode
+    {
+        var (semanticModel, _) = BuildSemanticContext<TNode>(source);
+        var node = semanticModel.SyntaxTree.GetRoot().DescendantNodes().OfType<TNode>().FirstOrDefault(selector);
+        node.Should().NotBeNull($"the parsed source should contain a matching {typeof(TNode).Name}");
+        return (semanticModel, node!);
+    }
+
+    /// <summary>
     /// Invokes the mutator's <c>ApplyMutations</c> method directly, avoiding the
     /// MutationLevel / Profile dispatch in <c>Mutate(...)</c>. Returns the produced
     /// mutations as a list for assertion convenience.

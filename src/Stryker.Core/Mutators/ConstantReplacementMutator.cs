@@ -187,7 +187,7 @@ public sealed class ConstantReplacementMutator : MutatorBase<LiteralExpressionSy
             OriginalNode = original,
             ReplacementNode = literal.WithCleanTriviaFrom(original),
             DisplayName = $"CRCR ({original.Token.Text} {axis} → {newValue})",
-            Type = Mutator.Linq,
+            Type = Mutator.Number,
         };
     }
 }

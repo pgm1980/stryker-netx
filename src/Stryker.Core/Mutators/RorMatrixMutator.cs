@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -93,6 +94,15 @@ public sealed class RorMatrixMutator : MutatorBase<BinaryExpressionSyntax>
         foreach (var (opText, tokenKind) in alternatives)
         {
             var newKind = MapTokenToBinaryKind(tokenKind);
+            // Sprint 184 on issue 279, finding F-06: ordering replacements on operands
+            // without an ordering — reference types and bool — are guaranteed CS0019; the
+            // probe showed the full matrix firing on every null check. Equality swaps stay
+            // for all types, and unknown types keep the historical behaviour.
+            if (IsOrderingKind(newKind) && OperandsKnownNotOrdered(node, semanticModel))
+            {
+                continue;
+            }
+
             var newToken = SyntaxFactory.Token(tokenKind);
             var replacement = SyntaxFactory.BinaryExpression(newKind, node.Left, newToken, node.Right);
             yield return new Mutation
@@ -103,6 +113,51 @@ public sealed class RorMatrixMutator : MutatorBase<BinaryExpressionSyntax>
                 Type = Mutator.Equality,
             };
         }
+    }
+
+private static bool IsOrderingKind(SyntaxKind kind) =>
+        kind is SyntaxKind.LessThanExpression or SyntaxKind.LessThanOrEqualExpression
+            or SyntaxKind.GreaterThanExpression or SyntaxKind.GreaterThanOrEqualExpression;
+
+    private static bool OperandsKnownNotOrdered(BinaryExpressionSyntax node, SemanticModel? semanticModel)
+    {
+        if (semanticModel is null)
+        {
+            return false;
+        }
+
+        ITypeSymbol? type;
+        try
+        {
+            type = semanticModel.GetTypeInfo(node.Left).Type ?? semanticModel.GetTypeInfo(node.Right).Type;
+        }
+        catch (ArgumentException)
+        {
+            // node does not belong to this model's tree — abstain, mutate as before
+            return false;
+        }
+
+        if (type is null || type.TypeKind == TypeKind.Error)
+        {
+            return false;
+        }
+
+        // lifted operators: int? < int? is legal — judge the underlying type
+        if (type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
+            && type is INamedTypeSymbol { TypeArguments.Length: 1 } nullable)
+        {
+            type = nullable.TypeArguments[0];
+        }
+
+        var ordered = type.TypeKind is TypeKind.Enum or TypeKind.Pointer
+            || type.SpecialType is SpecialType.System_SByte or SpecialType.System_Byte
+                or SpecialType.System_Int16 or SpecialType.System_UInt16
+                or SpecialType.System_Int32 or SpecialType.System_UInt32
+                or SpecialType.System_Int64 or SpecialType.System_UInt64
+                or SpecialType.System_Single or SpecialType.System_Double
+                or SpecialType.System_Decimal or SpecialType.System_Char
+            || !type.GetMembers("op_LessThan").IsEmpty;
+        return !ordered;
     }
 
     private static SyntaxKind MapTokenToBinaryKind(SyntaxKind tokenKind) => tokenKind switch
