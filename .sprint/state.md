@@ -7,9 +7,9 @@ housekeeping_done: false
 memory_updated: false
 github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: false
-tests_passed: false
-documentation_updated: false
+semgrep_passed: true
+tests_passed: true
+documentation_updated: true
 ---
 # Session State — Sprint 180 (CE-Noise I)
 
@@ -24,10 +24,10 @@ documentation_updated: false
 | 4 | #285a | MutantPlacer.CanHostValueMarker: target-typed nie, konstant+mutationsfrei nie, User-Code immer | ☑ |
 | 5 | #285b | ExpressionBodiedPropertyOrchestrator: Marker nur bei MustInjectCoverageLogic | ☑ |
 
-## Erfolgsmaße
-- Probe-1 (lokale CLI): CE-Rate < 30 % (Baseline 62,5 % nach Sprint 179)
-- Probe-Debug-Log: keine „Found mutant -1 … StaticInitializerMarkerEngine"-Zeile
-- Build 0/0, Vollsuite grün, Semgrep 0
+## Erfolgsmaße — ERGEBNIS 2026-06-12
+- Probe-1 (lokale CLI): CE-Rate **0 %** (7 Mutanten: 5 Killed, 1 Survived, 1 Ignored) — Ziel < 30 %, Baseline 62,5 % ✓✓
+- Probe-Debug-Log: **0×** „Found mutant -1" (Heilrunde eliminiert) ✓
+- Build 0/0 ✓ · Vollsuite grün (8 Projekte, E2E 18/18) ✓ · Semgrep 0 Findings auf 7 Src-Dateien ✓
 
 ## Sprint Context (auto-saved before compaction at 2026-06-12T10:24:05Z)
 
