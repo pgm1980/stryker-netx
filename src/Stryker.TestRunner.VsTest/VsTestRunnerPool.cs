@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 using Stryker.Abstractions;
+using Stryker.Abstractions.Exceptions;
 using Stryker.Abstractions.Options;
 using Stryker.Abstractions.Testing;
 using Stryker.TestRunner.Results;
@@ -29,6 +30,15 @@ public sealed partial class VsTestRunnerPool : ITestRunner
     private readonly ConcurrentBag<VsTestRunner> _availableRunners = [];
     private readonly ILogger _logger;
     private readonly int _countOfRunners;
+    // Sprint 182 (issue #297a): last runner-construction failure; checked by waiters so an
+    // empty pool fails fast instead of hanging forever.
+    private volatile Exception? _initializationFailure;
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to construct VsTest runner {RunnerIndex} — the pool may stay empty.")]
+    private static partial void LogRunnerConstructionFailed(ILogger logger, Exception ex, int runnerIndex);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Still waiting for an available VsTest runner ({Attempts}s elapsed; available: {Available}, total: {Total}).")]
+    private static partial void LogWaitingForRunner(ILogger logger, int attempts, int available, int total);
 
     /// <summary>The shared <see cref="VsTestContextInformation"/> instance used by all runners in the pool.</summary>
     public VsTestContextInformation Context { get; }
@@ -81,11 +91,25 @@ public sealed partial class VsTestRunnerPool : ITestRunner
         runnerBuilder ??= (context, i) => new VsTestRunner(context, i);
         // Fire-and-forget: runners are populated in parallel; consumers wait via _runnerAvailableHandler.
         // MA0134 demands the Task be observed, but the design intent is asynchronous warm-up without join.
+        // Sprint 182 (issue #297a, I-07): runner-construction failures used to be unobserved —
+        // the pool stayed empty and every consumer waited forever. Failures are recorded and
+        // the handle is signalled so waiters wake up and surface the error.
         _ = Task.Run(() =>
             Parallel.For(0, _countOfRunners, (i, _) =>
             {
-                _availableRunners.Add(runnerBuilder(Context, i));
-                _runnerAvailableHandler.Set();
+                try
+                {
+                    _availableRunners.Add(runnerBuilder(Context, i));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _initializationFailure = ex;
+                    LogRunnerConstructionFailed(_logger, ex, i);
+                }
+                finally
+                {
+                    _runnerAvailableHandler.Set();
+                }
             }));
     }
 
@@ -108,9 +132,36 @@ public sealed partial class VsTestRunnerPool : ITestRunner
     private T RunThis<T>(Func<VsTestRunner, T> task)
     {
         VsTestRunner? runner;
+        // Sprint 182 (issue #297a, I-07): bounded wait mirroring MicrosoftTestPlatformRunnerPool —
+        // an initialization failure or a five-minute drought ends the run with diagnosis context
+        // instead of waiting forever on a pool that can never fill.
+        var attempts = 0;
+        const int maxWaitTimeSeconds = 300;
+        const int waitIntervalMs = 1000;
+        const int maxAttempts = maxWaitTimeSeconds * 1000 / waitIntervalMs;
         while (!_availableRunners.TryTake(out runner))
         {
-            _runnerAvailableHandler.WaitOne();
+            if (_availableRunners.IsEmpty && _initializationFailure is { } failure)
+            {
+                throw new GeneralStrykerException(
+                    "The VsTest runner pool could not start any runner (vstest.console deployment may be broken). See inner exception for the construction failure.",
+                    failure);
+            }
+
+            if (!_runnerAvailableHandler.WaitOne(waitIntervalMs))
+            {
+                attempts++;
+                if (attempts >= maxAttempts)
+                {
+                    throw new GeneralStrykerException(
+                        $"Timed out waiting for an available VsTest runner after {maxWaitTimeSeconds} seconds. Available runners: {_availableRunners.Count}, total runners: {_countOfRunners}.");
+                }
+
+                if (attempts % 30 == 0)
+                {
+                    LogWaitingForRunner(_logger, attempts, _availableRunners.Count, _countOfRunners);
+                }
+            }
         }
 
         try
