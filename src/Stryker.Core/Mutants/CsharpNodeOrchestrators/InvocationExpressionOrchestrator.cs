@@ -39,5 +39,6 @@ internal sealed class InvocationExpressionOrchestrator : MemberAccessExpressionO
                     subContext.Leave();
                     return result;
                 }
-            });
+            },
+            context.FlagDroppedMutantsIn);
 }

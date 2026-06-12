@@ -36,6 +36,25 @@ public class MutantPlacer
 
     public static IEnumerable<string> MutationMarkers => [MutationIdMarker, MutationTypeMarker, Injector];
 
+    /// <summary>
+    /// Extracts the ids of all mutants whose control wrappers are annotated within the
+    /// given subtree (the node itself included).
+    /// </summary>
+    /// <param name="node">subtree to scan</param>
+    /// <returns>distinct mutant ids found in the subtree</returns>
+    /// <remarks>
+    /// Sprint 181 (issue #286, G-15): used to identify the mutants lost when the
+    /// orchestration safety net (ADR-032) drops a mutated subtree — without follow-up
+    /// they would stay Pending and end as false survivors or NoCoverage ghosts.
+    /// </remarks>
+    public static IEnumerable<int> ExtractMutantIds(SyntaxNode node) =>
+        node.GetAnnotatedNodes(MutationIdMarker)
+            .SelectMany(n => n.GetAnnotations(MutationIdMarker))
+            .Select(annotation => annotation.Data)
+            .Where(data => data is not null)
+            .Select(data => int.Parse(data!, CultureInfo.InvariantCulture))
+            .Distinct();
+
     public MutantPlacer(CodeInjection injection) => _injection = injection;
 
     /// <summary>

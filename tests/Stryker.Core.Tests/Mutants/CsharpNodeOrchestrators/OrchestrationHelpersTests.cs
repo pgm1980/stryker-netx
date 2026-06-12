@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Microsoft.CodeAnalysis;
@@ -55,4 +56,46 @@ public class OrchestrationHelpersTests
     // (via recursive context.Mutate calls), so the regression coverage for "slot-
     // incompatible mutation dropped silently" lives in OrchestrationSlotValidationTests
     // (integration layer) instead. See Sprint 151 ADR-032 for the rationale.
+    // Sprint 181 (issue #286, G-15): a DIRECT lambda — without any Roslyn API in the
+    // arrangement — CAN hand the helper a bogus replacement; that is exactly how the
+    // recursive pipeline delivers them. Used below to pin the dropped-mutation callback.
+
+    // Sprint 181 (issue #286, 360-Grad-Analyse G-15): verworfene Subtrees enthalten
+    // bereits injizierte, registrierte Mutanten. Ohne Rueckmeldung enden die als Geister
+    // (False Survivor/NoCoverage). Der Helper meldet jeden verworfenen mutierten Subtree.
+    [Fact]
+    public void ReplaceChildrenValidated_OnSlotIncompatibleMutation_ReportsDroppedSubtree()
+    {
+        // An ExpressionSyntax in a Block's typed statement list is the historical Bug-9
+        // crash class the slot validator demonstrably catches (typed-list cast).
+        var tree = CSharpSyntaxTree.ParseText("class C { int M() { return 1; } }");
+        var block = tree.GetRoot().DescendantNodes().OfType<BlockSyntax>().Single();
+        var bogus = SyntaxFactory.IdentifierName("y")
+            .WithAdditionalAnnotations(new SyntaxAnnotation("MutationId", "42"));
+        var dropped = new List<SyntaxNode>();
+
+        var result = OrchestrationHelpers.ReplaceChildrenValidated(block, block.ChildNodes(),
+            original => original is ReturnStatementSyntax ? bogus : original,
+            subtree => dropped.Add(subtree));
+
+        ReferenceEquals(result, block).Should().BeTrue(
+            "the slot-incompatible mutation must be dropped, not applied");
+        dropped.Should().ContainSingle("the dropped mutated subtree must reach the caller")
+            .Which.GetAnnotations("MutationId").Should().ContainSingle(a => a.Data == "42");
+    }
+
+    [Fact]
+    public void ReplaceChildrenValidated_OnCompatibleMutation_DoesNotReportDrops()
+    {
+        var tree = CSharpSyntaxTree.ParseText("class C { int M(int a, int b) => a + b; }");
+        var add = tree.GetRoot().DescendantNodes().OfType<BinaryExpressionSyntax>().Single();
+        var newRight = SyntaxFactory.IdentifierName("zzz").WithTriviaFrom(add.Right);
+        var dropped = new List<SyntaxNode>();
+
+        _ = OrchestrationHelpers.ReplaceChildrenValidated(add, add.ChildNodes(),
+            original => ReferenceEquals(original, add.Right) ? newRight : original,
+            subtree => dropped.Add(subtree));
+
+        dropped.Should().BeEmpty("applied mutations are not drops");
+    }
 }

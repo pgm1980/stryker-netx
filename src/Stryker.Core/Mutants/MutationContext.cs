@@ -158,6 +158,16 @@ internal sealed class MutationContext
         _mainOrchestrator.Placer.PlaceStaticContextMarker(expression);
 
     /// <summary>
+    /// Marks every pending mutant wrapped inside the given dropped subtree as
+    /// CompileError. Sprint 181 (issue #286, G-15): callback target for
+    /// <c>OrchestrationHelpers.ReplaceChildrenValidated</c> — dropped subtrees carry
+    /// already-registered mutants that would otherwise end as score-corrupting ghosts.
+    /// </summary>
+    /// <param name="droppedSubtree">mutated subtree the orchestration safety net rejected</param>
+    public void FlagDroppedMutantsIn(SyntaxNode droppedSubtree) =>
+        _mainOrchestrator.FlagDroppedMutants(droppedSubtree);
+
+    /// <summary>
     /// Injects pending expression level mutations.
     /// </summary>
     /// <param name="mutatedNode">Target node that will contain the mutations</param>

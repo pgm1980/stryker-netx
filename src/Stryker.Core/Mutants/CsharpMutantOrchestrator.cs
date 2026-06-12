@@ -232,6 +232,37 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
 
     internal static INodeOrchestrator GetHandler(SyntaxNode currentNode) => specificOrchestrator.FindHandler(currentNode)!;
 
+/// <summary>
+    /// Marks all pending mutants whose control wrappers sit inside the given dropped
+    /// subtree as <see cref="MutantStatus.CompileError"/>.
+    /// </summary>
+    /// <param name="droppedSubtree">mutated subtree the orchestration safety net rejected</param>
+    /// <remarks>
+    /// Sprint 181 (issue #286, G-15): the ADR-032 safety net drops slot-incompatible
+    /// mutated subtrees. The mutants wrapped inside are already registered and consumed
+    /// from the store — without this follow-up they never reach the assembly and end as
+    /// ghosts (NoCoverage in coverage mode, Survived otherwise), silently corrupting the
+    /// score. Mutants with a settled result are left untouched.
+    /// </remarks>
+    public void FlagDroppedMutants(SyntaxNode droppedSubtree)
+    {
+        foreach (var id in MutantPlacer.ExtractMutantIds(droppedSubtree))
+        {
+            var mutant = Mutants.FirstOrDefault(m => m.Id == id && m.ResultStatus == MutantStatus.Pending);
+            if (mutant is null)
+            {
+                continue;
+            }
+
+            mutant.ResultStatus = MutantStatus.CompileError;
+            mutant.ResultStatusReason = "Could not be injected in code (mutated subtree was dropped as slot-incompatible during orchestration).";
+            LogDroppedMutantFlagged(Logger, mutant.Id);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Mutant {Id} was dropped by the orchestration safety net and is marked as a compile error.")]
+    private static partial void LogDroppedMutantFlagged(ILogger logger, int id);
+
     internal IEnumerable<Mutant> GenerateMutationsForNode(SyntaxNode current, SemanticModel semanticModel, MutationContext context)
     {
         var mutations = new List<Mutant>();

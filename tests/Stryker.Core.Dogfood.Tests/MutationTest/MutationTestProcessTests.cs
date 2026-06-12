@@ -11,7 +11,10 @@ using Stryker.Abstractions;
 using Stryker.Abstractions.Options;
 using Stryker.Abstractions.Reporting;
 using Stryker.Configuration.Options;
+using Microsoft.CodeAnalysis.CSharp;
 using Stryker.Core.CoverageAnalysis;
+using Stryker.Core.Initialisation;
+using Stryker.Core.Mutants;
 using Stryker.Core.MutationTest;
 using Stryker.Core.ProjectComponents.Csharp;
 using Stryker.Core.ProjectComponents.SourceProjects;
@@ -162,5 +165,46 @@ public class MutationTestProcessTests : TestBase
         Mock.Get(mutationTestExecutor).VerifyNoOtherCalls();
         result.MutationScore.Should().Be(double.NaN,
             "TestAsync with empty mutant set must short-circuit without invoking executor / reporter");
+    }
+
+    // Sprint 181 (360-Grad-Analyse J-01): Mutanten, die nach Abschluss der Testsession
+    // Pending bleiben (Executor inkonklusiv), erreichten den Final-Report mit dem
+    // schema-fremden Status "Pending" und wurden dem Realtime-Reporting vorenthalten.
+    // Sie muessen score-neutral als Ignored mit Begruendung finalisiert werden.
+    [Fact]
+    public async Task TestAsync_FinalizesUntestedMutantsAsIgnoredInsteadOfPending()
+    {
+        var reporter = Mock.Of<IReporter>();
+        var executorMock = new Mock<IMutationTestExecutor>();
+        executorMock
+            .Setup(e => e.TestAsync(It.IsAny<IProjectAndTests>(), It.IsAny<IList<IMutant>>(),
+                It.IsAny<ITimeoutValueCalculator>(), It.IsAny<ITestRunner.TestUpdateHandler>()))
+            .Returns(Task.CompletedTask);
+        var target = new MutationTestProcess(executorMock.Object, Mock.Of<ICoverageAnalyser>(),
+            Mock.Of<IMutationProcess>(), TestLoggerFactory.CreateLogger<MutationTestProcess>());
+
+        var input = BuildInput();
+        input.InitialTestRun = new InitialTestRun(Mock.Of<ITestRunResult>(), Mock.Of<ITimeoutValueCalculator>());
+        target.Initialize(input, new StrykerOptions { Concurrency = 1 }, reporter);
+
+        var pendingMutant = new Mutant
+        {
+            Id = 1,
+            ResultStatus = MutantStatus.Pending,
+            Mutation = new Mutation
+            {
+                OriginalNode = SyntaxFactory.ParseExpression("1 + 1"),
+                ReplacementNode = SyntaxFactory.ParseExpression("1 - 1"),
+                Type = Mutator.Arithmetic,
+                DisplayName = "test",
+            },
+        };
+        _ = await target.TestAsync([pendingMutant]);
+
+        pendingMutant.ResultStatus.Should().Be(MutantStatus.Ignored,
+            "a mutant the session could not assess must not leak 'Pending' into the final report");
+        pendingMutant.ResultStatusReason.Should().NotBeNullOrEmpty();
+        Mock.Get(reporter).Verify(r => r.OnMutantTested(pendingMutant), Times.Once,
+            "the finalized mutant must reach realtime reporting exactly once");
     }
 }

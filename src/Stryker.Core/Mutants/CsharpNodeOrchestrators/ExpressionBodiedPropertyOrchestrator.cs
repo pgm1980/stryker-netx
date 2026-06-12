@@ -43,7 +43,8 @@ internal sealed class ExpressionBodiedPropertyOrchestrator : BaseFunctionOrchest
             {
                 var determinedContext = original == node.Initializer ? context.EnterStatic() : context;
                 return determinedContext.Mutate(original, semanticModel);
-            });
+            },
+            context.FlagDroppedMutantsIn);
         if (!context.MustInjectCoverageLogic)
         {
             // Sprint 180 (issue #285b): without coverage logic the tracking marker has no

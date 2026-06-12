@@ -23,5 +23,6 @@ internal sealed class ConditionalExpressionOrchestrator : MemberAccessExpression
                 var result = subContext.Mutate(original, semanticModel);
                 subContext.Leave();
                 return result;
-            });
+            },
+            context.FlagDroppedMutantsIn);
 }

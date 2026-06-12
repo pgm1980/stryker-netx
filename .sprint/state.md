@@ -17,10 +17,10 @@ documentation_updated: false
 
 | Fix | Befund | Ort | Status |
 |-----|--------|-----|--------|
-| 1 | G-17 | Neuer Filter #0: SyntaxFactory.AreEquivalent(Original, Replacement) in der Equivalence-Pipeline | ☐ |
-| 2 | G-19 | CsharpMutantOrchestrator: gefilterte Mutationen → Ignored-Mutant mit Reason statt continue | ☐ |
-| 3 | #286/G-15 | OrchestrationHelpers.ReplaceChildrenValidated: Drop-Pfad sammelt IDs → CompileError | ☐ |
-| 4 | J-01 | JsonMutant: „Pending" darf den Report nicht erreichen (schema-gültiges Mapping) | ☐ |
+| 1 | G-17 | NoOpMutationFilter als Filter #0 (AreEquivalent, trivia-insensitiv) | ☑ |
+| 2 | G-19 | Gefilterte → Ignored-Mutant „Equivalent mutant (filter: <Id>)", nie injiziert | ☑ |
+| 3 | #286/G-15 | onMutationsDropped-Callback → FlagDroppedMutants (CompileError); 4 Call-Sites; Geister-Detektor in Integrationstests | ☑ |
+| 4 | J-01 | Pending-Reste am Session-Drain → Ignored + Reason (statt schema-fremd im Report) | ☑ |
 
 ## Erfolgsmaße
 - Je Fix Red-Test → Green; Geister-Mutanten enden als CompileError im Report (Unit-Test über die 3-Schichten-Kette soweit testbar)
