@@ -30,6 +30,11 @@ namespace Stryker.Core.Compiling;
 public partial class CsharpCompilingProcess : ICSharpCompilingProcess
 {
     private const int MaxAttempt = 50;
+
+    // Sprint 182 (issue #288, G-31): hard ceiling for Roslyn-emit NRE scan rounds. Each
+    // round costs one solo emit per file plus a full emit, so a handful of rounds is
+    // already generous; MaxAttempt above budgets rollback rounds, not these retries.
+    private const int MaxNreScanRounds = 5;
     private readonly MutationTestInput _input;
     private readonly IStrykerOptions _options;
     private readonly ICSharpRollbackProcess _rollbackProcess;
@@ -178,6 +183,7 @@ public partial class CsharpCompilingProcess : ICSharpCompilingProcess
             _input.SourceProjectInfo.Analysis.GetSymbolFileName());
         EmitResult? emitResult = null;
         var resourceDescriptions = _input.SourceProjectInfo.Analysis.GetResources(_logger);
+        var nreScanRounds = 0;
         while (emitResult == null)
         {
             if (previousEmitResult != null)
@@ -206,11 +212,8 @@ public partial class CsharpCompilingProcess : ICSharpCompilingProcess
 #pragma warning disable S1696 // this catches an exception raised by the C# compiler
             catch (NullReferenceException e)
             {
-                LogRoslynNullReference(_logger);
-                LogException(_logger, e);
-                LogSkippingProblematicFiles(_logger);
-                compilation = ScanForCauseOfException(compilation);
-                EmbeddedResourcesGenerator.ResetCache();
+                nreScanRounds++;
+                compilation = RecoverFromEmitNullReference(compilation, e, nreScanRounds);
             }
         }
 
@@ -218,6 +221,55 @@ public partial class CsharpCompilingProcess : ICSharpCompilingProcess
 
         return (rollbackProcessResult, emitResult, retryCount + 1);
     }
+
+    /// <summary>
+    /// Handles a Roslyn-emit <see cref="NullReferenceException"/> by scanning for the
+    /// offending file(s), enforcing the retry budget.
+    /// </summary>
+    /// <param name="compilation">compilation whose emit crashed</param>
+    /// <param name="e">the compiler-internal exception</param>
+    /// <param name="nreScanRounds">number of scan rounds performed so far, this one included</param>
+    /// <returns>the cleaned compilation for the next emit attempt</returns>
+    /// <remarks>
+    /// Sprint 182 (issue #288, G-31): the scan only cleans files that crash SOLO. When the
+    /// NRE reproduces only in file interaction, the tree set comes back unchanged and the
+    /// retry loop would never terminate — the outer MaxAttempt budget counts rollback
+    /// rounds, not NRE retries. No progress, or a runaway round count, ends the run with a
+    /// diagnosable error instead of a hang.
+    /// </remarks>
+    private CSharpCompilation RecoverFromEmitNullReference(CSharpCompilation compilation, NullReferenceException e, int nreScanRounds)
+    {
+        LogRoslynNullReference(_logger);
+        LogException(_logger, e);
+        LogSkippingProblematicFiles(_logger);
+        var treesBeforeScan = compilation.SyntaxTrees;
+        var scanned = ScanForCauseOfException(compilation);
+        if (!HasScanProgress(treesBeforeScan, scanned.SyntaxTrees) || nreScanRounds >= MaxNreScanRounds)
+        {
+            throw new CompilationException(
+                "Roslyn emit kept crashing with a NullReferenceException the single-file scan could not isolate. " +
+                "This is likely a Roslyn issue triggered by a specific mutation; re-run with --verbosity trace to identify the files involved and please report it at https://github.com/pgm1980/stryker-netx/issues.",
+                e);
+        }
+
+        EmbeddedResourcesGenerator.ResetCache();
+        return scanned;
+    }
+
+    /// <summary>
+    /// Detects whether the single-file crash scan changed the compilation's tree set.
+    /// </summary>
+    /// <param name="before">tree set before the scan</param>
+    /// <param name="after">tree set after the scan</param>
+    /// <returns>true when at least one tree was replaced or removed</returns>
+    /// <remarks>
+    /// Sprint 182 (issue #288, G-31): an unchanged tree set means the next emit attempt
+    /// would crash identically — the NRE retry loop must stop instead of spinning.
+    /// Comparison is by reference: the scan replaces cleaned files with new tree instances.
+    /// </remarks>
+    internal static bool HasScanProgress(IReadOnlyList<SyntaxTree> before, IReadOnlyList<SyntaxTree> after) =>
+        before.Count != after.Count
+        || before.Where((tree, index) => !ReferenceEquals(tree, after[index])).Any();
 
     private CSharpCompilation ScanForCauseOfException(CSharpCompilation compilation)
     {

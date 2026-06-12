@@ -104,8 +104,14 @@ public partial class BaselineMutantFilter : IMutantFilter
         if (matchingMutants.Count() == 1)
         {
             var matchingMutant = matchingMutants.First();
-            matchingMutant.ResultStatus = Enum.Parse<MutantStatus>(baselineMutant.Status);
-            matchingMutant.ResultStatusReason = "Result based on previous run";
+            // Sprint 182 (360°-Analyse G-37b): baseline reports are external input
+            // (dashboard, other tool versions) — an unknown status string must not kill
+            // the run. The mutant stays Pending and is simply tested again.
+            if (Enum.TryParse<MutantStatus>(baselineMutant.Status, out var baselineStatus))
+            {
+                matchingMutant.ResultStatus = baselineStatus;
+                matchingMutant.ResultStatusReason = "Result based on previous run";
+            }
         }
         else
         {

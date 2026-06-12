@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -232,7 +233,10 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
 
     internal static INodeOrchestrator GetHandler(SyntaxNode currentNode) => specificOrchestrator.FindHandler(currentNode)!;
 
-/// <summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Mutator {MutatorName} crashed on a {NodeKind} node and was skipped there — the run continues. Please report this at https://github.com/pgm1980/stryker-netx/issues.")]
+    private static partial void LogMutatorCrashed(ILogger logger, Exception ex, string mutatorName, SyntaxKind nodeKind);
+
+    /// <summary>
     /// Marks all pending mutants whose control wrappers sit inside the given dropped
     /// subtree as <see cref="MutantStatus.CompileError"/>.
     /// </summary>
@@ -263,12 +267,43 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
     [LoggerMessage(Level = LogLevel.Information, Message = "Mutant {Id} was dropped by the orchestration safety net and is marked as a compile error.")]
     private static partial void LogDroppedMutantFlagged(ILogger logger, int id);
 
+/// <summary>
+    /// Runs a single mutator on a node, materializing its (lazy) mutations inside a guard.
+    /// </summary>
+    /// <param name="mutator">mutator to run</param>
+    /// <param name="current">node to mutate</param>
+    /// <param name="semanticModel">semantic model for the source compilation</param>
+    /// <returns>the produced mutations, or <c>null</c> when the mutator crashed</returns>
+    /// <remarks>
+    /// Sprint 182 (issue #277b): a single buggy mutator must never kill the whole run —
+    /// it is skipped for this node with a warning and every other mutator's output is
+    /// kept. Mutators yield lazily, so enumeration has to happen inside the guard for
+    /// the protection to be real. Cancellation is deliberately not swallowed.
+    /// </remarks>
+    private IReadOnlyList<Mutation>? SafelyMutate(IMutator mutator, SyntaxNode current, SemanticModel semanticModel)
+    {
+        try
+        {
+            return [.. mutator.Mutate(current, semanticModel, Options!)];
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogMutatorCrashed(Logger, ex, mutator.GetType().Name, current.Kind());
+            return null;
+        }
+    }
+
     internal IEnumerable<Mutant> GenerateMutationsForNode(SyntaxNode current, SemanticModel semanticModel, MutationContext context)
     {
         var mutations = new List<Mutant>();
         foreach (var mutator in Mutators)
         {
-            foreach (var mutation in mutator.Mutate(current, semanticModel, Options!))
+            if (SafelyMutate(mutator, current, semanticModel) is not { } mutatorMutations)
+            {
+                continue;
+            }
+
+            foreach (var mutation in mutatorMutations)
             {
                 // Sprint 143 (ADR-027 Phase 1): respect mutator-set OriginalNode. The default
                 // contract is "OriginalNode is the visited node", but mutators may legitimately

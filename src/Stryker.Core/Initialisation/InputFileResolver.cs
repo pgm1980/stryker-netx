@@ -90,6 +90,14 @@ public partial class InputFileResolver : IInputFileResolver
                 LogFailedLoadSolution(_logger, e, options.SolutionPath);
                 return [];
             }
+            catch (InvalidOperationException e)
+            {
+                // Sprint 182 (360°-Analyse H-19): the solution-persistence library throws
+                // InvalidOperationException ("no serializer") for unrecognized file formats —
+                // a configuration error that must surface cleanly instead of crashing raw.
+                throw new InputException(
+                    $"The file '{options.SolutionPath}' could not be read as a solution file (.sln/.slnx). Please check the solution option. ({e.Message})");
+            }
         }
 
         if (options.IsSolutionContext)
