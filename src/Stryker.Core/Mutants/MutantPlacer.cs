@@ -89,9 +89,44 @@ public class MutantPlacer
     /// Add a static marker so that Stryker can identify mutations used in static context
     /// </summary>
     /// <param name="expression">expression to augment with the marker</param>
-    /// <returns><paramref name="expression"/> with the marker added via a using expression.</returns>
+    /// <returns><paramref name="expression"/> with the marker added via a using expression,
+    /// or <paramref name="expression"/> itself when the marker would be useless or illegal.</returns>
+    /// <remarks>
+    /// Sprint 180 (issue #285a): the marker wraps the expression in a tracking lambda.
+    /// Target-typed expressions lose their target type inside that lambda (new() — CS8754,
+    /// collection expressions, default literals), so they are never wrapped — previously the
+    /// marker was only removed again by a rollback heal round (mutant -1). Constant-like
+    /// initializers without any mutation execute no user code, so there is nothing to track
+    /// and the wrap would only erase constant conversions (byte x = 5 — CS0266). Everything
+    /// that may execute user code keeps the marker even without local mutations, because
+    /// TrackValue flags transitively called mutants as running in a static context.
+    /// </remarks>
     public ExpressionSyntax PlaceStaticContextMarker(ExpressionSyntax expression) =>
-        StaticInitializerEngine.PlaceValueMarker(expression, _injection);
+        CanHostValueMarker(expression)
+            ? StaticInitializerEngine.PlaceValueMarker(expression, _injection)
+            : expression;
+
+    private static bool CanHostValueMarker(ExpressionSyntax expression)
+    {
+        if (expression is ImplicitObjectCreationExpressionSyntax or CollectionExpressionSyntax
+            || expression.IsKind(SyntaxKind.DefaultLiteralExpression))
+        {
+            return false;
+        }
+
+        return expression.GetAnnotatedNodes(MutationIdMarker).Any()
+            || !IsConstantLikeSubtree(expression);
+    }
+
+    private static bool IsConstantLikeSubtree(ExpressionSyntax expression) =>
+        expression.DescendantNodesAndSelf().All(node => node is LiteralExpressionSyntax
+            or ParenthesizedExpressionSyntax
+            or PrefixUnaryExpressionSyntax
+            or PostfixUnaryExpressionSyntax
+            or BinaryExpressionSyntax
+            or CheckedExpressionSyntax
+            or CastExpressionSyntax
+            or PredefinedTypeSyntax);
 
     /// <summary>
     /// Add initialization for all out parameters

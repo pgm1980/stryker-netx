@@ -197,6 +197,8 @@ public class MutantPlacerTests : TestBase
                 [SyntaxFactory.Parameter(SyntaxFactory.Identifier("x")).WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.OutKeyword)))]));
     }
 
+    // Sprint 180 (issue #285a): the initializer carries a mutation, so the tracking
+    // marker is required and must keep its place-and-revert roundtrip.
     [Fact]
     public void ShouldStaticMarkerInStaticFieldInitializers()
     {
@@ -205,8 +207,70 @@ public class MutantPlacerTests : TestBase
         var source = "class Test {static int x = 2;}";
         var expected = $"class Test {{static int x = {codeInjection.HelperNamespace}.MutantContext.TrackValue(()=>2);}}";
         CheckMutantPlacerProperlyPlaceAndRemoveHelpers<ExpressionSyntax>(source, expected,
-            placer.PlaceStaticContextMarker, syntax => syntax.Kind() == SyntaxKind.NumericLiteralExpression);
+            syntax => placer.PlaceStaticContextMarker(
+                syntax.WithAdditionalAnnotations(new SyntaxAnnotation("MutationId", "42"))),
+            syntax => syntax.Kind() == SyntaxKind.NumericLiteralExpression);
     }
+
+    // Sprint 180 (issue #285a, 360-Grad-Analyse G-32): ein TrackValue-Wrap um einen
+    // mutationsfreien konstanten Initializer trackt nichts, loescht aber Konstanten-
+    // Konvertierungen (byte x = 5 -> CS0266) — der Marker entfaellt dort ersatzlos.
+    [Theory]
+    [InlineData("static byte x = 5;")]
+    [InlineData("static int x = -(2 + 3);")]
+    [InlineData("static string x = null!;")]
+    public void ShouldNotPlaceStaticMarkerOnUnmutatedConstantLikeInitializer(string declaration)
+    {
+        var codeInjection = new CodeInjection();
+        var placer = new MutantPlacer(codeInjection);
+        var initializer = ParseInitializerValue($"class Test {{{declaration}}}");
+
+        var marked = placer.PlaceStaticContextMarker(initializer);
+
+        marked.Should().BeSameAs(initializer);
+    }
+
+    // Sprint 180 (issue #285a): target-typed Ausdruecke verlieren im Tracking-Lambda
+    // ihren Zieltyp (new() -> CS8754, Collection-Expression -> CS9176), der Marker wurde
+    // bislang erst per Rollback-Heilrunde (mutant -1) wieder entfernt. Er darf gar nicht
+    // erst gesetzt werden — auch wenn der Ausdruck Mutationen enthaelt.
+    [Theory]
+    [InlineData("static object x = new();")]
+    [InlineData("static int[] x = [1, 2];")]
+    [InlineData("static int x = default;")]
+    public void ShouldNotPlaceStaticMarkerOnTargetTypedInitializer(string declaration)
+    {
+        var codeInjection = new CodeInjection();
+        var placer = new MutantPlacer(codeInjection);
+        var initializer = ParseInitializerValue($"class Test {{{declaration}}}")
+            .WithAdditionalAnnotations(new SyntaxAnnotation("MutationId", "42"));
+
+        var marked = placer.PlaceStaticContextMarker(initializer);
+
+        marked.Should().BeSameAs(initializer);
+    }
+
+    // Sprint 180 (issue #285a): ein Initializer, der Benutzer-Code ausfuehrt, braucht den
+    // Marker auch OHNE lokale Mutationen — TrackValue setzt waehrend der Auswertung den
+    // Static-Kontext fuer alle transitiv aufgerufenen Mutanten (MutantContext.InStatic).
+    [Theory]
+    [InlineData("static int x = Compute();")]
+    [InlineData("static object x = new object();")]
+    [InlineData("static int x = Other.Value;")]
+    public void ShouldPlaceStaticMarkerOnInitializerExecutingUserCode(string declaration)
+    {
+        var codeInjection = new CodeInjection();
+        var placer = new MutantPlacer(codeInjection);
+        var initializer = ParseInitializerValue($"class Test {{{declaration}}}");
+
+        var marked = placer.PlaceStaticContextMarker(initializer);
+
+        marked.ToString().Should().Contain("TrackValue");
+    }
+
+    private static ExpressionSyntax ParseInitializerValue(string source) =>
+        CSharpSyntaxTree.ParseText(source).GetRoot()
+            .DescendantNodes().OfType<EqualsValueClauseSyntax>().Single().Value;
 
     [Fact]
     public void ShouldRollBackFailedConstructor()

@@ -19,7 +19,14 @@ internal sealed class ExpressionSpecificOrchestrator<T> : NodeSpecificOrchestrat
         IEnumerable<Mutant> mutations,
         MutationContext context) =>
          // if the expression contains a declaration, it must be controlled at the block level.
-         context.AddMutations(mutations, node.ContainsDeclarations() ? MutationControl.Block : MutationControl.Expression);
+         // Sprint 180 (issue #284a): the same applies to expressions nested inside the pattern
+         // of a variable-binding is-expression (e.g. the constant in 'o is { Length: 2 } s') —
+         // an expression-level wrap would surface at the is-expression and duplicate the
+         // designation in the same statement scope (CS0128).
+         context.AddMutations(mutations,
+             node.ContainsDeclarations() || node.IsInsideVariableBindingIsPattern()
+                 ? MutationControl.Block
+                 : MutationControl.Expression);
 
     protected override MutationContext PrepareContext(T node, MutationContext context) => base.PrepareContext(node, context.Enter(MutationControl.Expression));
 

@@ -44,6 +44,13 @@ internal sealed class ExpressionBodiedPropertyOrchestrator : BaseFunctionOrchest
                 var determinedContext = original == node.Initializer ? context.EnterStatic() : context;
                 return determinedContext.Mutate(original, semanticModel);
             });
+        if (!context.MustInjectCoverageLogic)
+        {
+            // Sprint 180 (issue #285b): without coverage logic the tracking marker has no
+            // consumer — the static-field path has always been gated the same way.
+            return children;
+        }
+
         return children.WithInitializer(children.Initializer!.WithValue(context.PlaceStaticContextMarker(children.Initializer.Value)));
     }
 }
