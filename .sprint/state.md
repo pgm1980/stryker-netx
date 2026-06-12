@@ -17,14 +17,14 @@ documentation_updated: false
 
 | Fix | Befund | Ort | Status |
 |-----|--------|-----|--------|
-| 1 | #277a | RegexMutator:42 — is-Pattern statt hartem LiteralExpressionSyntax-Cast | ☐ |
-| 2 | #277b | CsharpMutantOrchestrator.GenerateMutationsForNode — try/catch (non-OCE) um mutator.Mutate, WARN + Skip | ☐ |
-| 3 | #288 | CsharpCompilingProcess.TryCompilation — Abbruch wenn Scan-Runde Trees nicht ändert → CompilationException | ☐ |
-| 4 | #297a | VsTestRunnerPool.Initialize — Exceptions beobachten (MTP-Pool-Muster) | ☐ |
-| 5 | #297b | DiscoveryEventHandler.WaitEnd — Monitor.Wait mit Timeout + Aborted-Pfad | ☐ |
-| 6 | #297c | TestingPlatformClient.Disconnected — ResponseListener via TrySetException komplettieren | ☐ |
-| 7 | H-19 | IProjectAnalysisExtensions TryParse-Guards + LoadReferences-Existenz + SolutionFile-IOE ins Resolver-Catch-Set | ☐ |
-| 8 | G-37b | BaselineMutantFilter — Enum.TryParse + Skip-on-unknown | ☐ |
+| 1 | #277a | RegexMutator — is-Pattern statt hartem Cast; interpolierte Patterns unmutiert | ☑ |
+| 2 | #277b | SafelyMutate-Guard (Materialisierung IM try; OCE propagiert; WARN mit Mutator+NodeKind) | ☑ |
+| 3 | #288 | HasScanProgress (Tree-Referenzvergleich) + MaxNreScanRounds=5 → CompilationException | ☑ |
+| 4 | #297a | Pool beobachtet Runner-Bau-Fehler; RunThis nach MTP-Muster (1s-Poll, 5-Min-Cap, Fail-fast) | ☑ |
+| 5 | #297b | WaitEnd(TimeSpan) — Timeout in den Aborted-Pfad; Default 5 Min | ☑ |
+| 6 | #297c | ResponseListener.Fail (TrySet-Semantik) + FailAllListeners bei Disconnect (IOException) | ☑ |
+| 7 | H-19 | TryParse-Guards (bool/int) + File.Exists vor CreateFromFile + InputException für „no serializer" | ☑ |
+| 8 | G-37b | BaselineMutantFilter Enum.TryParse — unbekannter Status → Mutant bleibt Pending | ☑ |
 
 ## Erfolgsmaße
 - Crash-Probe (interpolierter Regex, `--mutation-level Advanced` auf Probe-Projekt): Exit 0 + WARN statt Exit 127
