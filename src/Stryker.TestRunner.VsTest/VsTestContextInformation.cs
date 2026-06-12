@@ -35,7 +35,7 @@ public sealed partial class VsTestContextInformation : IDisposable
     /// <summary>
     /// Discovered tests (VsTest format)
     /// </summary>
-    public IDictionary<Guid, VsTestDescription> VsTests { get; private set; } = new Dictionary<Guid, VsTestDescription>();
+    public IDictionary<Guid, VsTestDescription> VsTests { get; } = new Dictionary<Guid, VsTestDescription>();
 
     /// <summary>
     /// Tests in each source (assembly)
@@ -221,10 +221,9 @@ public sealed partial class VsTestContextInformation : IDisposable
         wrapper.EndSession();
 
         TestsPerSource[newSource] = handler.DiscoveredTestCases.Select(c => c.Id).ToHashSet();
-        if (VsTests.Count == 0)
-        {
-            VsTests = new Dictionary<Guid, VsTestDescription>(handler.DiscoveredTestCases.Count);
-        }
+        // Sprint 183 (issue #296, I-09): the former capacity-hint reassignment of VsTests
+        // here was a lost-update path when two projects discovered concurrently — the
+        // dictionary is populated in place instead.
         foreach (var testCase in handler.DiscoveredTestCases)
         {
             if (!VsTests.TryGetValue(testCase.Id, out var description))

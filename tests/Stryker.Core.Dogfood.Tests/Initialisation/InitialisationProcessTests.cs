@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO.Abstractions;
 using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -222,6 +223,63 @@ public class InitialisationProcessTests : TestBase
 
         inputFileResolverMock.Verify(x => x.ResolveSourceProjectInfos(It.IsAny<StrykerOptions>()), Times.Once);
         initialTestProcessMock.Verify(x => x.InitialTestAsync(It.IsAny<StrykerOptions>(), It.IsAny<IProjectAndTests>(), testRunnerMock.Object), Times.Once);
+    }
+
+    // Sprint 183 zu Issue 296 und Analyse-Befund I-09: die Initial-Tests mehrerer Projekte
+    // liefen bisher konkurrent, teilten sich aber unsynchronisierten Zustand der VsTest-
+    // Kontextschicht — unsynchronisierte Woerterbuecher, eine Instanz-Ersetzung beim ersten
+    // Discovery-Treffer und ein Clear der Initial-Timings ueber Projektgrenzen hinweg.
+    // Sequenzielle Ausfuehrung macht diese Race-Pfade strukturell unmoeglich, und die
+    // Initial-Laeufe dominieren die Gesamtzeit ohnehin nicht.
+    [Fact]
+    public async Task InitialisationProcess_RunsInitialTestsSequentiallyAcrossProjects()
+    {
+        var testRunnerMock = new Mock<ITestRunner>(MockBehavior.Strict);
+        var inputFileResolverMock = new Mock<IInputFileResolver>(MockBehavior.Strict);
+        var initialBuildProcessMock = new Mock<IInitialBuildProcess>(MockBehavior.Strict);
+        var initialTestProcessMock = new Mock<IInitialTestProcess>(MockBehavior.Strict);
+
+        SourceProjectInfo BuildProject() => new()
+        {
+            Analysis = TestHelper.SetupProjectAnalyzerResult(references: Array.Empty<string>()).Object,
+            TestProjectsInfo = new TestProjectsInfo(new MockFileSystem()),
+        };
+        inputFileResolverMock.Setup(x => x.ResolveSourceProjectInfos(It.IsAny<StrykerOptions>()))
+            .Returns([BuildProject(), BuildProject()]);
+        inputFileResolverMock.SetupGet(x => x.FileSystem).Returns(new FileSystem());
+        initialBuildProcessMock.Setup(x => x.InitialBuild(It.IsAny<bool>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), null, It.IsAny<string>()));
+
+        var testSet = new TestSet();
+        testSet.RegisterTest(new TestDescription("id", "name", "test.cs"));
+        testRunnerMock.Setup(x => x.DiscoverTestsAsync(It.IsAny<string>())).Returns(Task.FromResult(true));
+        testRunnerMock.Setup(x => x.GetTests(It.IsAny<IProjectAndTests>())).Returns(testSet);
+
+        var concurrent = 0;
+        var overlapObserved = false;
+        initialTestProcessMock
+            .Setup(x => x.InitialTestAsync(It.IsAny<StrykerOptions>(), It.IsAny<IProjectAndTests>(), It.IsAny<ITestRunner>()))
+            .Returns(async () =>
+            {
+                if (Interlocked.Increment(ref concurrent) > 1)
+                {
+                    overlapObserved = true;
+                }
+
+                await Task.Delay(150);
+                Interlocked.Decrement(ref concurrent);
+                return new InitialTestRun(new TestRunResult(true), null!);
+            });
+
+        var target = new InitialisationProcess(inputFileResolverMock.Object, initialBuildProcessMock.Object, initialTestProcessMock.Object, new Mock<ILogger<InitialisationProcess>>().Object);
+        var options = DefaultOptions();
+
+        var projects = target.GetMutableProjectsInfo(options);
+        await target.GetMutationTestInputsAsync(options, projects, testRunnerMock.Object);
+
+        overlapObserved.Should().BeFalse(
+            "initial test sessions share unsynchronized VsTest context state and must not overlap");
+        initialTestProcessMock.Verify(x => x.InitialTestAsync(It.IsAny<StrykerOptions>(), It.IsAny<IProjectAndTests>(), testRunnerMock.Object), Times.Exactly(2));
     }
 
     [Theory]
