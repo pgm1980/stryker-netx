@@ -207,6 +207,42 @@ public class BaselineMutantFilterTests : TestBase
         baselineMutantHelper.Verify();
     }
 
+    // Sprint 182 (360-Grad-Analyse G-37b): Baseline-Reports sind EXTERNER Input
+    // (Dashboard, andere Tool-Versionen). Ein unbekannter Status-String warf eine
+    // ArgumentException und riss den Lauf — der Mutant bleibt jetzt Pending und wird
+    // schlicht regulaer getestet.
+    [Fact]
+    public void FilterMutants_WhenBaselineStatusIsUnknown_KeepsMutantPendingInsteadOfCrashing()
+    {
+        var branchProvider = new Mock<IGitInfoProvider>();
+        var baselineProvider = new Mock<IBaselineProvider>();
+        var baselineMutantHelper = new Mock<IBaselineMutantHelper>();
+
+        var options = new StrykerOptions { WithBaseline = true, ProjectVersion = "version" };
+        var file = new CsharpFileLeaf { RelativePath = "foo.cs" };
+
+        var mutants = new List<IMutant> { new Mutant { ResultStatus = MutantStatus.Pending } };
+        var jsonMutants = new HashSet<IJsonMutant> { new JsonMutant { Status = "SomeFutureStatus" } };
+
+        var jsonReportFileComponent = new MockJsonReportFileComponent("", "", jsonMutants);
+        var jsonFileComponents = new Dictionary<string, ISourceFile>(System.StringComparer.Ordinal) { ["foo.cs"] = jsonReportFileComponent };
+        var baseline = new MockJsonReport(null, jsonFileComponents);
+
+        baselineProvider.Setup(mock => mock.Load(It.IsAny<string>())).Returns(Task.FromResult<IJsonReport?>(baseline));
+        baselineMutantHelper.Setup(mock => mock.GetMutantSourceCode(It.IsAny<string>(), It.IsAny<IJsonMutant>())).Returns("var foo = \"bar\";");
+        baselineMutantHelper.Setup(mock => mock.GetMutantMatchingSourceCode(
+            It.IsAny<IEnumerable<IMutant>>(),
+            It.IsAny<IJsonMutant>(),
+            It.IsAny<string>())).Returns(mutants);
+
+        var target = new BaselineMutantFilter(options, baselineProvider.Object, branchProvider.Object, baselineMutantHelper.Object);
+
+        var act = () => target.FilterMutants(mutants, file, options).ToList();
+
+        act.Should().NotThrow("a foreign baseline status must not kill the run");
+        mutants[0].ResultStatus.Should().Be(MutantStatus.Pending, "the mutant falls back to regular testing");
+    }
+
     [Fact]
     public void FilterMutants_WhenMultipleMatchingMutants_ResultIsSetToNotRun()
     {

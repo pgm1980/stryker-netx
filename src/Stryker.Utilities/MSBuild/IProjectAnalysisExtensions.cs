@@ -324,19 +324,29 @@ public static partial class IProjectAnalysisExtensions
         /// <summary>
         /// Returns the project's <c>WarningLevel</c> MSBuild property as an integer; defaults to <c>4</c>.
         /// </summary>
+        /// <remarks>
+        /// Sprint 182 (360°-Analyse H-19): MSBuild properties are user input — an
+        /// unparsable value falls back to the default instead of crashing the run.
+        /// </remarks>
         public int GetWarningLevel() =>
-            int.Parse(projectAnalysis.GetPropertyOrDefault("WarningLevel", "4")!, CultureInfo.InvariantCulture);
+            int.TryParse(projectAnalysis.GetPropertyOrDefault("WarningLevel", "4"),
+                NumberStyles.Integer, CultureInfo.InvariantCulture, out var warningLevel)
+                ? warningLevel
+                : 4;
 
         /// <summary>
         /// Boolean overload of <see cref="IProjectAnalysis.GetPropertyOrDefault(string, string)"/>:
-        /// returns <paramref name="defaultBoolean"/> when the property is missing/empty,
-        /// otherwise parses the value with <see cref="bool.Parse(string)"/>.
+        /// returns <paramref name="defaultBoolean"/> when the property is missing, empty or
+        /// not parsable as a boolean.
         /// </summary>
+        /// <remarks>
+        /// Sprint 182 (360°-Analyse H-19): values like "yes" used to throw a FormatException.
+        /// </remarks>
         public bool GetPropertyOrDefault(string name, bool defaultBoolean)
         {
             ArgumentNullException.ThrowIfNull(projectAnalysis);
             var value = projectAnalysis.GetPropertyOrDefault(name);
-            return string.IsNullOrEmpty(value) ? defaultBoolean : bool.Parse(value);
+            return bool.TryParse(value, out var parsed) ? parsed : defaultBoolean;
         }
 
         private string GetRootNamespace()
@@ -364,6 +374,15 @@ public static partial class IProjectAnalysisExtensions
     {
         foreach (var reference in projectAnalysis.References)
         {
+            // Sprint 182 (360°-Analyse H-19): reference paths come from a build snapshot
+            // and may be stale — a missing file used to surface as a raw IOException from
+            // CreateFromFile. Skipping it leaves the compilation to report a precise
+            // missing-reference diagnostic instead of crashing the run.
+            if (!File.Exists(reference))
+            {
+                continue;
+            }
+
             // Sprint 3.2: normalize path for lookup — RoslynProjectAnalysis stores
             // alias keys as Path.GetFullPath; the references list may contain
             // semantically-identical but textually-different forms.
