@@ -1,55 +1,47 @@
-# Suggested Commands
+# Suggested Commands (Stand v3.3.4)
 
-## Build & Test (.NET 10)
+## Build & Test
 ```bash
-dotnet --version                                                  # Verify SDK 10.0.x
-dotnet restore stryker-netx.slnx                                  # Restore packages (creates packages.lock.json)
-dotnet build stryker-netx.slnx -c Release                         # Build solution
-dotnet test stryker-netx.slnx -c Release \
-    --collect:"XPlat Code Coverage"                               # Test with coverage (PFLICHT)
-dotnet test --filter "FullyQualifiedName~UnitTests"               # Unit tests only
-dotnet test --filter "FullyQualifiedName~IntegrationTests"        # Integration tests only
-dotnet pack stryker-netx.slnx -c Release -o ./nupkg/              # Pack NuGet packages
-dotnet run --project benchmarks/<Project>.Benchmarks -c Release   # BenchmarkDotNet (Release-mode PFLICHT)
+dotnet build                                   # Solution, 0 Warnings/0 Errors Pflicht (TWAE)
+dotnet test                                    # Vollsuite (~2.190 Tests; E2E allein ~21 min!)
+dotnet test tests/Stryker.Core.Dogfood.Tests --filter "FullyQualifiedName~<Name>"   # gezielt
+dotnet test --collect:"XPlat Code Coverage"    # mit Coverage (Sprint-Close-Pflicht)
+semgrep scan --config auto <changed-files>     # Security (vor Sprint-Close; docs-only → auf Diff)
+```
+E2E-Hinweis: 2 bekannte Flaky-Klassen (#273-Kommentar); Erstlauf-Failures parallel zu
+lokalen CLI-Läufen auf derselben Maschine sind Ressourcen-Flakes → sauberer Re-Run entscheidet.
+
+## Lokale CLI / Probe-Läufe (Fix-Validierung)
+```bash
+cd %TEMP%/stryker-probe-174/ProbeLib.Tests
+dotnet run -c Release --project C:/claude_code/stryker-netx/src/Stryker.CLI/Stryker.CLI.csproj \
+  -- --reporter json --mutate "**/Class1.cs" [--verbosity debug]
+# JSON-Auswertung: StrykerOutput/*/reports/mutation-report.json (utf-8-sig!)
+# Released-Tool-Vergleich: dotnet tool run dotnet-stryker-netx (Manifest im Probe-Ordner)
 ```
 
-## Security Scan (CLAUDE.md PFLICHT before sprint close)
+## Git / GitHub (Sprint-Konventionen!)
 ```bash
-semgrep scan --config auto .                                      # Full security scan
-semgrep scan --config auto --changed-files                        # Only changed files
+git checkout -b feature/<sprint>-<desc>        # NIE auf main arbeiten (Hook warnt)
+git commit -m "type(scope): ... (closes #N)
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+gh pr create --title "..." --body "..."        # closes-Keywords schließen Issues beim Squash
+gh pr merge <N> --squash --delete-branch       # Squash-Commit-Subject endet auf (#NNN)
+# TAG-KONVENTION (KRITISCH): Tag NACH dem Merge auf den NEUEN main-Commit:
+git checkout main 2>/dev/null; git pull --ff-only origin main   # (gh merge macht das meist schon)
+git tag -a v<X.Y.Z> -m "v<X.Y.Z> — Sprint <N>: <kurz>" && git push origin v<X.Y.Z>
+gh release create v<X.Y.Z> --title "..." --notes "..."          # triggert release.yml (NuGet)
+# Danach Closing-PR (state.md-Flags). Analyse-/CI-only-Sprints: KEIN Tag.
+gh workflow run stryker-on-stryker.yaml        # Nightly-Dogfood manuell dispatchen
+gh run view <id> --json jobs --jq '...'        # Modul-Status (11 Module)
 ```
+Worktree-Falle: `gh pr merge --delete-branch` scheitert, wenn main in ANDEREM Worktree
+ausgecheckt ist → Workaround `gh api -X PUT repos/.../pulls/<N>/merge -f merge_method=squash`.
 
-## Git (atomic commands allowed via Bash; multi-step workflows via gh CLI)
-```bash
-git status                            # Working-tree state
-git log --oneline -10                 # Recent commits
-git diff                              # Unstaged changes
-git diff --cached                     # Staged changes
-git add <specific-files>              # Stage specific files (NOT git add -A blindly)
-git commit -s -m "..."                # Commit with DCO sign-off (PFLICHT, ADR-008)
-git push                              # Push current branch
-git checkout -b feature/<n>-<desc>    # Create + switch feature branch
+## Serena-Betrieb (dieses Setup)
+- Standalone-Server localhost:9121 via SerenaMcpProxy; Projekt server-seitig `/workspace/stryker-netx`
+  gemappt → IMMER relative Pfade verwenden
+- Calls SEQUENZIELL absetzen (parallele Calls → Timeout/unavailable; LSP-Warmup nach
+  activate_project abwarten, erster Call kann timeouten → einmal wiederholen)
 ```
-
-## GitHub CLI (multi-step workflows)
-```bash
-gh issue create --title "..." --body "..." --milestone "..." --label "..."
-gh issue view <n> --comments
-gh pr create --title "..." --body "..."
-gh pr view <n>
-gh release create v<X>.<Y>.<Z> --title "..." --notes-file <file>
-gh repo view pgm1980/stryker-netx
-gh api repos/.../...                   # Generic GitHub REST API
-```
-
-## System (Linux runtime per Serena onboarding)
-- `ls`, `cd`, `find`, `grep`, `cat` — convention-forbidden in dev workflow (use Serena/Built-In tools); but allowed in adhoc shell when needed (e.g., piping in commit messages)
-- File operations preferred: `Read`, `Edit`, `Write`, `Glob`, `Grep` (Built-In Claude Code tools)
-- Code symbol operations preferred: Serena `find_symbol`, `get_symbols_overview`, etc.
-
-## Sprint Workflow Commands
-- Brainstorming: invoke `brainstorming` skill
-- Architecture: invoke `architecture-designer` skill
-- Plan/Spec: write to `_docs/architecture spec/` or `_docs/design spec/`
-- Sprint state: edit `.sprint/state.md` per CLAUDE.md schema
-- Memory: edit `MEMORY.md` (index) + `DEEP_MEMORY.md` (full 360°)

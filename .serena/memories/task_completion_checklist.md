@@ -1,50 +1,35 @@
-# Task Completion Checklist
+# Task Completion Checklist (Stand v3.3.4 / Fix-Ära)
 
-When completing any code change in stryker-netx, run through this checklist BEFORE claiming done:
+Vor jedem „fertig":
 
-## Build & Test (PFLICHT)
-- [ ] `dotnet build stryker-netx.slnx -c Release` — exits with 0 warnings, 0 errors (TWAE active)
-- [ ] `dotnet test stryker-netx.slnx -c Release --collect:"XPlat Code Coverage"` — all tests green
-- [ ] No `#pragma warning disable` introduced without inline comment justification
-- [ ] No `<NoWarn>` added to csproj
+## TDD-Disziplin (Fix-Sprints 179–184)
+- [ ] Red-Test ZUERST, abgeleitet aus dem Register-Befund (`_docs/analysis/…`), mit der
+      exakten Ziel-Exception/-Assertion — Red-Lauf nachweisen
+- [ ] Bei „Fix wirkt nicht im Red" → STOPP: mögliche Fehldiagnose (Lehre G-01: needReturn-Pfad
+      machte den geplanten Fix zum No-op; Red-Verifikation fing das VOR dem Ship)
+- [ ] Wo Probe-Infrastruktur existiert (`%TEMP%/stryker-probe-174`): Probe gegen LOKALE CLI
+      als End-to-End-Beweis (z. B. Exit-Code, JSON-Statuses, CE-Rate-Vergleich)
 
-## Code Quality (CLAUDE.md)
-- [ ] FluentAssertions used in tests (NOT `Assert.Equal`, NOT Shouldly)
-- [ ] `ConfigureAwait(false)` on all `await` in library code
-- [ ] `catch (Exception ex) when (ex is not OperationCanceledException)` at system boundaries
-- [ ] `sealed` for non-inheritable classes
-- [ ] XML-doc comments on public APIs
+## Build & Test
+- [ ] `dotnet build` 0/0 (TWAE; Analyzer-Fallen s. code_style-Memory: S125/MA0051/MA0002/MA0006)
+- [ ] Vollsuite grün; E2E-Erstlauf-Failures → Re-Run vor Schlussfolgerung (Flaky-Klassen dokumentiert)
+- [ ] FluentAssertions; kein `#pragma` ohne Begründungskommentar; kein `<NoWarn>`
 
-## Security (PFLICHT for security-relevant code)
-- [ ] `semgrep scan --config auto .` — no new findings
-- [ ] No secrets in code/config (Semgrep `secrets.detected` rule)
-- [ ] `dotnet list package --vulnerable` — no high-severity findings
+## Sicherheit & Architektur
+- [ ] `semgrep scan --config auto` auf geänderte Dateien: 0 Findings
+- [ ] Neue Namespaces → ArchUnitNET; neue öffentliche APIs → XML-Doc; `sealed` wo passend
+- [ ] `ConfigureAwait(false)`; Boundary-Catch `when (ex is not OperationCanceledException)`
 
-## Architecture
-- [ ] ArchUnitNET tests pass (when `tests/Stryker.Architecture.Tests/` exists from Phase 7)
-- [ ] New namespaces/layers covered by Architecture-Tests
-- [ ] No circular dependencies
+## Serena-Pflicht (CLAUDE.md + User-Feedback)
+- [ ] Symbol-Navigation über `find_symbol`/`get_symbols_overview`/`find_referencing_symbols`
+- [ ] Edits symbolisch (`replace_symbol_body`, `insert_*_symbol`) wo ganze Symbole betroffen
+- [ ] Nach Subagent-Rückkehr: Build/Test/Semgrep selbst re-verifizieren + Symbol-Spot-Check
 
-## Tooling Compliance
-- [ ] Used Serena (find_symbol, get_symbols_overview) for code-symbol navigation
-- [ ] Consulted Context7 BEFORE using a new API (Buildalyzer 9, Roslyn updates, etc.)
-- [ ] Sequential Thinking (Maxential) for architecture decisions ≥10 thoughts; ≥3 for trade-offs
-- [ ] Tree of Thoughts for multi-option exploration when ≥2 valid solutions exist
-
-## Git Hygiene
-- [ ] Conventional Commits (`type(scope): description`)
-- [ ] DCO sign-off (`git commit -s` — Signed-off-by trailer)
-- [ ] Branch named `feature/<issue-nr>-<short-desc>` or `fix/<issue-nr>-<short-desc>`
-- [ ] Commit references the GitHub issue (`Refs #N` or `Closes #N`)
-
-## Sprint Hygiene (at sprint close)
-- [ ] `.sprint/state.md` items updated (memory_updated, documentation_updated, semgrep_passed, tests_passed)
-- [ ] `MEMORY.md` and `DEEP_MEMORY.md` updated with surprising/non-obvious findings
-- [ ] GitHub issues closed with reference commit
-- [ ] Sprint tag (when epic milestone reached)
-
-## After Subagent Returns (CLAUDE.md PFLICHT)
-- [ ] Main session re-runs `dotnet build` + `dotnet test` + `semgrep scan` (trust but verify)
-- [ ] Spot-check Serena `get_symbols_overview` on new files
-- [ ] Verify FluentAssertions used (not Assert.Equal)
-- [ ] Verify ArchUnitNET-Tests added if new namespaces introduced
+## Ship-Zyklus (Sprint mit Code-Änderungen)
+- [ ] PR mit `closes #N`-Keywords → Squash-Merge (Subject endet `(#NNN)`)
+- [ ] **Tag auf den MERGE-Commit** (nie vorher!) → push → `gh release create` → release.yml grün
+- [ ] Issues-Querverweise: Epics kommentieren statt schließen; #302-Checkboxen abhaken
+- [ ] ADR + Änderungshistorie in architecture_specification.md
+- [ ] Closing-PR: `.sprint/state.md`-Flags final; Claude-MEMORY aktualisieren;
+      Serena-Memory `project_status_and_roadmap` fortschreiben (NUR diese ist volatil)
+- [ ] Folge-Sprint-Hinweis: Dogfood-Manifest-Pin (`.config/dotnet-tools.json`) nachziehen

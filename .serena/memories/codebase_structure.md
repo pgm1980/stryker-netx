@@ -1,76 +1,55 @@
-# Codebase Structure
+# Codebase Structure (Stand v3.3.4 / Sprint 179)
 
-## Top-level layout (Sprint 1 Phase 0+ state)
+## Top-Level
 ```
 stryker-netx/
-├── .claude/                          # Claude Code config (settings.json bypassPermissions, hooks, skills)
-├── .serena/                          # Serena project config + memories
-├── .sprint/state.md                  # Sprint state (hook-driven)
-├── _config/development_process.md    # Scrum-based workflow
+├── .claude/  .serena/  .sprint/state.md      # Tooling + Sprint-Status (state.md FÜHREND)
+├── _config/development_process.md
 ├── _docs/
-│   ├── architecture spec/            # 12 ADRs (Sprint-0 output)
-│   ├── design spec/                  # FRs/NFRs (Sprint-0 output)
-│   ├── *_template.md                 # Stub templates
-│   └── sprint_1_lessons.md           # (created in Phase 1 PILOT)
-├── _misc/git-setup-for-claude-code.md
-├── _reference/stryker-4.14.1/        # READ-ONLY baseline (Stryker.NET 4.14.1 source)
-├── src/                              # Production code (filled phase-by-phase)
-│   └── Stryker.Abstractions/         # ← Phase 1 PILOT (in progress)
-│   └── (Stryker.Utilities, Stryker.DataCollector, ... added in Phases 2-6)
-├── tests/                            # Test projects (filled phase-by-phase)
-│   └── Stryker.Architecture.Tests/   # ← Phase 7
-├── benchmarks/                       # BenchmarkDotNet (Phase 7)
-├── stryker-netx.slnx                 # Solution (.slnx XML format)
-├── global.json                       # SDK pinning (10.0.100, rollForward latestFeature)
-├── .editorconfig                     # Naming + severity (Stryker-pattern tunings)
-├── Directory.Build.props             # TFM, LangVersion, TWAE, Analyzers (zentral)
-├── Directory.Packages.props          # NuGet versions (CPM)
-├── LICENSE                           # Apache 2.0 (1:1 from upstream)
-├── NOTICE                            # Attribution to Stryker.NET authors
-├── CONTRIBUTING.md                   # DCO workflow, PR standards
-├── CODE_OF_CONDUCT.md                # Contributor Covenant 2.1 reference
-├── README.md                         # Project status, disclaimer, compat
-├── CLAUDE.md                         # Binding directives
-├── MEMORY.md                         # Memory index
-├── DEEP_MEMORY.md                    # 360° project memory
-└── .gitignore
+│   ├── architecture spec/architecture_specification.md   # ADR-001…053 + Änderungshistorie
+│   ├── design spec/  analysis/                            # FRs/NFRs; 360°-Register 173–178
+├── _references/stryker-net/                  # READ-ONLY Upstream-4.14.1-Baseline
+├── src/          (11 Projekte, s. Layering)
+├── tests/        (10 Testprojekte, s. unten)
+├── benchmarks/Stryker.Benchmarks/
+├── integrationtest/TargetProjects/           # NetCore/MicrosoftTestPlatform/NetFramework-Fixtures
+├── samples/                                  # Sample.Library + Sample.Tests (E2E-Profil-Fixture)
+├── .github/workflows/                        # ci, integration-test, release, stryker-on-stryker (Nightly-Dogfood)
+├── stryker-netx.slnx  global.json  Directory.Build.props  Directory.Packages.props
+└── CLAUDE.md  MEMORY.md  DEEP_MEMORY.md  README.md
 ```
 
-## Stryker-Module Layering (ADR-012, target structure)
+## src/-Layering (ADR-012)
 ```
-Layer 4 (Composition Root)
-  └── src/Stryker.CLI/                    Tool entry, IStrykerCommandLine wrapper
-
-Layer 3 (Core Orchestration)
-  └── src/Stryker.Core/                   Mutation engine, reporters, diff
-
-Layer 2 (Test-Runner Adapters)
-  ├── src/Stryker.TestRunner.MicrosoftTestPlatform/
-  └── src/Stryker.TestRunner.VsTest/
-
-Layer 1 (Domain)
-  ├── src/Stryker.Configuration/
-  ├── src/Stryker.RegexMutators/
-  ├── src/Stryker.Solutions/
-  └── src/Stryker.TestRunner/             Test-runner abstraction
-
-Layer 0 (Foundations)
-  ├── src/Stryker.Abstractions/           ← interfaces, models, enums (PILOT)
-  ├── src/Stryker.Utilities/
-  └── src/Stryker.DataCollector/          netstandard2.0 (VsTest constraint)
+L4  Stryker.CLI                     Program (MSBuildLocator.RegisterDefaults!), StrykerCli,
+                                    CommandLineConfig/, FileConfigReader, LoggingInitializer
+L3  Stryker.Core                    Das Herz — Unterordner:
+      Mutants/                      CsharpMutantOrchestrator, MutationStore, MutantPlacer,
+        CsharpNodeOrchestrators/    26 Orchestratoren (NonMutableSyntaxFences seit 179!)
+        Filters/                    Equivalence-Pipeline (5 Filter, ADR-017)
+      Mutators/                     55 Mutatoren (Profil-Attribute, ADR-018)
+      Instrumentation/              If/Conditional/EndingReturn/DefaultInit/Static-Engines
+      InjectedHelpers/              MutantControl + MutantContext (laufen im USER-Testprozess, C#2-Limit)
+      Compiling/                    CsharpCompilingProcess (MaxAttempt 50), CSharpRollbackProcess
+      MutationTest/  CoverageAnalysis/  MutantFilters/ (13)  ProjectComponents/
+      Initialisation/               InputFileResolver (ADR-039/-052), Builder, Prozesse
+      Reporters/                    Json/Html(+RealTime-SSE)/Dashboard/ClearText/Markdown/Progress
+      Baseline/  DiffProviders/  Clients/  Helpers/ (RoslynHelper, SyntaxSlotValidator ADR-028)
+      Infrastructure/ServiceCollectionExtensions
+L2  Stryker.TestRunner.VsTest       Pool/Runner/Context/Handler (ADR-Hotspots #296/#297)
+    Stryker.TestRunner.MicrosoftTestPlatform   MTP-Server-Protokoll (39 Dateien, RPC/Models)
+L1  Stryker.Configuration           StrykerOptions/Inputs (46 Input-Klassen), FilePattern
+    Stryker.RegexMutators  Stryker.Solutions  Stryker.TestRunner (TestIdentifierList!)
+L0  Stryker.Abstractions (~70)  Stryker.Utilities (MSBuild-Schicht: MSBuildWorkspaceProvider,
+    RoslynProjectAnalysis, IProjectAnalysis*Extensions = C#14-extension-members)
+    Stryker.DataCollector (netstandard2.0, VSTest-In-Proc-Collector)
 ```
 
-## Stryker.Abstractions internal structure (~56 .cs files)
-```
-src/Stryker.Abstractions/
-├── Stryker.Abstractions.csproj
-├── packages.lock.json                    # auto-regenerated by dotnet restore
-├── stryker-config.json                   # legacy sample (can be ignored)
-├── (top-level interfaces & models)       13 files: IMutant, IMutator, IProjectAndTests, IProvideId, IReadOnlyMutant, ITimeoutValueCalculator, Language, LinqExpression, MutantStatus, Mutation, MutationLevel, Mutator, MutatorDescriptionAttribute
-├── Baseline/                              IBaselineProvider, BaselineProvider
-├── Exceptions/                            CompilationException, GeneralStrykerException, InputException, NoTestProjectsException
-├── Options/                               8 files: IExclusionPattern, ILogOptions, IStrykerOptions, IThresholds, OptimizationModes, ReportType, Reporter, TestRunner
-├── ProjectComponents/                     9 files: Health, IFileLeaf, IFilePattern, IFolderComposite, IProjectComponent, ITestCase, ITestFile, ITestProject, ITestProjectsInfo
-├── Reporting/                             8 files: IJsonMutant, IJsonReport, IJsonTest, IJsonTestFile, ILocation, IPosition, IReporter, ISourceFile
-└── Testing/                               12 files: CoverageConfidence, ICoverageRunResult, IFrameworkTestDescription, ITestCase, ITestDescription, ITestGuids, ITestIdentifiers, ITestResult, ITestRunResult, ITestRunner, ITestSet, MutationTestingRequirements, TestDescription, TestFrameworks
-```
+## tests/
+Stryker.Core.Dogfood.Tests (portierte Upstream-Suite ~1200 Tests, Struktur-Assertions
+statt Literal-IDs seit Sprint 119) · Stryker.Core.Tests · Stryker.CLI.Tests ·
+Stryker.TestRunner.VsTest.Tests · Stryker.TestRunner.MicrosoftTestPlatform.Tests ·
+Stryker.RegexMutators.Tests · Stryker.Solutions.Tests · Stryker.Architecture.Tests
+(ArchUnitNET) · Stryker.E2E.Tests (18 Tests, ~21 min, 2 bekannte Flaky-Klassen) ·
+Stryker.TestHelpers (TestBase seeded ApplicationLogging; ProjectAnalysisMockBuilder).
+MockFileSystem (TestableIO) nur in Dogfood-/VsTest-/CLI-Tests referenziert, NICHT in Core.Tests.

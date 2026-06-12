@@ -1,31 +1,30 @@
 ---
-current_sprint: "179"
-sprint_goal: "Fix-Sprint 1/6 (Fahrplan sprint_178_synthesis.md): Quick-Wins + P1. ABGESCHLOSSEN: 9 Fixes TDD-verifiziert + G-01-Mechanik-Korrektur (No-op-Fix vor Ship entdeckt/verworfen, Pin-Test, #279 korrigiert). Issues #273/#274/#282/#283/#292/#294/#295 via PR #304 geschlossen; #302 H-05/J-11 abgehakt. Verifikation: Build 0/0, Vollsuite grün (E2E-Erstlauf-Flakes sauber re-validiert), Semgrep 0, Probe P-4 Exit 127→0, Probe-1 Case-Label-CE-Klasse eliminiert. SHIPPED: Tag v3.3.4 auf Merge-Commit a147228, Release live, Nightly-Dispatch 27380405728 läuft (11/11-Ziel via #274-Config-Fix). ADR-053 + Historie 0.36.0."
-branch: "feature/179-quick-wins-p1"
-started_at: "2026-06-11"
-housekeeping_done: true
-memory_updated: true
-github_issues_closed: true
+current_sprint: "180"
+sprint_goal: "Fix-Sprint 2/6 (CE-Noise I, Fahrplan sprint_178_synthesis.md): #278 (IsPatternExpressionMutator skippt Designation-Patterns — CS0165-Klasse), #284 (Pattern-interne Mutationen designation-aware auf Block-Level + ContainsDeclarations um VarPattern/Recursive-/ListPattern-Designation erweitert — CS0128-Klasse), #285 (StaticInitializerMarkerEngine skippt unmutierte Initializer + ExpressionBodiedProperty-Pfad auf MustInjectCoverageLogic gegated — TrackValue-CE/Heal-Klasse). Manifest-Pin 3.3.2→3.3.4. TDD je Fix; Serena-first für alle Code-Analysen; Serena-Memory vor/nach Sprint aktualisiert. Erfolgsmaß: Probe-1-CE-Rate 62,5 %→<30 %, keine „mutant −1"-Rollback-Runde im Debug-Log. Ship: PR → Squash → Tag v3.3.5 → Release → Closing."
+branch: "feature/180-ce-noise-1"
+started_at: "2026-06-12"
+housekeeping_done: false
+memory_updated: false
+github_issues_closed: false
 sprint_backlog_written: true
-semgrep_passed: true
-tests_passed: true
-documentation_updated: true
+semgrep_passed: false
+tests_passed: false
+documentation_updated: false
 ---
-# Session State — Sprint 179 (Quick-Wins + P1) — ABGESCHLOSSEN, v3.3.4 SHIPPED
+# Session State — Sprint 180 (CE-Noise I)
 
-## Ergebnis
+## Fix-Liste
 
-- **9 Fixes** (TDD, je Red→Green): #282 P1, #294, #295, #283, #292, #273, #274, H-05, J-11
-- **G-01-Mechanik-Korrektur:** needReturn-Pfad liefert Ending-Return bereits; No-op-Fix durch
-  Red-Verifikation VOR Ship entdeckt und verworfen; Proben-Block-CEs = G-30-Rollback-Kollateral
-  (echte Ursache #284/#278); Pin-Test sichert Garantie; #279 korrigiert
-- **Proben:** P-4 Exit 127→0 (P1 weg); Probe-1 Case-Label-CE-Klasse eliminiert (CE-Rate 70 %→62,5 %)
-- **Shipped:** PR #304 → a147228 → Tag v3.3.4 → Release; Nightly-Dispatch 27380405728
-  (MTP-Modul-Ziel grün via Config-Fix — wirkt unabhängig vom Tool-Pin)
+| Fix | Issue | Ort | Status |
+|-----|-------|-----|--------|
+| 0 | Pin | .config/dotnet-tools.json 3.3.2→3.3.4 | ☑ |
+| 1 | #278 | Mutators/IsPatternExpressionMutator: Skip bei SingleVariableDesignation im Pattern | ☐ |
+| 2 | #284a | Neuer PatternOrchestrator: Block-Store, wenn IsPattern-Wurzel Designation trägt | ☐ |
+| 3 | #284b | RoslynHelper.ContainsDeclarations + VarPattern/Recursive-/ListPattern-Designation | ☐ |
+| 4 | #285a | StaticInitializerMarkerEngine: Skip ohne Mutations-Annotationen im Initializer | ☐ |
+| 5 | #285b | ExpressionBodiedPropertyOrchestrator: Marker nur bei MustInjectCoverageLogic | ☐ |
 
-## Nächster Schritt (auf User-Zuruf)
-
-**Sprint 180 (CE-Noise I):** #284 (designation-aware Store-Level + ContainsDeclarations),
-#278 (Designation-Skip), #285 (TrackValue-Shape-Skip + Property-Gate). Erfolgsmaß:
-Probe-1-CE-Rate <30 %, keine „mutant −1"-Rollback-Runde mehr. Vorab: Manifest-Pin 3.3.2→3.3.4
-(Konvention Pin-Nachzug im Folge-Sprint); Nightly-11/11-Ergebnis von 27380405728 prüfen.
+## Erfolgsmaße
+- Probe-1 (lokale CLI): CE-Rate < 30 % (Baseline 62,5 % nach Sprint 179)
+- Probe-Debug-Log: keine „Found mutant -1 … StaticInitializerMarkerEngine"-Zeile
+- Build 0/0, Vollsuite grün, Semgrep 0
