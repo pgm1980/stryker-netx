@@ -3,8 +3,8 @@ current_sprint: "185"
 sprint_goal: "Äquivalenz-Filter-Cluster (externer 360°-Test): EQF-001 (High, RoslynSemanticDiagnosticsEquivalenceFilter verwirft Methodengruppen-Mutanten — StringMethod immer, Linq bei datei-level using), EQF-003 (Med, ConservativeDefaultsEqualityFilter flaggt killbare unsigned-Null-Vergleiche), EQF-002 (Low, IdentityArithmeticFilter+IdempotentBooleanFilter inert). Alle in src/Stryker.Core/Mutants/Filters/. TDD je Fix, Serena-first, ADR-059. Ship: PR → Squash → Tag v3.3.10 → Release → Closing."
 branch: "feature/185-equivalence-filters"
 started_at: "2026-06-15"
-housekeeping_done: false
-memory_updated: false
+housekeeping_done: true
+memory_updated: true
 github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
