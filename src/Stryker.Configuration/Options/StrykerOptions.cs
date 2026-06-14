@@ -33,7 +33,13 @@ public class StrykerOptions : IStrykerOptions
     /// When true, stryker is mutating all projects in a solution
     /// </summary>
     /// <returns></returns>
-    public bool IsSolutionContext => SolutionPath != null && string.Equals(FilePathUtils.NormalizePathSeparators(WorkingDirectory), FilePathUtils.NormalizePathSeparators(Path.GetDirectoryName(SolutionPath)), StringComparison.Ordinal);
+    // SOL-001 (ADR-060): an explicit solution path enables solution mode from ANY working directory.
+    // SolutionPath is only ever populated from the solution flag (SolutionInput.Validate), so a non-null
+    // value already means the user opted in. The previous extra conjunct that also required the working
+    // directory to equal the solution directory silently dropped the solution flag when run from any
+    // other folder (for example a test-project directory), even with an absolute path, and produced the
+    // misleading more-than-one-project-reference error that pointed back to the flag the user already set.
+    public bool IsSolutionContext => SolutionPath != null;
 
     /// <summary>
     /// Sprint 150 (ADR-031, Bug #8 from Calculator-Tester Bug-Report 4): when true,

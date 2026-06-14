@@ -71,8 +71,13 @@ public class MathMutator : MutatorBase<InvocationExpressionSyntax>
         }
         else
         {
+            // MAT-001 (ADR-060): compare the receiver SYMBOL itself, not its ContainingType. For the
+            // idiomatic member-call form the receiver binds to the top-level System.Math type, whose
+            // ContainingType is null — checking ContainingType produced zero mutants whenever a semantic
+            // model was present. The direct-call path below binds the METHOD symbol, whose ContainingType
+            // correctly is System.Math, so it was never affected (hence the asymmetry that hid this bug).
             var symbol = semanticModel.GetSymbolInfo(memberAccessExpressionSyntax.Expression).Symbol;
-            if (!string.Equals(symbol?.ContainingType?.ToString(), "System.Math", StringComparison.Ordinal))
+            if (!string.Equals(symbol?.ToString(), "System.Math", StringComparison.Ordinal))
             {
                 yield break;
             }
