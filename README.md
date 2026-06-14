@@ -44,9 +44,11 @@ For the official Stryker.NET project see https://github.com/stryker-mutator/stry
 | Test-project Target Frameworks | net8.0, net9.0, net10.0 |
 | C# Language Version (in user code) | C# 12, 13, 14 |
 | Solution formats | `.sln`, **`.slnx`** |
-| Test runners | VsTest, Microsoft Testing Platform |
-| Test frameworks | xUnit, MSTest 2/3, NUnit, TUnit |
+| Test runners | VsTest |
+| Test frameworks | xUnit, MSTest 2/3, NUnit |
 | OS | Windows ✓, Linux ✓ (CI), macOS (best-effort) |
+
+> **Microsoft Testing Platform (MTP)** and **TUnit** (which is MTP-exclusive) are **not yet supported** — Stryker drives tests through VsTest only, and MTP projects are rejected at analysis time. An MTP runner is roadmapped (see [stryker-net#3094](https://github.com/stryker-mutator/stryker-net/issues/3094) and ADR-044). Note: on the .NET 10 SDK the VsTest target for MTP was removed entirely, so MTP-based projects — including TUnit, which has no VsTest adapter — cannot currently be mutated.
 
 ## Installation
 
