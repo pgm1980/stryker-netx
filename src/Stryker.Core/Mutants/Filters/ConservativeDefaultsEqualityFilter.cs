@@ -66,7 +66,25 @@ public sealed class ConservativeDefaultsEqualityFilter : IEquivalentMutantFilter
         }
 
         var variableType = semanticModel.GetTypeInfo(variableSide).Type;
-        return IsUnsignedNumeric(variableType);
+        if (!IsUnsignedNumeric(variableType))
+        {
+            return false;
+        }
+
+        // EQF-003 (ADR-059): of the eight equality-to-ordered replacements for an unsigned operand
+        // versus literal zero, only two are genuinely equivalent, and which two depends on operand
+        // order. Normalise so the variable is conceptually on the left (flip the replacement direction
+        // when the literal is on the left), then only equals-to-less-or-equal and not-equals-to-greater
+        // are equivalent; the other six are killable. The old filter flagged all eight unconditionally,
+        // silently dropping killable mutants (the same hidden-test-gap harm class as EQF-001).
+        var variableIsLeft = original.Left is not LiteralExpressionSyntax;
+        var normalizedReplacementKind = variableIsLeft ? replacementKind : FlipComparison(replacementKind);
+        return (originalKind, normalizedReplacementKind) switch
+        {
+            (SyntaxKind.EqualsExpression, SyntaxKind.LessThanOrEqualExpression) => true,
+            (SyntaxKind.NotEqualsExpression, SyntaxKind.GreaterThanExpression) => true,
+            _ => false,
+        };
     }
 
     private static (ExpressionSyntax? Variable, ExpressionSyntax Other) OperandsOrderedByVariable(BinaryExpressionSyntax binary)
@@ -92,4 +110,15 @@ public sealed class ConservativeDefaultsEqualityFilter : IEquivalentMutantFilter
             or SpecialType.System_UInt16
             or SpecialType.System_UInt32
             or SpecialType.System_UInt64;
+
+    // Mirrors an ordered comparison operator for the case where the literal is the left operand,
+    // so the equivalence check can reason as if the variable were always on the left.
+    private static SyntaxKind FlipComparison(SyntaxKind kind) => kind switch
+    {
+        SyntaxKind.LessThanExpression => SyntaxKind.GreaterThanExpression,
+        SyntaxKind.GreaterThanExpression => SyntaxKind.LessThanExpression,
+        SyntaxKind.LessThanOrEqualExpression => SyntaxKind.GreaterThanOrEqualExpression,
+        SyntaxKind.GreaterThanOrEqualExpression => SyntaxKind.LessThanOrEqualExpression,
+        _ => kind,
+    };
 }

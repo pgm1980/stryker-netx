@@ -1,5 +1,6 @@
 using System.Linq;
 using FluentAssertions;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Stryker.Core.Mutants.Filters;
 using Xunit;
@@ -62,5 +63,25 @@ public class RoslynSemanticDiagnosticsEquivalenceFilterTests : MutatorTestBase
         var mutation = BuildMutation(original, classDecl);
         new RoslynSemanticDiagnosticsEquivalenceFilter().IsEquivalent(mutation, model).Should().BeFalse(
             "declaration-level replacement is out-of-scope for this filter");
+    }
+
+    [Fact]
+    public void IsEquivalent_OnInstanceMethodGroupReplacement_ReturnsFalse()
+    {
+        // EQF-001 (external 360 test): StringMethodMutator turns the StartsWith member-access
+        // method group into EndsWith. The call parentheses are the parent node, not part of the
+        // replacement, so the replacement is a bare method group. Speculatively binding it as an
+        // expression yields a null Symbol with CandidateReason OverloadResolutionFailure but a
+        // non-empty CandidateSymbols set. A method group with resolvable candidates is valid and
+        // killable, not equivalent. The same one-line fix also covers LinqMutator extension-method
+        // groups such as the Min to Max swap; that path is import and reference dependent and only
+        // reproduces end to end (repro bug01), not in this minimal semantic-model harness, so it is
+        // verified via the E2E probe rather than here.
+        var (model, original) = BuildSemanticContext<MemberAccessExpressionSyntax>(
+            "class C { bool M(string s, string p) => s.StartsWith(p); }");
+        var replacement = original.WithName(SyntaxFactory.IdentifierName("EndsWith"));
+        var mutation = BuildMutation(original, replacement);
+        new RoslynSemanticDiagnosticsEquivalenceFilter().IsEquivalent(mutation, model).Should().BeFalse(
+            "an instance method group has resolvable overload candidates and is killable, not equivalent");
     }
 }

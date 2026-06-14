@@ -97,11 +97,22 @@ public sealed class RoslynSemanticDiagnosticsEquivalenceFilter : IEquivalentMuta
         }
 #pragma warning restore S1696, CA1031
 
-        // CandidateReason != None means "binder tried but failed" — the most reliable
-        // signal that the replacement is semantically invalid in this context. Symbol
-        // == null with CandidateReason == None means "successfully bound to nothing
-        // resolvable" (e.g. a literal expression), which is fine.
-        return info.Symbol is null && info.CandidateReason != CandidateReason.None;
+        // CandidateReason != None means "binder tried but failed". Symbol == null with
+        // CandidateReason == None means "successfully bound to nothing resolvable" (e.g. a
+        // literal expression), which is fine.
+        //
+        // EQF-001 (ADR-059): additionally require an EMPTY CandidateSymbols set. A bare
+        // method group — StringMethodMutator's `s.EndsWith`, LinqMutator's `xs.Max` (the
+        // invocation is the parent, not part of the replacement) — binds with Symbol==null
+        // and CandidateReason==OverloadResolutionFailure but a NON-empty CandidateSymbols
+        // (the resolvable overloads). Such a method group is valid and killable, NOT
+        // equivalent. Only treat the replacement as invalid when the binder found no
+        // resolvable candidates at all. (The filter is a compile-round optimisation, not a
+        // correctness gate — genuinely uncompilable replacements are still removed by the
+        // CsharpCompilingProcess/RollbackProcess.)
+        return info.Symbol is null
+            && info.CandidateReason != CandidateReason.None
+            && info.CandidateSymbols.IsDefaultOrEmpty;
     }
 
     /// <summary>
@@ -149,7 +160,10 @@ public sealed class RoslynSemanticDiagnosticsEquivalenceFilter : IEquivalentMuta
             try
             {
                 var info = speculativeModel.GetSymbolInfo(expr);
-                if (info.Symbol is null && info.CandidateReason != CandidateReason.None)
+                // EQF-001 (ADR-059): require an empty CandidateSymbols set — same gate as the
+                // expression-path. A method group binds with resolvable candidates and is valid,
+                // not equivalent; only no-candidate failures signal a genuinely invalid replacement.
+                if (info.Symbol is null && info.CandidateReason != CandidateReason.None && info.CandidateSymbols.IsDefaultOrEmpty)
                 {
                     return true; // semantic invalid → filter as equivalent
                 }

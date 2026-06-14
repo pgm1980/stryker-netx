@@ -1,46 +1,38 @@
 ---
-current_sprint: "184"
-sprint_goal: "Fix-Sprint 6/6 — letzter Fahrplan-Sprint (Backlog-Rest, sprint_178_synthesis.md): #287/G-22 (RegisterCoverage HashSet-Drop-in + BenchmarkDotNet-Delta; G-24 toter Handler), #280/F-01 (Mutator.Number statt Linq-Fehlkategorisierung der Konstanten-Mutatoren, Type-Assertions), #279-Batch-1 (UOI numerischer Gate + get-only-Props, ROR Ordnungs-Matrix nur numerisch/IComparable, ConstructorNull IsReferenceType-Gate, TypeDrivenReturn Async-Guard, Doc-F-30; Block/AsSpanAsMemory/F-08 bleiben offen), H-25 (Threshold-Quervalidierung Effektivwerte), I-11 (Guard statt mutantId=-1). TDD je Fix; Serena-first; Memory vor/nach Sprint. Erfolgsmaße: 56 %-CE-Probe (profile All) deutlich rückläufig; Benchmark-Delta dokumentiert. Ship: PR → Squash → Tag v3.3.9 → Release → Closing."
-branch: "feature/184-backlog-rest"
-started_at: "2026-06-12"
-housekeeping_done: true
-memory_updated: true
+current_sprint: "185"
+sprint_goal: "Äquivalenz-Filter-Cluster (externer 360°-Test): EQF-001 (High, RoslynSemanticDiagnosticsEquivalenceFilter verwirft Methodengruppen-Mutanten — StringMethod immer, Linq bei datei-level using), EQF-003 (Med, ConservativeDefaultsEqualityFilter flaggt killbare unsigned-Null-Vergleiche), EQF-002 (Low, IdentityArithmeticFilter+IdempotentBooleanFilter inert). Alle in src/Stryker.Core/Mutants/Filters/. TDD je Fix, Serena-first, ADR-059. Ship: PR → Squash → Tag v3.3.10 → Release → Closing."
+branch: "feature/185-equivalence-filters"
+started_at: "2026-06-15"
+housekeeping_done: false
+memory_updated: false
 github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 184 (Backlog-Rest, Fahrplan-Abschluss)
+# Session State — Sprint 185 (Äquivalenz-Filter-Cluster, v3.3.10)
 
-## Fix-Liste
+> Erster Sprint des externen-360°-Test-Fix-Blocks (185–187, Variante B risiko-isoliert,
+> via MAXential+ToT). Quelle: `_bug_reporting/BUG_REPORT.md` + `UPSTREAM_ISSUES.md`;
+> Repros: `_bug_reporting/testing/` (byte-genau gesichert). Roadmap: 185 Filter, 186 Quick-Wins
+> (MAT-001/SOL-001/RUN-001 → v3.3.11), 187 INJ-001 SOLO (→ v3.3.12).
 
-| Fix | Befund | Ort | Status |
-|-----|--------|-----|--------|
-| 1 | #287/G-22+G-24 | MutantControl.RegisterCoverage → HashSet; toter ProcessExit-Handler raus; Benchmark | ☐ |
-| 2 | #280/F-01 | Mutator-Enum + Number; InlineConstants/ConstantReplacement umkategorisieren; Type-Assertions | ☐ |
-| 3 | #279/F-07 | UoiMutator: numerischer Typ-Gate (GetTypeInfo) + get-only-Property-Check | ☐ |
-| 4 | #279/F-06 | RorMatrixMutator: Ordnungs-Replacements nur numerisch/IComparable; ==/!=-Swaps bleiben | ☐ |
-| 5 | #279/F-35 | ConstructorNullMutator: IsReferenceType-Gate (Doc-Versprechen einlösen) | ☐ |
-| 6 | #279/F-23 | TypeDrivenReturnMutator: Async-Guard | ☐ |
-| 7 | #279/F-30 | Doc-Korrektur „classified as killed" → CompileError/Rollback (3 Dateien) | ☐ |
-| 8 | H-25 | Threshold-Quervalidierung gegen Effektivwerte | ☐ |
-| 9 | I-11 | MTP-Multi-Mutant-Guard statt stillem mutantId=-1 | ☐ |
+## Fix-Liste — ERLEDIGT 2026-06-15
 
-## Erfolgsmaße — ERGEBNIS 2026-06-12
-- **CE-Probe (Class5, 173er-Shapes, Profil All): 56 % → 29,4 %** (5 CE von 17). Die Probe deckte zwei F-07-Gate-Löcher auf (UOI auf Namespace-/Methodengruppen-Identifier — aufgelöste Nicht-Wert-Symbole), die nachgeschärft wurden; verbleibende CEs sind ausschließlich die bewusst offenen Klassen des #279-Epics (Block-Removal F-09/F-14, AsyncAwait) ✓
-- **BenchmarkDotNet (Release, 20 Hits/Mutant): 10k Mutanten 23.262 µs → 2.076 µs (11,2×, Ratio 0.09); 1k: 375 → 203 µs** ✓
-- Je Fix Red→Green ✓ · Build 0/0 ✓ · Semgrep 0/11 ✓ · Core-Suiten grün (549 + 1248; ein nicht-reproduzierbarer Einzelflake in Doppelläufen, isoliert 4× grün)
+| Fix | Befund | Sev | Ort | Status |
+|-----|--------|-----|-----|--------|
+| 1 | EQF-001 | High | RoslynSemanticDiagnosticsEquivalenceFilter — CandidateSymbols-Gate (beide Pfade); Methodengruppe = Kandidaten vorhanden = valide. MAXential+ToT (A1 0.93). | ✅ |
+| 2 | EQF-003 | Med | ConservativeDefaultsEqualityFilter — positions-normalisiert (FlipComparison), nur 2/8 Kombis äquiv. Über Report hinaus (Operand-Position). | ✅ |
+| 3 | EQF-002a | Low | IdentityArithmeticFilter — struktur-basierte right-identity; 0-x/1/x-Fallen ausgeschlossen. Über Report hinaus. | ✅ |
+| 4 | EQF-002b | Low | IdempotentBooleanFilter — konzeptuell inert, ehrlich dokumentiert (MAXential+ToT 0.92, kein spekulativer Fix). | ✅ |
+
+## Erfolgsmaße — ERGEBNIS
+- Je Fix Red→Green ✅ · Build 0/0 (TWAE) ✅ · Stryker.Core.Tests 567/567 ✅ (1 bekannter Log-Capture-Flake im Parallel-Lauf, isoliert grün + Doppellauf grün) · Filter-Tests 57/57 ✅ · Semgrep 0 ✅
+- **E2E-Probe (bug01, lokale CLI mit Fix): 8 Methodengruppen-Mutanten getestet (Score 75 %), 0 als equivalent ge-Ignored** — vorher (v3.3.9) alle gefiltert. Linq `xs.Max` Killed = Blast-Radius end-to-end belegt (Unit-Harness deckt den Linq-Fall nicht ab).
+- 3 bug-pinnende Tests (die das defekte Verhalten festschrieben) korrigiert.
 
 ## Notizen
-- #279 bleibt nach Batch 1 OFFEN (Block/F-14, AsSpanAsMemory/B.1+B.2, AsyncAwait, F-08) — Batch-1-Stand als Issue-Kommentar
-- #302-Quickies (G-30, G-05, H-10, G-34 …) nicht mehr erreicht — bleiben kuratiert in der Liste
-
-## Ship-Protokoll — 🏁 FAHRPLAN 179–184 ABGESCHLOSSEN
-- PR #315 squash-merged (883ea4c); Issues #287/#280 geschlossen + Evidenz (Benchmark-Tabelle);
-  #279-Batch-1-Kommentar mit abgehakten Punkten + CE-Proben-Zahlen; #302 um H-25/I-11/G-24 abgehakt
-- Tag v3.3.9 auf Merge-Commit; Release-Run 27426308768 **success** (kein NU190x)
-- Serena project_status_and_roadmap: Programm-Abschluss-Banner + 184 ✅; Claude-Memory: Programm-Bilanz
-- **360°-Programm komplett**: 12 Sprints (173–178 Analyse: 139 Findings; 179–184 Fixes: 6 Releases
-  v3.3.4–v3.3.9, ADR-053…058); 21/23 Issues geschlossen; End-Belege Probe-CE 70 %→0 %,
-  Crash Exit 127→0, P-5/P-6 ✓, CE-Probe-All 56 %→29,4 %, Coverage 11,2×
+- EQF-003 + EQF-002a: Operand-Position-Nuance über den Report hinaus entdeckt (naiver Report-Fix hätte neuen Bug eingeführt).
+- IdempotentBooleanFilter: kein realer äquivalenter Boolean-Mutant existiert → spekulativer Fix wäre unfalsifizierbar (TDD-widrig); Double-Negation-Pfad korrekt, nur ungenutzt.
+- Offen für Closing: housekeeping_done, memory_updated (Serena + Claude-Memory nach Ship).
