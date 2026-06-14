@@ -3,8 +3,8 @@ current_sprint: "186"
 sprint_goal: "Quick-Wins (externer 360°-Test): MAT-001 (Med, MathMutator Member-Pfad ContainingType→Symbol), SOL-001 (Low, --solution cwd-unabhängig), RUN-001 (Med, README TUnit/MTP-Kompat-Tabelle). TDD wo Code, Serena-first, ADR-060. Ship: PR → Squash → Tag v3.3.11 → Release → Closing."
 branch: "feature/186-quick-wins"
 started_at: "2026-06-15"
-housekeeping_done: false
-memory_updated: false
+housekeeping_done: true
+memory_updated: true
 github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
