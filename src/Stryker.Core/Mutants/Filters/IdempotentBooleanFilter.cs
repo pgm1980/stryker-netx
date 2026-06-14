@@ -33,9 +33,13 @@ public sealed class IdempotentBooleanFilter : IEquivalentMutantFilter
             return true;
         }
 
-        // Detect short-circuit tautology/contradiction preservation:
-        //   x && true (original) ↔ x && true (replacement) — both kept literal-true RHS.
-        //   x || false (original) ↔ x || false (replacement) — both kept literal-false RHS.
+        // Short-circuit tautology/contradiction identity preservation. NOTE (EQF-002 / ADR-059): this
+        // path is conceptually inert. No real mutation produces an equivalent here: any operator or
+        // literal mutation of an and-true or or-false identity pattern either changes the value (and-true
+        // becomes and-false, yielding false; and-true becomes or-true, yielding true) or destroys the
+        // pattern, so the second identity-pattern check below fails. The IsEquivalentTo guard is kept
+        // only as a defensive no-op match; unlike IdentityArithmeticFilter (a real EQF-002 fix), there
+        // is no surviving equivalent to repair, so it is intentionally left unchanged.
         if (mutation.OriginalNode is BinaryExpressionSyntax originalBinary
             && mutation.ReplacementNode is BinaryExpressionSyntax replacementBinary
             && IsLogicalIdentityPattern(originalBinary)
