@@ -2,21 +2,21 @@
 
 > Vollständiger Projekt-Kontext. Geht über die operativen Direktiven der CLAUDE.md hinaus und beschreibt **Vision, Hintergrund, Architektur, Toolchain, Roadmap, Risiken**. Kontinuierlich verdichtet — *umso mehr Memory, umso besser*.
 >
-> **Lese-Reihenfolge bei Session-Start:** [.sprint/state.md](.sprint/state.md) (tagesaktuelle Wahrheit) → [MEMORY.md](MEMORY.md) (Index) → DEEP_MEMORY.md (dieses Dokument) → [CLAUDE.md](CLAUDE.md) (Direktiven) → [_config/development_process.md](_config/development_process.md) (Prozess) → [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md) (ADR-001…061).
+> **Lese-Reihenfolge bei Session-Start:** [.sprint/state.md](.sprint/state.md) (tagesaktuelle Wahrheit) → [MEMORY.md](MEMORY.md) (Index) → DEEP_MEMORY.md (dieses Dokument) → [CLAUDE.md](CLAUDE.md) (Direktiven) → [_config/development_process.md](_config/development_process.md) (Prozess) → [_docs/architecture spec/architecture_specification.md](_docs/architecture%20spec/architecture_specification.md) (ADR-001…062).
 >
-> **Dokument-Charakter:** Sektion 0 ist der aktuelle Stand (Sprint 187). Die Sektionen 1–11 sind die Sprint-0-Baseline (2026-04-30) — als Gründungs-Kontext bewusst erhalten, stellenweise mit *[Ausgang: …]*-Anmerkungen versehen, wo die Realität den Plan überholt hat.
+> **Dokument-Charakter:** Sektion 0 ist der aktuelle Stand (Sprint 188). Die Sektionen 1–11 sind die Sprint-0-Baseline (2026-04-30) — als Gründungs-Kontext bewusst erhalten, stellenweise mit *[Ausgang: …]*-Anmerkungen versehen, wo die Realität den Plan überholt hat.
 
 ---
 
-## 0. Stand heute (Sprint 187, 2026-06-15)
+## 0. Stand heute (Sprint 188, 2026-06-15)
 
 ### 0.1 Projekt-Realität
 
-- **Production seit Sprint 12 (v2.0.0)**, öffentlich auf [NuGet.org](https://www.nuget.org/packages/dotnet-stryker-netx) seit Sprint 138. Aktuelle Version **v3.3.12** (Sprint 187). 187 Sprints, 61 ADRs, ~2.200 Tests grün, 173 Tags.
-- **Die Portierung ist längst abgeschlossen** — seit Sprint 5 ist das Projekt ein eigenständiges Produkt mit erweitertem Katalog: **52 Mutatoren** (26 Upstream-Parität + 26 neue: PIT-, cargo-mutants-, mutmut-inspiriert), **5 Equivalence-Filter**, Mutation-Profiles (`Defaults`/`Stronger`/`All`), SemanticModel-Infrastruktur.
+- **Production seit Sprint 12 (v2.0.0)**, öffentlich auf [NuGet.org](https://www.nuget.org/packages/dotnet-stryker-netx) seit Sprint 138. Aktuelle Version **v3.3.13** (Sprint 188). 188 Sprints, 62 ADRs, ~2.200 Tests grün, 174 Tags.
+- **Die Portierung ist längst abgeschlossen** — seit Sprint 5 ist das Projekt ein eigenständiges Produkt mit erweitertem Katalog: **50 Mutatoren** (26 Upstream-Parität + 24 neue: PIT-, cargo-mutants-, mutmut-inspiriert; GenericConstraint+Loosen in Sprint 188/ADR-062 entfernt), **5 Equivalence-Filter**, Mutation-Profiles (`Defaults`/`Stronger`/`All`), SemanticModel-Infrastruktur.
 - **Buildalyzer existiert nicht mehr** (Sprint 1: komplett durch `Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace` ersetzt) — die Sprint-0-Annahme „Buildalyzer 9 Update" wurde von der radikaleren Lösung überholt.
 - **`.slnx`-Support ist ein Alleinstellungsmerkmal** (Microsoft.VisualStudio.SolutionPersistence), inkl. 3-Layer-Source-Project-Filter-Defense (ADR-039).
-- **Vier externe Reporter-/Test-Teams** haben Findings getrieben: Calculator-Tester, Aisess-Platform, filesystem-mcp-server (Sprints 139–169) sowie ein unabhängiges **Testmanagement-Projekt** (360°-Black/White-Box gegen v3.3.9 → 7 Bugs, Fix-Block 185–187, ADR-059…061). Reports in [_bug_reporting/](_bug_reporting/); offene Items → #279-Epic / honest-deferred (D, siehe MEMORY.md).
+- **Vier externe Reporter-/Test-Teams** haben Findings getrieben: Calculator-Tester, Aisess-Platform, filesystem-mcp-server (Sprints 139–169) sowie ein unabhängiges **Testmanagement-Projekt** (360°-Black/White-Box gegen v3.3.9 → 7 Bugs, Fix-Block 185–188, ADR-059…062 — alle 7 abgearbeitet, INJ-001 geschlossen). Reports in [_bug_reporting/](_bug_reporting/); offene Items → #279-Epic / honest-deferred (D, siehe MEMORY.md).
 - **Internes 360°-Selbst-Audit (Sprints 171–184, v3.3.3–v3.3.9):** Volltext-Audit von ~430 Source-Dateien, 139 Findings, 6 Releases → ADR-053…058 (CE-Noise, Score-Integrität, Crash/Hang-Robustheit, Config-Reichweite, Coverage-Perf 11×). Kernlehre: **Live-CLI-Proben > Unit-Surface** (deckte mehrfach verdeckte Schichten und Entkräftungen auf, die reine Analyse durchließ).
 - **Release-Mechanik:** Feature-PR (squash, `(#NNN)`) → annotated Tag auf Merge-Commit → release.yml (NuGet-Push + GitHub-Release) → Closing-PR flippt `.sprint/state.md`-Flags.
 
@@ -28,7 +28,7 @@
 
 ### 0.3 Offene Richtungen
 
-- **#279-Epic** (typ-/flow-blinde Mutatoren): Batch 1 (Sprint 184) geshippt; offen Block/F-14, AsSpanAsMemory (B.1/B.2), AsyncAwait, F-08 + **INJ-001-Constraint-Teil** (GenericConstraint + Loosen — declaration-level im Laufzeit-Schalt-Modell nicht injizierbar, ADR-061, dokumentiert nicht deaktiviert).
+- **#279-Epic** (typ-/flow-blinde Mutatoren): Batch 1 (Sprint 184) geshippt; offen Block/F-14, AsSpanAsMemory (B.1/B.2), AsyncAwait, F-08. **INJ-001-Constraint-Teil aus dem Epic ENTFERNT** (Sprint 188/ADR-062: GenericConstraint + Loosen gelöscht — Compile-Zeit-Limit, kein killbarer Mutant möglich; IL-Probe byte-identisch).
 - **#302** P3-Sammelliste (internes 360°-Programm): kuratierter Rest.
 - MTP-Runner-Support (`Stryker.TestRunner.MicrosoftTestPlatform`, angefangen-unfertig; RUN-001/#3094: MTP+TUnit derzeit nicht unterstützt), SUT-instance-aware Coverage (ADR-048, v3.4+), inkrementelles Mutation-Testing (ADR-022, Proposed).
 - NetFramework-Integration (MSBuildWorkspace × Legacy-non-SDK-csproj) + tool-seitiger Auto-Restore vor Analysis (ADR-051-Backlog).

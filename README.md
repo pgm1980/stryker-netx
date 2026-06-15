@@ -12,7 +12,7 @@
 **Fully backwards-compatible**: existing users see zero behavioral change unless they opt into a stronger mutation profile.
 
 - **`--mutation-profile` flag** (`Defaults` | `Stronger` | `All`) — orthogonal to `--mutation-level`; controls *which mutators* run (not just which mutations). Since v3.1.0 a stronger profile auto-bumps a too-low mutation level (ADR-025).
-- **26 net-new mutators** (52 total) across 6 batches (typed-driven, PIT-1, PIT-2 + cargo-mutants, .NET-greenfield, spec-gap closure, **filter pipeline + operator completion**).
+- **24 net-new mutators** (50 total) across 6 batches (typed-driven, PIT-1, PIT-2 + cargo-mutants, .NET-greenfield, spec-gap closure, **filter pipeline + operator completion**).
 - **5 equivalent-mutant filters** in the pipeline (`IdentityArithmetic`, `IdempotentBoolean`, `ConservativeDefaultsEquality`, `RoslynDiagnostics` — the mutmut-style pre-filter — and `RoslynSemanticDiagnostics` with O(1) speculative binding).
 - **Operator hierarchy** + `[MutationProfileMembership]` attribute on every mutator.
 - **SemanticModel-driven type-aware mutators** — used by `TypeDrivenReturn`, `ArgumentPropagation`, `MemberVariable`, `MethodBodyReplacement`.
@@ -95,8 +95,8 @@ CLI flags, configuration schema, and reporter outputs are mostly compatible with
 | Profile | Active mutators | Use case |
 |---------|-----------------|----------|
 | `Defaults` (default) | 26 v1.x mutators only | Drop-in v1.x parity. Same behavior as upstream Stryker.NET. |
-| `Stronger` | Defaults + 18 type-aware / catalogue-closing mutators (= 44 total) | Catch more bugs while keeping noise manageable. |
-| `All` | Stronger + 8 most-aggressive operators (UoiMutator, NakedReceiver, ExceptionSwap, GenericConstraint, ArgumentPropagation, AsSpanAsMemory, MethodBodyReplacement, SpanReadOnlySpanDeclaration) (= 52 total) | Maximum coverage; expect mutation volume to grow ~3-5× and runtime accordingly. |
+| `Stronger` | Defaults + 17 type-aware / catalogue-closing mutators (= 43 total) | Catch more bugs while keeping noise manageable. |
+| `All` | Stronger + 7 most-aggressive operators (UoiMutator, NakedReceiver, ExceptionSwap, ArgumentPropagation, AsSpanAsMemory, MethodBodyReplacement, SpanReadOnlySpanDeclaration) (= 50 total) | Maximum coverage; expect mutation volume to grow ~3-5× and runtime accordingly. |
 
 Set via CLI:
 
@@ -177,11 +177,9 @@ The Aisess team's pain point (Anomalies Report § 10 wishlist #9): a 3 600-test 
 | DateTime | (none in v1.x) | DateTime, DateTimeAddSign (v2.0.1) | — |
 | Span / Memory | (none in v1.x) | SpanMemory | AsSpanAsMemory (v2.0.1), SpanReadOnlySpanDeclaration (v2.1) |
 | Exceptions | (none in v1.x) | — | ExceptionSwap |
-| Generics | (none in v1.x) | — | GenericConstraint |
-| Generic constraints | — | GenericConstraintLoosen (per-clause, v2.1) | GenericConstraint (drop-all) |
 | Other | Block, Statement, Assignment, Checked, Regex, NullCoalescing | — | — |
 
-Total: **26 (Defaults) + 18 (Stronger) + 8 (All-only) = 52 mutators** (v2.4.0; `GenericConstraintLoosenMutator` extended in v2.4.0 with BCL-interface-pair variants — same mutator class, more variants).
+Total: **26 (Defaults) + 17 (Stronger) + 7 (All-only) = 50 mutators** (v3.3.13; the two generic-constraint mutators were removed in Sprint 188 — generic constraints are compile-time-only and can never yield a killable mutant, see [ADR-062](_docs/architecture%20spec/architecture_specification.md)).
 
 The equivalent-mutant filter pipeline ships **5 filters** (v2.4.0): `IdentityArithmeticFilter`, `IdempotentBooleanFilter`, `ConservativeDefaultsEqualityFilter`, `RoslynDiagnosticsEquivalenceFilter` (v2.1 — parser-error pre-filter), and **`RoslynSemanticDiagnosticsEquivalenceFilter`** (v2.4 — uses Roslyn speculative-binding for O(1) per-mutation semantic-error pre-filtering, catches type-checking errors that the parser-only v2.1 filter misses).
 
@@ -222,10 +220,10 @@ See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking
 
 - **NetFramework projects** (legacy `packages.config` style — `<TargetFramework>net48</TargetFramework>`) require `nuget.exe restore` of the .sln before invocation, because `dotnet msbuild -restore` only handles `<PackageReference>` style. CI's `windows-latest` runner ships `nuget.exe`; local-only blocked unless `nuget.exe` is on PATH. (Carried forward from v1.0.)
 - `JsonReport` reporter uses **hybrid source-gen + custom-converter** serialization as of v2.3.0. Source-gen `JsonReportSerializerContext` provides JsonTypeInfo for the entry types `JsonReport` / `IJsonReport`; custom polymorphic converters (`SourceFileConverter`, `JsonMutantConverter`, etc.) handle interface-typed properties at runtime. Net effect: **AOT-trim-progress, not AOT-trim-complete**. Full AOT-trim **deferred to v3.0** per [ADR-024](_docs/architecture%20spec/architecture_specification.md) — requires flattening `IJsonReport` / `ISourceFile` / `IJsonMutant` (7 interfaces, 34 referencing files) to concrete types, which is a v3.0-cadence breaking change.
-- Validation framework count-based assertions in `integrationtest/Validation/ValidationProject/ValidateStrykerResults.cs` are **principled-skip** as of v2.3.0 per [ADR-023](_docs/architecture%20spec/architecture_specification.md). Counts were hardcoded for upstream Stryker.NET 4.14.1's exact mutator output; our v2.x catalogue (52 mutators vs upstream's 26) legitimately produces different counts; manual reconciliation would be a Sisyphean treadmill driftung with every Operator-Addition. The 11 affected `[Fact]` tests carry `[Fact(Skip = "...")]` with link to ADR-023. Fixture-level reconciliation is intentionally **not** roadmapped.
+- Validation framework count-based assertions in `integrationtest/Validation/ValidationProject/ValidateStrykerResults.cs` are **principled-skip** as of v2.3.0 per [ADR-023](_docs/architecture%20spec/architecture_specification.md). Counts were hardcoded for upstream Stryker.NET 4.14.1's exact mutator output; our v2.x catalogue (50 mutators vs upstream's 26) legitimately produces different counts; manual reconciliation would be a Sisyphean treadmill driftung with every Operator-Addition. The 11 affected `[Fact]` tests carry `[Fact(Skip = "...")]` with link to ADR-023. Fixture-level reconciliation is intentionally **not** roadmapped.
 - **HotSwap engine** — removed in v2.2.0 per ADR-021. The `--engine` flag is accepted as a deprecated no-op shim; both `Recompile` and `HotSwap` are treated identically with a deprecation warning.
 - **AsyncAwait family** — both variants ship: `AsyncAwaitMutator` (v2.0.0) emits `await x → x.GetAwaiter().GetResult()` (unwraps exceptions); `AsyncAwaitResultMutator` (v2.3.0) emits `await x → x.Result` (wraps in `AggregateException`). Tests asserting on specific exception types may pass under one and fail under the other — having both maximises kill-detection sensitivity.
-- **GenericConstraintMutator** (v2.0.0) drops the entire constraint-clause set; **GenericConstraintLoosenMutator** (v2.1.0) does the spec-listed per-clause loosening (`where T : class → where T : new()` etc.). Both ship — the former is more aggressive, the latter more targeted. Use the profile to control activation.
+- **Generic-constraint mutators removed (v3.3.13, Sprint 188)** — `GenericConstraintMutator` (v2.0.0, drop-all) and `GenericConstraintLoosenMutator` (v2.1.0, per-clause) were removed per [ADR-062](_docs/architecture%20spec/architecture_specification.md). Generic constraints are compile-time-only and produce no IL, so a constraint mutation can only compile-error or be equivalent — never a killable mutant — and the constraint-relevant body logic is already covered by the operator mutators.
 - **SpanMemoryMutator** semantics — emits `span.Slice(start, length) → span.Slice(0, length)`, a stryker-netx-specific variant. **AsSpanAsMemoryMutator** (v2.0.1) handles invocation-site `AsSpan() ↔ AsMemory()`; **SpanReadOnlySpanDeclarationMutator** (v2.1) handles declaration-site `Span<T> ↔ ReadOnlySpan<T>`. All three coexist.
 - **Coverage-driven mutation skip** (mutmut-style) — already shipped via `OptimizationModes.SkipUncoveredMutants` and `CoverageBasedTest` (v1.x). Use `--coverage-analysis perTest` (the default) or `--coverage-analysis all` to enable; mutants for lines without test coverage are flagged `NoCoverage` and never run.
 - **`testhost.exe` keeps source-project DLLs file-locked** during a run (v3.3.0 doc-note). VsTest's `testhost.exe` loads the test-output DLLs with the default file-share mode and only releases the handles when the Stryker process tree exits. Any concurrent `dotnet build` of the same solution will fail with `MSB3027` retry-exhausted. **Workaround**: use `--output <path-outside-source-tree>` so MSBuild's target-copy doesn't collide with the locked test-output DLLs, or simply don't run a concurrent `dotnet build` while Stryker is mid-run. Not a stryker-netx code path — assembly-loading is internal to vstest/testhost.
@@ -235,7 +233,7 @@ See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking
 
 ## Project status
 
-**Current: v3.3.12 (Sprint 187, 2026-06) — production, published on [NuGet.org](https://www.nuget.org/packages/dotnet-stryker-netx).** 187 sprints, 61 ADRs, ~2,200 tests green, 173 tagged releases. Full release history: [GitHub Releases](https://github.com/pgm1980/stryker-netx/releases).
+**Current: v3.3.13 (Sprint 188, 2026-06) — production, published on [NuGet.org](https://www.nuget.org/packages/dotnet-stryker-netx).** 188 sprints, 62 ADRs, ~2,200 tests green, 174 tagged releases. Full release history: [GitHub Releases](https://github.com/pgm1980/stryker-netx/releases).
 
 | Era | Sprints | Versions | Outcome |
 |-----|---------|----------|---------|
@@ -248,7 +246,7 @@ See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking
 | Production bug-report era | 139–169 | `v3.0.25` → `v3.3.1` | Three external reporter teams (Calculator, Aisess, filesystem-mcp-server) drove ADR-025…049: profile auto-bump, syntax-slot validation layers, `.slnx` filter defense, disable-comment scoping, `--test-case-filter`, `--break-after`, type-aware literal emission |
 | CI reanimation | 170 | `v3.3.2` | NuGet-audit advisory bump (Nerdbank.MessagePack), nightly dogfood schedule repair (ADR-050), workspace + documentation refresh |
 | Self-audit & hardening | 171–184 | `v3.3.3` → `v3.3.9` | Dogfood-config netx layout + `MatchesFilter` fix (#270); internal 360° source audit (~430 files, 139 findings) driving ADR-053…058 — CE-noise reduction, score-integrity filters, crash/hang robustness, config reach, RegisterCoverage perf (11×) |
-| External 360° black/white-box fixes | 185–187 | `v3.3.10` → `v3.3.12` | Independent test team's 7 bugs (ADR-059…061): equivalence-filter correctness (method groups, unsigned-zero, arithmetic identities), `MathMutator` semantic-model path, `--solution` cwd-independence, README/MTP compatibility, `MethodBodyReplacement` injection |
+| External 360° black/white-box fixes | 185–188 | `v3.3.10` → `v3.3.13` | Independent test team's 7 bugs (ADR-059…062): equivalence-filter correctness (method groups, unsigned-zero, arithmetic identities), `MathMutator` semantic-model path, `--solution` cwd-independence, README/MTP compatibility, `MethodBodyReplacement` injection; the two generic-constraint mutators removed as a compile-time-only model limit (ADR-062, INJ-001 closed) |
 
 See [`_docs/`](_docs/) for per-sprint lessons and the [architecture specification](_docs/architecture%20spec/architecture_specification.md) for all ADRs.
 

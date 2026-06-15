@@ -4,13 +4,13 @@
 >
 > **Lese-Reihenfolge bei Session-Start:** [.sprint/state.md](.sprint/state.md) (aktueller Sprint — die einzige tagesaktuelle Wahrheitsquelle) → dieses Dokument (Index) → [CLAUDE.md](CLAUDE.md) (Direktiven) → bei Bedarf [DEEP_MEMORY.md](DEEP_MEMORY.md) + ADR-Liste.
 
-## Status (Stand: 2026-06-15, Sprint 187)
+## Status (Stand: 2026-06-15, Sprint 188)
 
 - **Projekt:** Portierung von Stryker.NET 4.14.1 auf C# 14 / .NET 10 — **seit Sprint 12 production**, seit Sprint 138 öffentlich auf [NuGet.org](https://www.nuget.org/packages/dotnet-stryker-netx) (`dotnet-stryker-netx`)
 - **Repo:** [pgm1980/stryker-netx](https://github.com/pgm1980/stryker-netx) (**public**, Apache-2.0 + NOTICE, GitHub Flow)
 - **User:** GitHub-Account `pgm1980`, Sprache Deutsch (Anweisungen) + Englisch (Code/Commits)
-- **Aktuelle Version:** v3.3.12 (Sprint 187 — externer-360°-Test-Fix-Block-Abschluss); davor v3.3.9 (Sprint 184, internes 360°-Programm abgeschlossen)
-- **Umfang:** 187 Sprints, 61 ADRs, ~2.200 Tests grün, 173 Tags/Releases, 52 Mutatoren, 5 Equivalence-Filter
+- **Aktuelle Version:** v3.3.13 (Sprint 188 — INJ-001 Teil B endgültig: Constraint-Mutatoren entfernt, ADR-062); davor v3.3.12 (Sprint 187, externer-360°-Test-Fix-Block-Abschluss)
+- **Umfang:** 188 Sprints, 62 ADRs, ~2.200 Tests grün, 174 Tags/Releases, 50 Mutatoren, 5 Equivalence-Filter
 - **Convention:** 1 Sprint = 1 Feature-PR (squash, `(#NNN)`-Suffix) + Tag auf Merge-Commit + Release via release.yml + Closing-PR (nur `.sprint/state.md`)
 
 ## Ära-Übersicht (Details: README „Project status" + `_docs/sprint_*_lessons.md`)
@@ -19,17 +19,17 @@
 |---------|-----------|--------|
 | 0 | — | Brainstorming, 12 Gründungs-ADRs, Design-Spec, License-Stack |
 | 1–4 | v1.0.0 | Port: Buildalyzer raus → MSBuildWorkspace, .NET 10, CI |
-| 5–17 | v2.0.0–v2.4.0 | 52-Mutator-Katalog, Profiles, Filter-Pipeline, HotSwap-Walk-back |
+| 5–17 | v2.0.0–v2.4.0 | Mutator-Katalog-Aufbau, Profiles, Filter-Pipeline, HotSwap-Walk-back |
 | 18–24 | v2.5.0–v2.11.0 | Test-Hardening, FsCheck, NetFramework-CI, Dogfood-Nightly |
 | 25–138 | v2.12.0–v3.0.24 | Upstream-Test-Suite-Port (~1.200 Dogfood-Tests), erster NuGet-Push |
 | 139–169 | v3.0.25–v3.3.1 | Bug-Report-Ära: 3 externe Reporter-Teams, ADR-025…049 |
 | 170 | v3.3.2 | CI-Reanimation (NU1902-Bump, Nightly-Schedule-Fix ADR-050), Doc-Refresh |
 | 171–184 | v3.3.3–v3.3.9 | Selbst-Audit & Härtung: Dogfood-Configs + MatchesFilter-Fix (#270); internes 360°-Source-Audit (~430 Dateien, 139 Findings) → ADR-053…058 (CE-Noise, Score-Integrität, Crash/Hang-Robustheit, Config-Reichweite, Coverage-Perf 11×) |
-| 185–187 | v3.3.10–v3.3.12 | Externer 360°-Black/White-Box-Test: 7 Bugs eines unabhängigen Test-Teams → ADR-059…061 (Äquivalenz-Filter-Korrektheit, MathMutator-Semantic-Model, `--solution`-cwd, README/MTP, MethodBodyReplacement-Injektion; INJ-001-Constraint-Teil → #279) |
+| 185–188 | v3.3.10–v3.3.13 | Externer 360°-Black/White-Box-Test: 7 Bugs eines unabhängigen Test-Teams → ADR-059…062 (Äquivalenz-Filter-Korrektheit, MathMutator-Semantic-Model, `--solution`-cwd, README/MTP, MethodBodyReplacement-Injektion; INJ-001 Teil A gefixt + Teil B = Constraint-Mutatoren als Compile-Zeit-Modell-Limit ENTFERNT, ADR-062, INJ-001 geschlossen) |
 
 ## Schlüssel-Entscheidungen
 
-Vollständig: [Architecture Spec](_docs/architecture%20spec/architecture_specification.md) (ADR-001…061). Die tragenden:
+Vollständig: [Architecture Spec](_docs/architecture%20spec/architecture_specification.md) (ADR-001…062). Die tragenden:
 
 | ADR | Entscheidung |
 |-----|--------------|
@@ -43,7 +43,7 @@ Vollständig: [Architecture Spec](_docs/architecture%20spec/architecture_specifi
 | 047/049 | Type-aware Literal-Emission in BEIDEN Konstanten-Emittern (InlineConstants, ConstantReplacement) |
 | 050 | Nightly-Dogfood: schedule fährt local-pack; GH-Expression `null == false`-Koerzierungsfalle; Tool-Manifest pinnt reale NuGet-Version |
 | 053–058 | Internes 360°-Programm: CE-Noise-Reduktion, Score-Integritäts-Filter (NoOp/Dropped-Mutants), Crash/Hang-Robustheit, Config-Reichweite (Workspace-Pins/Multi-TFM), Coverage-Perf (HashSet 11×) |
-| 059–061 | Externer-360°-Test-Block: Äquivalenz-Filter-Korrektheit (Methodengruppen/unsigned-Null/arithm. Identitäten), MathMutator-Semantic-Model + `--solution`-cwd + README/MTP, INJ-001 (MethodBodyReplacement injizierbar; Constraint-Mutatoren als Modell-Limit dokumentiert) |
+| 059–062 | Externer-360°-Test-Block: Äquivalenz-Filter-Korrektheit (Methodengruppen/unsigned-Null/arithm. Identitäten), MathMutator-Semantic-Model + `--solution`-cwd + README/MTP, INJ-001 (Teil A: MethodBodyReplacement injizierbar; Teil B: Constraint-Mutatoren als Compile-Zeit-Modell-Limit ENTFERNT, ADR-062) |
 
 ## Dokumenten-Index
 
@@ -76,7 +76,7 @@ Vollständig: [Architecture Spec](_docs/architecture%20spec/architecture_specifi
 
 ## Offene Punkte / Deferred Backlog
 
-- **#279-Epic** (typ-/flow-blinde Mutatoren): Batch 1 in Sprint 184 geshippt; offen: Block/F-14, AsSpanAsMemory (B.1: 3 Sites, B.2: 1 Site), AsyncAwait, F-08-Filter. **INJ-001-Constraint-Teil** (GenericConstraintMutator + GenericConstraintLoosenMutator — im Laufzeit-Schalt-Modell nicht injizierbar) hierher vertagt (Sprint 187, ADR-061, dokumentiert nicht deaktiviert).
+- **#279-Epic** (typ-/flow-blinde Mutatoren): Batch 1 in Sprint 184 geshippt; offen: Block/F-14, AsSpanAsMemory (B.1: 3 Sites, B.2: 1 Site), AsyncAwait, F-08-Filter. **INJ-001-Constraint-Teil ERLEDIGT** (Sprint 188, ADR-062: GenericConstraintMutator + GenericConstraintLoosenMutator ENTFERNT — Compile-Zeit-Limit, kein killbarer Mutant möglich, IL-Probe byte-identisch; aus dem Epic ausgegliedert).
 - **#302** (P3-Sammelliste aus dem internen 360°-Programm): teilabgehakt (H-05/J-11/H-25/I-11/G-24…); kuratierter Rest (G-30, G-05, H-10/11/15/20, J-08/10/15a, G-34, H-13b).
 - **D** (4 Sites): `PluginManager` CS0165/CS0161 nach Try-Block-Removal — separater Block-Removal-Codegen-Bug (honest-deferred).
 - **NetFramework-Integration** (MSBuildWorkspace × Legacy-non-SDK-csproj, `TypeInitializationException XMakeElements`, continue-on-error) + tool-seitiger Auto-Restore vor Analysis (ADR-051-Backlog, CI-First-UX).

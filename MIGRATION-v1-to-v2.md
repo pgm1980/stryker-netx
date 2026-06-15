@@ -101,9 +101,9 @@ v2.1.0 adds (filter pipeline + operator completion):
 v2.3.0 adds (long-tail):
 - **AsyncAwaitResultMutator** (greenfield — `await x → x.Result`; spec-faithful semantic variant of v2.0.0's `AsyncAwaitMutator` which emits `GetAwaiter().GetResult()`). Both ship — different exception-wrapping signatures catch different test-spec assumptions.
 
-v2.4.0 (Sprint 17) extends `GenericConstraintLoosenMutator` with a hardcoded BCL-interface-pair table (`ICloneable ↔ IDisposable`, `IComparable ↔ IEquatable`, `IEnumerable ↔ ICollection`, etc.) — same mutator class, more variants emitted per generic-constraint clause.
+v2.4.0 (Sprint 17) extended `GenericConstraintLoosenMutator` with a hardcoded BCL-interface-pair table. *(Both generic-constraint mutators were removed in Sprint 188 — generic constraints are compile-time-only and can never yield a killable mutant; see ADR-062. The counts below reflect the post-removal catalogue.)*
 
-44 mutators total (= 26 + 18).
+43 mutators total (= 26 + 17).
 
 ### `All` (= Stronger + the noisiest experimental operators)
 
@@ -111,7 +111,7 @@ v2.0.0 adds:
 - **UoiMutator** (PIT Unary Operator Insertion — `x → x++/++x/x--/--x` on every identifier; very high mutation volume)
 - **NakedReceiverMutator** (PIT EXP_NAKED_RECEIVER — `a.M(b) → a`)
 - **ExceptionSwapMutator** (greenfield — `throw new ArgumentNullException → throw new ArgumentException` and family swaps)
-- **GenericConstraintMutator** (greenfield — drops `where T : ...` clauses; may produce non-compiling mutants which the runner correctly classifies as killed)
+- ~~**GenericConstraintMutator**~~ (greenfield — dropped `where T : ...` clauses) — **removed in Sprint 188 (ADR-062): generic constraints are compile-time-only and produce no IL, so a constraint mutation can only CompileError or be equivalent, never killable.**
 
 v2.0.1 adds (spec-gap closure):
 - **ArgumentPropagationMutator** (PIT EXP_ARGUMENT_PROPAGATION — `foo.Bar(a, b) → a` when arg-type is implicitly convertible to return-type; type-aware via SemanticModel)
@@ -121,7 +121,7 @@ v2.0.1 adds (spec-gap closure):
 v2.1.0 adds:
 - **SpanReadOnlySpanDeclarationMutator** (greenfield — declaration-site `Span<T> ↔ ReadOnlySpan<T>` and `Memory<T> ↔ ReadOnlyMemory<T>` swap; complements v2.0.1's invocation-site `AsSpanAsMemoryMutator`)
 
-52 mutators total (= 26 + 18 + 8).
+50 mutators total (= 26 + 17 + 7; the two generic-constraint mutators were removed in Sprint 188 — see ADR-062).
 
 ---
 
@@ -202,7 +202,7 @@ After v2.1.0, the operator-shaped recommendations from `_input/mutation_framewor
 These are intentionally implemented differently from the spec's exact wording — they catch a closely-related bug class but with distinct semantics. Spelled out so future readers are not surprised:
 
 - **`AsyncAwaitMutator`** emits `await x → x.GetAwaiter().GetResult()` rather than the spec's `await x → x.Result`. Both are sync-over-async substitutions; `.Result` wraps exceptions in `AggregateException`, `GetAwaiter().GetResult()` unwraps. Either way, tests that fail to await the result fail the mutant.
-- **`GenericConstraintMutator` (drop-all, v2.0.0) + `GenericConstraintLoosenMutator` (per-clause, v2.1.0)** — both ship. The drop-all is the maximally aggressive variant (All only); the per-clause loosening is the spec-faithful one (Stronger | All). Use the profile to pick.
+- **`GenericConstraintMutator` (drop-all, v2.0.0) + `GenericConstraintLoosenMutator` (per-clause, v2.1.0)** — *removed in Sprint 188 (ADR-062).* Both shipped historically (drop-all = All-only, per-clause = Stronger|All), but generic constraints are compile-time-only: a constraint mutation can only compile-error or be equivalent, never a killable mutant. The constraint-relevant body logic stays covered by the operator mutators.
 - **`SpanMemoryMutator` (Slice-zero) + `AsSpanAsMemoryMutator` (invocation-site) + `SpanReadOnlySpanDeclarationMutator` (declaration-site)** — all three coexist. The Slice-zero variant is stryker-netx-specific; the other two correspond directly to spec items.
 
 ## Questions or issues
