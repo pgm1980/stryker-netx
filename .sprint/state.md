@@ -3,8 +3,8 @@ current_sprint: "188"
 sprint_goal: "INJ-001 Teil B endgültig: GenericConstraint(+Loosen)-Mutatoren ENTFERNT (semantisches Modell-Limit — Constraint-Mutationen erzeugen nie killbare Mutanten, IL-Probe byte-identisch). MAXential+ToT+Live-Probe. ADR-062 (supersedes ADR-061 Teil B). Katalog 52→50. Ship: PR → Squash → Tag v3.3.13 → Release → Closing."
 branch: "feature/188-remove-constraint-mutators"
 started_at: "2026-06-15"
-housekeeping_done: false
-memory_updated: false
+housekeeping_done: true
+memory_updated: true
 github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
