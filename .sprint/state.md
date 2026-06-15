@@ -1,34 +1,37 @@
 ---
-current_sprint: "186"
-sprint_goal: "Quick-Wins (externer 360°-Test): MAT-001 (Med, MathMutator Member-Pfad ContainingType→Symbol), SOL-001 (Low, --solution cwd-unabhängig), RUN-001 (Med, README TUnit/MTP-Kompat-Tabelle). TDD wo Code, Serena-first, ADR-060. Ship: PR → Squash → Tag v3.3.11 → Release → Closing."
-branch: "feature/186-quick-wins"
+current_sprint: "187"
+sprint_goal: "INJ-001 SOLO (externer 360°-Test, architektur-schwer): MethodBodyReplacement + GenericConstraint declaration-level nicht injizierbar. Teil A (MethodBodyReplacement) gefixt; Teil B (Constraint-Mutatoren) vertagt (User-Entscheidung, #279-Epic). MAXential+ToT + Live-Probe. ADR-061. Ship: PR → Squash → Tag v3.3.12 → Release → Closing."
+branch: "feature/187-inj-decl-injection"
 started_at: "2026-06-15"
-housekeeping_done: true
-memory_updated: true
+housekeeping_done: false
+memory_updated: false
 github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
 tests_passed: true
 documentation_updated: true
 ---
-# Session State — Sprint 186 (Quick-Wins, v3.3.11)
+# Session State — Sprint 187 (INJ-001 SOLO, v3.3.12) — ABSCHLUSS Fix-Block 185–187
 
-> Zweiter Sprint des externen-360°-Test-Fix-Blocks (185–187, Variante B risiko-isoliert).
-> Sprint 185 (Filter-Cluster) ✅ v3.3.10. Nächster: 187 INJ-001 SOLO (→ v3.3.12).
+> Dritter und LETZTER Sprint des externen-360°-Test-Fix-Blocks. 185 (Filter) ✅ v3.3.10,
+> 186 (Quick-Wins) ✅ v3.3.11. INJ-001 = architektur-schwer → MAXential+ToT + Live-Probe (bug02).
 
-## Fix-Liste — ERLEDIGT 2026-06-15
+## Fix — ERGEBNIS 2026-06-15
 
-| Fix | Befund | Sev | Ort | Status |
-|-----|--------|-----|-----|--------|
-| 1 | MAT-001 | Med | MathMutator.ApplyMutationsToMemberCall — `symbol?.ToString()` statt `symbol?.ContainingType?.ToString()`; Red mit echtem Semantic-Model (bestehende Tests fuhren Null-Model-Fallback). | ✅ |
-| 2 | SOL-001 | Low | StrykerOptions.IsSolutionContext → `SolutionPath != null` (cwd-Konjunkt entfernt; MAXential+ToT A 0.93). | ✅ |
-| 3 | RUN-001 | Med | README Compatibility-Tabelle: Runner=nur VsTest, Frameworks=xUnit/MSTest/NUnit; MTP+TUnit als roadmapped (#3094/ADR-044). | ✅ |
+| Teil | Befund | Ergebnis |
+|------|--------|----------|
+| A | MethodBodyReplacementMutator (Body-Replacement) | ✅ GEFIXT — zu `TypeAwareMutatorBase<BlockSyntax>` umgebaut (direkter Method-Body-Block, nicht-async; `Type=Mutator.Statement` gegen IgnoreBlockMutantFilter). E2E bug02: 'Echo' CompileError-Soft-Fail → KILLED. |
+| B | GenericConstraintMutator + GenericConstraintLoosenMutator (Constraint-Mutationen) | ⏸️ VERTAGT (User-Entscheidung, #279-Epic) — im Laufzeit-Schalt-Modell prinzipiell nicht injizierbar; als nicht-injizierbar dokumentiert (XML-remarks + ADR-061), NICHT deaktiviert. |
 
 ## Erfolgsmaße — ERGEBNIS
-- MAT-001 + SOL-001 Red→Green ✅ · Build 0/0 (TWAE) ✅ · Stryker.Core.Tests 572/572 ✅ · Semgrep 0 ✅
-- **E2E-Probe (bug03, lokale CLI mit Fix): 2 Math-Mutanten (Ceiling→Floor, Killed) statt 1 — `Math.Ceiling(x)` Member-Call wird jetzt mutiert** (vorher 0; Null-Model-Unit-Tests maskierten den Bug).
+- Teil A Red→Green (Unit 6/6) ✅ · **E2E bug02: MethodBodyReplacement 'Echo' KILLED** (vorher CompileError-Soft-Fail „sourceNode is null") ✅
+- Build 0/0 (TWAE) ✅ · Stryker.Core.Tests 574/574 ✅ · Dogfood-Orchestrierung 36/37 (1 skip) ✅ · Semgrep 0 ✅
+
+## Architektur-Erkenntnis (ADR-061)
+- Höchster Inject-Frame = Method-BODY; MethodDeclaration-OriginalNode in keinem Frame → Soft-Fail.
+- Teil A: naiver Block-Retarget scheiterte (Live-Probe!) — BaseFunctionOrchestrator injiziert left-over nur via Expression-Body-Pfad; Lösung = BlockSyntax-Mutator wie BlockMutator.
+- Teil B: Orchestrator besucht ConstraintClauses NIE; Constraint-Mutationen nicht per MutantControl schaltbar. Roadmap-„Vorbild" Loosen empirisch FALSIFIZIERT (0 Mutanten). 3-fach-Lehre: Live-Probe > Analyse.
 
 ## Notizen
-- MAT-001: „Live-Probe/Semantic-Model > Null-Model-Unit-Surface" erneut bestätigt.
-- SOL-001: SolutionPath kommt nur von --solution → `!= null` ist sicheres Solution-Mode-Gate.
 - Offen für Closing: housekeeping_done, memory_updated (Serena + Claude-Memory nach Ship).
+- Fix-Block 185–187 ABGESCHLOSSEN: 6/7 Bugs behoben + INJ-001 Teil A; Teil B als Modell-Limit dokumentiert.

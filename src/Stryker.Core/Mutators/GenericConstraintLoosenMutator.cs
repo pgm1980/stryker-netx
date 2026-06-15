@@ -30,6 +30,13 @@ namespace Stryker.Core.Mutators;
 /// Profile membership: Stronger | All — less aggressive than the drop-all
 /// variant since it's per-clause-targeted.
 /// </summary>
+/// <remarks>
+/// KNOWN LIMITATION (INJ-001, ADR-061): NOT reachable in practice. The orchestrator never visits
+/// TypeParameterConstraintClause nodes, so this mutator never fires (verified empirically: 0 mutants for a
+/// class constraint at All/Complete). Constraint mutations are also not toggleable at runtime via
+/// MutantControl. Deferred to the #279 epic (not deactivated, per project decision); the external report's
+/// assumption that this "clause-level" operator injects correctly is empirically falsified.
+/// </remarks>
 [MutationProfileMembership(MutationProfile.Stronger | MutationProfile.All)]
 public sealed class GenericConstraintLoosenMutator : MutatorBase<TypeParameterConstraintClauseSyntax>
 {

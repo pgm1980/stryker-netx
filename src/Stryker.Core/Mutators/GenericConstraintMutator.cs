@@ -26,6 +26,13 @@ namespace Stryker.Core.Mutators;
 ///
 /// Profile membership: All only — most aggressive (compile-time mutation).
 /// </summary>
+/// <remarks>
+/// KNOWN LIMITATION (INJ-001, ADR-061): NOT injectable in the runtime-switch model. The mutator emits a
+/// MethodDeclaration-level OriginalNode, but the highest inject frame is the method body and a where-clause
+/// cannot be toggled at runtime via MutantControl. Every mutation is silently soft-failed ("could not be
+/// injected") rather than counted, so the operator is effectively inert. Deferred to the #279 epic (not
+/// deactivated, per project decision); the summary's older claim about CompileError classification is inaccurate.
+/// </remarks>
 [MutationProfileMembership(MutationProfile.All)]
 public sealed class GenericConstraintMutator : MutatorBase<MethodDeclarationSyntax>
 {
