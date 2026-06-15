@@ -3,8 +3,8 @@ current_sprint: "187"
 sprint_goal: "INJ-001 SOLO (externer 360°-Test, architektur-schwer): MethodBodyReplacement + GenericConstraint declaration-level nicht injizierbar. Teil A (MethodBodyReplacement) gefixt; Teil B (Constraint-Mutatoren) vertagt (User-Entscheidung, #279-Epic). MAXential+ToT + Live-Probe. ADR-061. Ship: PR → Squash → Tag v3.3.12 → Release → Closing."
 branch: "feature/187-inj-decl-injection"
 started_at: "2026-06-15"
-housekeeping_done: false
-memory_updated: false
+housekeeping_done: true
+memory_updated: true
 github_issues_closed: true
 sprint_backlog_written: true
 semgrep_passed: true
