@@ -40,4 +40,4 @@ CA1812 = suggestion (InjectedHelpers laufen im User-Prozess); CS1591/CA1852 = wa
   voll-qualifizierte System-Typen, kein moderner Syntax-Zucker
 - Test-Erwartungen der Dogfood-Suite: STRUKTURELLE Assertions (CountMutations/
   MutateSourceInClass) statt Literal-Strings mit IsActive-IDs (Sprint-119-Konvention —
-  52 Mutatoren ≠ Upstream-40, IDs driften)
+  50 Mutatoren ≠ Upstream-40, IDs driften)

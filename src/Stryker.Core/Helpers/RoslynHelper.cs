@@ -228,12 +228,12 @@ internal static class RoslynHelper
         if (!sourceNode.Contains(mutation.OriginalNode))
         {
             // Sprint 147 (ADR-028): an orchestrator emitted a mutation whose
-            // OriginalNode is outside the host node's subtree (e.g.
-            // GenericConstraintMutator pushes a MethodDeclaration-level mutation into
-            // a child expression's inject frame). Pre-Sprint-147 this was a hard
-            // throw — but a missing-host-node mismatch is functionally identical to
-            // a slot-validation failure: the mutation cannot be applied here. Soft-
-            // failure with a diagnostic preserves the rest of the pipeline.
+            // OriginalNode is outside the host node's subtree (e.g. a declaration-
+            // level mutation pushed into a child expression's inject frame). Pre-
+            // Sprint-147 this was a hard throw — but a missing-host-node mismatch is
+            // functionally identical to a slot-validation failure: the mutation
+            // cannot be applied here. Soft-failure with a diagnostic preserves the
+            // rest of the pipeline.
             validationError = $"Mutation OriginalNode is not contained in sourceNode "
                 + $"(display: '{mutation.DisplayName}'; OriginalNode kind: {mutation.OriginalNode.Kind()}, "
                 + $"sourceNode kind: {sourceNode.Kind()}). "

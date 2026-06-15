@@ -27,7 +27,7 @@ L3  Stryker.Core                    Das Herz — Unterordner:
       Mutants/                      CsharpMutantOrchestrator, MutationStore, MutantPlacer,
         CsharpNodeOrchestrators/    26 Orchestratoren (NonMutableSyntaxFences seit 179!)
         Filters/                    Equivalence-Pipeline (5 Filter, ADR-017)
-      Mutators/                     55 Mutatoren (Profil-Attribute, ADR-018)
+      Mutators/                     50 Mutatoren (Profil-Attribute, ADR-018; GenericConstraint+Loosen in S188/ADR-062 entfernt)
       Instrumentation/              If/Conditional/EndingReturn/DefaultInit/Static-Engines
       InjectedHelpers/              MutantControl + MutantContext (laufen im USER-Testprozess, C#2-Limit)
       Compiling/                    CsharpCompilingProcess (MaxAttempt 50), CSharpRollbackProcess

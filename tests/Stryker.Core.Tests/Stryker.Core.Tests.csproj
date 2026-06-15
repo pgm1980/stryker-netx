@@ -2,7 +2,7 @@
 
   <!--
     Stryker.Core.Tests — Sprint 18 Hardening Super-Sprint A.
-    Per-mutator unit-test coverage for all 52 mutators in src/Stryker.Core/Mutators/.
+    Per-mutator unit-test coverage for all 50 mutators in src/Stryker.Core/Mutators/.
     Architecture-decision: single test project mirroring upstream Stryker.NET pattern
     (Maxential S1 chosen). SemanticModel strategy: Real CSharpCompilation for happy-path
     type-aware tests (ToT Hybrid chosen, best-path score 0.92 → 0.85 → 1.0).

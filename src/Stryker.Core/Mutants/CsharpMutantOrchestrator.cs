@@ -186,14 +186,17 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new MatchGuardMutator(),
         new WithExpressionMutator(),
         new NakedReceiverMutator(),
-        // Sprint 12 (greenfield .NET-specific batch): 5 operators with no
-        // PIT/cargo/mutmut equivalent. AsyncAwait + DateTime + SpanMemory:
-        // Stronger | All. ExceptionSwap + GenericConstraint: All only.
+        // Sprint 12 (greenfield .NET-specific batch): originally 5 operators with
+        // no PIT/cargo/mutmut equivalent. AsyncAwait + DateTime + SpanMemory:
+        // Stronger | All. ExceptionSwap: All only.
+        // (GenericConstraintMutator removed Sprint 188 — INJ-001/ADR-062: generic
+        // constraints are compile-time-only and produce no IL, so a constraint
+        // mutation can never yield a killable mutant — only CompileError or an
+        // equivalent survivor. See ADR-062.)
         new AsyncAwaitMutator(),
         new DateTimeMutator(),
         new SpanMemoryMutator(),
         new ExceptionSwapMutator(),
-        new GenericConstraintMutator(),
         // Sprint 13 (spec-gap closure): 8 operators closing remaining §4.1 +
         // §4.2 + §4.4 gaps. ConfigureAwait + DateTimeAddSign + SwitchArmDeletion
         // + MemberVariable + TaskWhenAllToWhenAny: Stronger | All.
@@ -207,10 +210,10 @@ public partial class CsharpMutantOrchestrator : BaseMutantOrchestrator<SyntaxTre
         new AsSpanAsMemoryMutator(),
         new MethodBodyReplacementMutator(),
         // Sprint 14 (v2.1.0 filter pipeline + operator completion):
-        // ConstantReplacement + GenericConstraintLoosen: Stronger | All.
+        // ConstantReplacement: Stronger | All.
         // SpanReadOnlySpanDeclaration: All only (high compile-failure rate).
+        // (GenericConstraintLoosenMutator removed Sprint 188 — INJ-001/ADR-062.)
         new ConstantReplacementMutator(),
-        new GenericConstraintLoosenMutator(),
         new SpanReadOnlySpanDeclarationMutator(),
         // Sprint 16 (v2.3.0 long-tail): AsyncAwaitResult — spec-faithful semantic
         // variant of v2.0.0's AsyncAwaitMutator. Stronger | All.
