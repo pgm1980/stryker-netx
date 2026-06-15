@@ -59,7 +59,7 @@ dotnet tool install -g dotnet-stryker-netx
 Pin a specific version:
 
 ```bash
-dotnet tool install -g dotnet-stryker-netx --version 3.3.2
+dotnet tool install -g dotnet-stryker-netx --version 3.3.12
 ```
 
 ## Quickstart
@@ -235,7 +235,7 @@ See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking
 
 ## Project status
 
-**Current: v3.3.2 (Sprint 170, 2026-06) — production, published on [NuGet.org](https://www.nuget.org/packages/dotnet-stryker-netx).** 170 sprints, 50 ADRs, ~2,140 tests green, 160+ tagged releases. Full release history: [GitHub Releases](https://github.com/pgm1980/stryker-netx/releases).
+**Current: v3.3.12 (Sprint 187, 2026-06) — production, published on [NuGet.org](https://www.nuget.org/packages/dotnet-stryker-netx).** 187 sprints, 61 ADRs, ~2,200 tests green, 173 tagged releases. Full release history: [GitHub Releases](https://github.com/pgm1980/stryker-netx/releases).
 
 | Era | Sprints | Versions | Outcome |
 |-----|---------|----------|---------|
@@ -247,6 +247,8 @@ See [MIGRATION-v1-to-v2.md](MIGRATION-v1-to-v2.md). Short version: **no breaking
 | Upstream-test-suite port | 25–138 | `v2.12.0` → `v3.0.24` | MSTest→xUnit/FluentAssertions migration of the upstream suites (~1,200 dogfood tests), architectural-deferral elimination, release pipeline repair + first public NuGet push (Sprint 138) |
 | Production bug-report era | 139–169 | `v3.0.25` → `v3.3.1` | Three external reporter teams (Calculator, Aisess, filesystem-mcp-server) drove ADR-025…049: profile auto-bump, syntax-slot validation layers, `.slnx` filter defense, disable-comment scoping, `--test-case-filter`, `--break-after`, type-aware literal emission |
 | CI reanimation | 170 | `v3.3.2` | NuGet-audit advisory bump (Nerdbank.MessagePack), nightly dogfood schedule repair (ADR-050), workspace + documentation refresh |
+| Self-audit & hardening | 171–184 | `v3.3.3` → `v3.3.9` | Dogfood-config netx layout + `MatchesFilter` fix (#270); internal 360° source audit (~430 files, 139 findings) driving ADR-053…058 — CE-noise reduction, score-integrity filters, crash/hang robustness, config reach, RegisterCoverage perf (11×) |
+| External 360° black/white-box fixes | 185–187 | `v3.3.10` → `v3.3.12` | Independent test team's 7 bugs (ADR-059…061): equivalence-filter correctness (method groups, unsigned-zero, arithmetic identities), `MathMutator` semantic-model path, `--solution` cwd-independence, README/MTP compatibility, `MethodBodyReplacement` injection |
 
 See [`_docs/`](_docs/) for per-sprint lessons and the [architecture specification](_docs/architecture%20spec/architecture_specification.md) for all ADRs.
 
