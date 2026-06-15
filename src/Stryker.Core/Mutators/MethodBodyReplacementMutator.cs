@@ -37,62 +37,64 @@ namespace Stryker.Core.Mutators;
 /// Profile membership: All only — coarse genre, very high impact.
 /// </summary>
 [MutationProfileMembership(MutationProfile.All)]
-public sealed class MethodBodyReplacementMutator : TypeAwareMutatorBase<MethodDeclarationSyntax>
+public sealed class MethodBodyReplacementMutator : TypeAwareMutatorBase<BlockSyntax>
 {
     public override MutationLevel MutationLevel => MutationLevel.Complete;
 
-    public override IEnumerable<Mutation> ApplyMutations(MethodDeclarationSyntax node, SemanticModel semanticModel)
+    public override IEnumerable<Mutation> ApplyMutations(BlockSyntax node, SemanticModel semanticModel)
     {
-        if (node.Body is null)
+        // INJ-001 (ADR-061): operate on the BODY BLOCK directly (like BlockMutator) so the orchestrator
+        // injects the replacement with its usual runtime-switched conditional envelope. Targeting the
+        // whole MethodDeclaration produced a member-level OriginalNode that no inject frame contained, so
+        // every mutation was silently dropped to a CompileError soft-fail. We restrict to the direct body
+        // block of a non-async method (not arbitrary nested blocks).
+        if (node.Parent is not MethodDeclarationSyntax method || method.Body != node)
         {
-            // Abstract / partial / extern / expression-bodied — skip.
+            yield break;
+        }
+        if (method.Modifiers.Any(static m => m.IsKind(SyntaxKind.AsyncKeyword)))
+        {
             yield break;
         }
 
-        if (IsAsync(node))
-        {
-            yield break;
-        }
-
-        var returnTypeSymbol = semanticModel.GetTypeInfo(node.ReturnType).Type;
+        var returnTypeSymbol = semanticModel.GetTypeInfo(method.ReturnType).Type;
         var isVoid = returnTypeSymbol?.SpecialType == SpecialType.System_Void;
 
         BlockSyntax newBody;
         string label;
         if (isVoid)
         {
-            if (node.Body.Statements.Count == 0)
+            if (node.Statements.Count == 0)
             {
                 yield break;
             }
             newBody = SyntaxFactory.Block();
-            label = $"Method body emptied: '{node.Identifier.Text}' → {{ }}";
+            label = $"Method body emptied: '{method.Identifier.Text}' to empty block";
         }
         else
         {
-            if (IsTrivialReturnDefault(node.Body))
+            if (IsTrivialReturnDefault(node))
             {
                 yield break;
             }
             var defaultLiteral = SyntaxFactory.LiteralExpression(SyntaxKind.DefaultLiteralExpression);
             var returnStatement = SyntaxFactory.ReturnStatement(defaultLiteral);
             newBody = SyntaxFactory.Block(returnStatement);
-            label = $"Method body replaced: '{node.Identifier.Text}' → {{ return default; }}";
+            label = $"Method body replaced: '{method.Identifier.Text}' to return default";
         }
-
-        var replacement = node.WithBody(newBody);
 
         yield return new Mutation
         {
             OriginalNode = node,
-            ReplacementNode = replacement.WithCleanTriviaFrom(node),
+            ReplacementNode = newBody.WithCleanTriviaFrom(node),
             DisplayName = label,
+            // Statement-typed (not Block) on purpose: this is a body REPLACEMENT (to return default / to
+            // an empty block), not a block REMOVAL, so it must NOT be swallowed by IgnoreBlockMutantFilter
+            // (which drops Mutator.Block mutants whose span covers active inner mutants). The body block is
+            // also a StatementSyntax, so it injects with the if/else statement envelope.
             Type = Mutator.Statement,
         };
     }
-
-    private static bool IsAsync(MethodDeclarationSyntax node) =>
-        node.Modifiers.Any(static m => m.IsKind(SyntaxKind.AsyncKeyword));
 
     private static bool IsTrivialReturnDefault(BlockSyntax body) =>
         body.Statements is [ReturnStatementSyntax { Expression: LiteralExpressionSyntax lit }]
